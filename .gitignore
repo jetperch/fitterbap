@@ -1,0 +1,40 @@
+Debug
+Release
+cmake-build*
+build
+__pycache__
+*.pyo
+*.pyc
+*.atsuo
+*.pyd
+.eggs/
+
+pyfitterbap/crc.c
+pyfitterbap/comm/comm.c
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.elf
+*.objdump
+*.flash
+*.map
+
+# Compiled Static libraries
+*.lai
+*.la
+
+# Editor swap/backup file garbage
+.*.swp
+.*.swo
+
+.force_relink
+.force_rebuild
+
+.idea
+

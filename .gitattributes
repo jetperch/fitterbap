@@ -1,0 +1,40 @@
+# https://help.github.com/articles/dealing-with-line-endings/
+# https://gist.github.com/eevee/6721177
+# http://stackoverflow.com/questions/2316677/can-git-automatically-switch-between-spaces-and-tabs/2316728
+#
+# find -type f -iregex '.*\.\(c\|h\|cpp\|hpp\|html\|txt\|cmake\|py\)$' -exec bash -c 'expand --initial -t 4 "$0" > /tmp/e && mv /tmp/e "$0"' {} \;
+#
+# Run the following commands:
+#     git config --global filter.tabspace.smudge 'expand --tabs=4 --initial'
+#     git config --global filter.tabspace.clean 'expand --tabs=4 --initial'
+# Or if you prefer tabs in your directory
+#     git config --global filter.tabspace.smudge 'unexpand --tabs=4 --first-only'
+# Then
+#     git checkout HEAD -- **
+
+
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.c text diff=cpp filter=tabspace
+*.h text diff=cpp filter=tabspace
+*.cpp text diff=cpp filter=tabspace
+*.hpp text diff=cpp filter=tabspace
+*.html text diff=html filter=tabspace
+*.in text
+*.md text
+*.txt text filter=tabspace
+*.cmake text filter=tabspace
+*.py text diff=cpp filter=tabspace
+
+# Declare files that will always have CRLF line endings on checkout.
+*.sln text eol=crlf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.zip binary
+*.gz binary
+
