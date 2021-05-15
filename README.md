@@ -69,6 +69,27 @@ You will need to manually create the fitterbap/config.h file and implement the
 platform abstraction layer.   See fitterbap/platform.h for details.
 
 
+### Host python
+
+Install 64-bit python 3.8 or newer on your system.  Confirm that it is correctly installed:
+
+    python3 -VV
+
+On Windows, python 3 is usually installed as `python` rather than `python3`.
+
+Then install the pyfitterbap package from pypi:
+
+    pip install -U pyfitterbap
+
+You can then run the pyfitterbap communication UI tools using either:
+
+    python3 -m pyfitterbap comm_ui
+
+Or
+
+    fitterbap comm_ui
+    
+
 ### Ubuntu
 
 First install the build tools for your system.
@@ -90,7 +111,7 @@ You can also build and test the python library:
 
 To run the host comm UI:
 
-    python3 -m pyfitterback comm_ui
+    python3 -m pyfitterbap comm_ui
 
 
 ## Licenses

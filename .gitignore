@@ -8,6 +8,8 @@ __pycache__
 *.atsuo
 *.pyd
 .eggs/
+*.egg-info/
+dist/*
 
 pyfitterbap/crc.c
 pyfitterbap/comm/comm.c

@@ -56,9 +56,9 @@ def _cmakelists_update(version):
     os.replace(path_tmp, path)
 
 
-def _include_jls_version(version):
+def _include_h_version(version):
     k = {'MAJOR': 0, 'MINOR': 1, 'PATCH': 2}
-    regex = re.compile(r'#define JLS_VERSION_(MAJOR|MINOR|PATCH)\s')
+    regex = re.compile(r'#define FBP_VERSION_(MAJOR|MINOR|PATCH)\s')
     path = os.path.join(MYPATH, 'include', 'fitterbap', 'version.h')
     path_tmp = path + '.tmp'
     with open(path, 'rt') as rd:
@@ -67,12 +67,12 @@ def _include_jls_version(version):
                 m = regex.match(line)
                 if m is not None:
                     v = version[k[m[1]]]
-                    line = f'#define JLS_VERSION_{m[1]} {v}\n'
+                    line = f'#define FBP_VERSION_{m[1]} {v}\n'
                 wr.write(line)
     os.replace(path_tmp, path)
 
 
-def _pyjls_version(version):
+def _py_version(version):
     path = os.path.join(MYPATH, 'pyfitterbap', 'version.py')
     path_tmp = path + '.tmp'
     with open(path, 'rt') as rd:
@@ -88,8 +88,8 @@ def run():
     version = _changelog_version()
     print(f'Version = {_str(version)}')
     _cmakelists_update(version)
-    _include_jls_version(version)
-    _pyjls_version(version)
+    _include_h_version(version)
+    _py_version(version)
     return 0
 
 

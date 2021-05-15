@@ -29,7 +29,7 @@ from distutils.errors import DistutilsExecError
 import os
 import sys
 
-setuptools.dist.Distribution().fetch_build_eggs(['Cython>=0.20.1', 'numpy>=1.18'])
+setuptools.dist.Distribution().fetch_build_eggs(['Cython>=0.20.1', 'numpy>=1.20', 'wheel'])
 
 import numpy as np
 
@@ -195,16 +195,19 @@ setuptools.setup(
 
     setup_requires=[
         # https://developercommunity.visualstudio.com/content/problem/1207405/fmod-after-an-update-to-windows-2004-is-causing-a.html
-        'numpy>=1.15.2',
+        'numpy>=1.20',
         'Cython>=0.29.3',
     ],
 
     # See https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        "numpy==1.19.3; platform_system=='Windows'",
-        "numpy>=1.15.2; platform_system!='Windows'",
-        'psutil',
+        'numpy>=1.20',
+        'psutil>=1.12',
+        'pyqtgraph',
+        'pyserial',
+        'PySide2>=5.15.1'
         'python-dateutil>=2.7.3',
+        'pyqtgraph>=0.12',
     ] + PLATFORM_INSTALL_REQUIRES,
 
     extras_require={
@@ -213,7 +216,7 @@ setuptools.setup(
 
     entry_points={
         'console_scripts': [
-            'fbp=pyfitterbap.entry_points.runner:run',
+            'fitterbap=pyfitterbap.__main__:run',
         ],
     },
     
