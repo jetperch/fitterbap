@@ -4,6 +4,11 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.3.2
+
+*   Added native files to python package.
+
+
 ## 0.3.1
 
 2021 May 15

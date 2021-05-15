@@ -181,7 +181,7 @@ setuptools.setup(
         'Topic :: Utilities',
     ],
 
-    keywords='joulescope driver',
+    keywords='fitterbap pubsub uart',
 
     packages=setuptools.find_packages(exclude=['native', 'docs', 'test', 'dist', 'build']),
     ext_modules=extensions,
@@ -205,7 +205,7 @@ setuptools.setup(
         'psutil>=1.12',
         'pyqtgraph',
         'pyserial',
-        'PySide2>=5.15.1'
+        'PySide2>=5.15.1',
         'python-dateutil>=2.7.3',
         'pyqtgraph>=0.12',
     ] + PLATFORM_INSTALL_REQUIRES,

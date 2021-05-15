@@ -10,6 +10,7 @@ __pycache__
 .eggs/
 *.egg-info/
 dist/*
+.DS_Store
 
 pyfitterbap/crc.c
 pyfitterbap/comm/comm.c

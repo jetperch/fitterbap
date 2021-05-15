@@ -1,0 +1,7 @@
+include CHANGELOG.md
+include LICENSE
+include README.md
+recursive-include include *
+recursive-include port *
+recursive-include src *
+include pyfitterbap/include/fitterbap/config.h
