@@ -138,6 +138,7 @@ Here are some other libraries that you can consider.
 
 Full system:
 
+*   [Pigweed](https://pigweed.dev/)
 *   [MBEDDR](http://mbeddr.com/)
 *   [Piconomic FW Library](https://github.com/piconomix/piconomix-fwlib)
 
@@ -168,3 +169,8 @@ Random number generation:
 *   https://en.wikipedia.org/wiki/Xorshift
 *   http://www.pcg-random.org/ 
 *   [small](http://excamera.com/sphinx/article-xorshift.html)
+
+
+String
+
+*   [mpaland's printf](https://github.com/mpaland/printf)

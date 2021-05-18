@@ -161,7 +161,7 @@ FBP_API int64_t fbp_evm_time_next(struct fbp_evm_s * self);
  * @param self The event manager instance.
  * @param time_current The current time.
  * @return The interval until the next scheduled event.  If no events are
- *      currently pending, returns -1.
+ *      currently pending, returns INT64_MAX.
  */
 FBP_API int64_t fbp_evm_interval_next(struct fbp_evm_s * self, int64_t time_current);
 

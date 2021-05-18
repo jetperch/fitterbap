@@ -146,7 +146,7 @@ int64_t fbp_evm_interval_next(struct fbp_evm_s * self, int64_t time_current) {
     lock(self);
     if (fbp_list_is_empty(&self->events_pending)) {
         unlock(self);
-        return -1;
+        return INT64_MAX;
     }
     struct event_s * ev = EVGET(fbp_list_peek_head(&self->events_pending));
     if (ev->timestamp <= time_current) {

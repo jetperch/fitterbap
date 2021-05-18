@@ -4,6 +4,14 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.3.3
+
+2021 May 18 (in progress)
+
+*   Modified fbp_evm_interval_next return code.  
+    Returns INT64_MAX rather than -1 on no scheduled events to simplify caller.
+
+
 ## 0.3.2
 
 2021 May 15

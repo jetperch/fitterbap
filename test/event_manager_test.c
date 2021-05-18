@@ -48,7 +48,7 @@ void cbk2(void * user_data, int32_t event_id) {
 
 static void test_allocate(void **state) {
     SETUP();
-    assert_int_equal(-1, fbp_evm_interval_next(evm, 10));
+    assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
     assert_int_equal(FBP_TIME_MIN, fbp_evm_time_next(evm));
     fbp_evm_process(evm, 10);
     TEARDOWN();
@@ -76,7 +76,7 @@ static void test_insert_two_events_in_order(void **state) {
     fbp_evm_process(evm, 10);
     expect_value(cbk2, event_id, 2);
     fbp_evm_process(evm, 20);
-    assert_int_equal(-1, fbp_evm_interval_next(evm, 10));
+    assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
     TEARDOWN();
 }
 
@@ -93,7 +93,7 @@ static void test_insert_two_events_out_of_order(void **state) {
     assert_int_equal(20, fbp_evm_time_next(evm));
     assert_int_equal(8, fbp_evm_interval_next(evm, 12));
     fbp_evm_process(evm, 20);
-    assert_int_equal(-1, fbp_evm_interval_next(evm, 10));
+    assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
     TEARDOWN();
 }
 
@@ -105,7 +105,7 @@ static void test_insert_two_events_and_cancel_first(void **state) {
     fbp_evm_cancel(evm, 1);
     expect_value(cbk2, event_id, 2);
     fbp_evm_process(evm, 20);
-    assert_int_equal(-1, fbp_evm_interval_next(evm, 10));
+    assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
     TEARDOWN();
 }
 
