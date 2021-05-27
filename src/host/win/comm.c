@@ -75,7 +75,7 @@ static void on_publish_fn(void * user_data) {
 static void on_port_recv_default(void *user_data,
                                  uint8_t port_id,
                                  enum fbp_transport_seq_e seq,
-                                 uint16_t port_data,
+                                 uint8_t port_data,
                                  uint8_t *msg, uint32_t msg_size) {
     char topic[FBP_PUBSUB_TOPIC_LENGTH_MAX];
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
@@ -101,9 +101,6 @@ static void on_port_recv_default(void *user_data,
 
     if (seq != FBP_TRANSPORT_SEQ_SINGLE) {
         FBP_LOGW("unexpected seq %d on port %d", (int) seq, (int) port_id);
-    }
-    if (port_data) {
-        // todo handle decompression
     }
     fbp_pubsub_publish(self->pubsub, topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
 }

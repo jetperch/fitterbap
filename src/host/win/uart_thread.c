@@ -102,11 +102,17 @@ static DWORD WINAPI task(LPVOID lpParam) {
     while (!self->quit) {
         handle_count = 0;
         uart_handles(self->uart, &handle_count, &handles[handle_count]);
+        int64_t time_start = fbp_time_rel();
+        int64_t duration_i64 = fbp_evm_interval_next(self->evm, time_start);
+        int64_t duration_ms = FBP_TIME_TO_COUNTER(duration_i64, 1000);
+        if (duration_ms > 1) {
+            duration_ms = 1;
+        }
+
         if (handle_count) {
-            // note: could use fbp_evm_interval_next to be less aggressive here if needed.
-            WaitForMultipleObjects(handle_count, handles, FALSE, 1);
+            WaitForMultipleObjects(handle_count, handles, FALSE, (DWORD) duration_ms);
         } else {
-            Sleep(1);
+            Sleep((DWORD) duration_ms);
         }
 
         fbp_os_mutex_lock(self->mutex);

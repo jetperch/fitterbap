@@ -25,7 +25,7 @@
 
 
 struct msg_s {
-    uint32_t metadata;
+    uint16_t metadata;
     uint8_t msg_buffer[FBP_FRAMER_MAX_SIZE + 1];  // hold messages and frames
     uint32_t msg_size;
     struct fbp_list_s item;
@@ -41,7 +41,7 @@ struct host_s {
     struct fbp_list_s send_queue;
     struct stream_tester_s * stream_tester;
     struct host_s * target;
-    uint32_t metadata;
+    uint16_t metadata;
 };
 
 struct stream_tester_s {
@@ -137,10 +137,10 @@ static void on_event(void *user_data, enum fbp_dl_event_e event) {
     struct host_s * host = (struct host_s *) user_data;
     (void) host;
     FBP_LOGE("on_event(%d)\n", (int) event);
-    FBP_FATAL("on_event_fn\n");
+    // FBP_FATAL("on_event_fn\n");
 }
 
-static void on_recv(void *user_data, uint32_t metadata,
+static void on_recv(void *user_data, uint16_t metadata,
                 uint8_t *msg, uint32_t msg_size) {
     struct host_s * host = (struct host_s *) user_data;
     FBP_ASSERT(!fbp_list_is_empty(&host->recv_expect));
@@ -193,7 +193,7 @@ static void send(struct host_s *host) {
     if (rv) {
         FBP_LOGE("fbp_dl_send error %d: %s", (int) rv, fbp_error_code_description(rv));
     } else {
-        host->metadata = (host->metadata + 1) & 0x00ffffff;
+        ++host->metadata;
         fbp_list_add_tail(&host->target->recv_expect, &msg->item);
     }
 }
@@ -312,7 +312,6 @@ static void process(struct stream_tester_s * self) {
 int main(void) {
     struct fbp_dl_config_s config = {
         .tx_window_size = 64,
-        .tx_buffer_size = (1 << 13),
         .rx_window_size = 64,
         .tx_timeout = 10 * FBP_TIME_MILLISECOND,
         .tx_link_size = 64,

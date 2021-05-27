@@ -135,7 +135,7 @@ FBP_API void fbp_evm_free(struct fbp_evm_s * self);
  *      On error, return 0.
  */
 FBP_API int32_t fbp_evm_schedule(struct fbp_evm_s * self, int64_t timestamp,
-                                   fbp_evm_callback cbk_fn, void * cbk_user_data);
+                                 fbp_evm_callback cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Cancel a pending event.
@@ -164,6 +164,14 @@ FBP_API int64_t fbp_evm_time_next(struct fbp_evm_s * self);
  *      currently pending, returns INT64_MAX.
  */
 FBP_API int64_t fbp_evm_interval_next(struct fbp_evm_s * self, int64_t time_current);
+
+/**
+ * @brief The total number of currently scheduled events.
+ *
+ * @param self The event manager instance.
+ * @return The total number of currently scheduled, pending events.
+ */
+FBP_API int32_t fbp_evm_scheduled_event_count(struct fbp_evm_s * self);
 
 /**
  * @brief Process all pending events.

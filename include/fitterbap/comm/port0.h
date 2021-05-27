@@ -36,9 +36,8 @@
  * @brief Transport port 0.
  *
  * Port 0 allocates port_data:
- *      port_data[15:8]: cmd_meta defined by each command
  *      port_data[7]: 0=request or unused, 1=response
- *      port_data[6:3]: reserved, set to 0
+ *      port_data[6:3]: reserved, 0
  *      port_data[2:0]: The fbp_port0_op_e operation.
  * @{
  */
@@ -48,20 +47,51 @@ FBP_CPP_GUARD_START
 /// The default transmit timeout, in milliseconds.
 #define FBP_PORT0_TIMEOUT_MS (250)
 
+/// The character offset for the port_id to ensure printable ASCII text.
+#define FBP_PORT0_META_CHAR_OFFSET (32)
+
 /**
  * @brief The service operations provided by port 0.
  */
 enum fbp_port0_op_e {
     FBP_PORT0_OP_UNKNOWN = 0,
-    FBP_PORT0_OP_STATUS = 1,       // cmd_meta=0, rsp_payload=fbp_dl_status_s
-    FBP_PORT0_OP_ECHO = 2,         // cmd_meta=any
-    FBP_PORT0_OP_TIMESYNC = 3,     // cmd_meta=0, payload=3x64-bit times: [src tx, tgt rx, tgt tx]
+
+    /**
+     * @brief Share link statistics.
+     *
+     * One side requests, and the other side provides its statistics.
+     *
+     * req_payload=ignore
+     * rsp_payload=fbp_dl_status_s
+     */
+    FBP_PORT0_OP_STATUS = 1,
+
+    /**
+     * @brief Echo payloads.
+     *
+     * If we receive a request, respond with the same payload.
+     * The payload length and contents are arbitrary.
+     */
+    FBP_PORT0_OP_ECHO = 2,
+
+    /**
+     * @brief Synchronize clocks.
+     *
+     * The payload contains 3 x 64-bit times:
+     * 0: source transmit time, populated by req, repeated by rsp
+     * 1: target receive time, ignored in req, populated by rsp
+     * 2: target transmit time, ignored in req, populated by rsp
+     */
+    FBP_PORT0_OP_TIMESYNC = 3,
 
     /**
      * @brief Retrieve port metadata definitions.
      *
      * On request, the payload is ignored.
-     * On response, the payload contains a NULL-terminated JSON formatted string.
+     * On response, the payload contains:
+     * - one byte containing (32 + port_id)
+     * - a NULL-terminated JSON formatted string.
+     *
      * The JSON response structure consists of:
      * - name: A user-meaningful "name" key.
      * - type: The port type, which is one of
@@ -106,8 +136,29 @@ enum fbp_port0_op_e {
      * If the port is not defined, respond with an empty string "" consisting
      * of only the NULL terminator.
      */
-    FBP_PORT0_OP_META = 4,         // cmd_meta=port_id
-    FBP_PORT0_OP_RAW = 5,          // raw UART loopback mode request for error rate testing
+    FBP_PORT0_OP_META = 4,
+
+    /**
+     * @brief Negotiate the data link properties.
+     *
+     * The data link initially starts with the transmit window set to 1,
+     * which is the same as STOP & WAIT.  Both sides send their maximum
+     * receive message queue size using this message.  The other side
+     * then adjusts their transmit message queue to the minimum of
+     * the received queue size and their local transmit queue size.
+     *
+     * The payload consists of 32-bit values:
+     * - version: major8.minor8.patch16
+     * - sender's maximum receive window size
+     */
+    FBP_PORT0_OP_NEGOTIATE = 5,
+
+    /**
+     * @brief Enter raw UART loopback mode for bit error rate testing.
+     *
+     * @todo Not yet supported.
+     */
+    FBP_PORT0_OP_RAW = 6,
 };
 
 enum fbp_port0_mode_e {
@@ -128,6 +179,7 @@ extern const char FBP_PORT0_META[];
  *
  * @param mode The port0 operating mode for this instance.
  * @param dl The data link instance.
+ * @param evm The event manager for this instance.
  * @param transport The transport instance.
  * @param send_fn The function to call to send data, which should be
  *      fbp_transport_send() except during unit testing.
@@ -137,6 +189,7 @@ extern const char FBP_PORT0_META[];
  */
 FBP_API struct fbp_port0_s * fbp_port0_initialize(enum fbp_port0_mode_e mode,
         struct fbp_dl_s * dl,
+        struct fbp_evm_api_s * evm,
         struct fbp_transport_s * transport,
         fbp_transport_send_fn send_fn,
         struct fbp_pubsub_s * pubsub,
@@ -178,8 +231,9 @@ FBP_API void fbp_port0_on_event_cbk(struct fbp_port0_s * self, enum fbp_dl_event
 FBP_API void fbp_port0_on_recv_cbk(struct fbp_port0_s * self,
                                    uint8_t port_id,
                                    enum fbp_transport_seq_e seq,
-                                   uint16_t port_data,
+                                   uint8_t port_data,
                                    uint8_t *msg, uint32_t msg_size);
+
 
 FBP_CPP_GUARD_END
 

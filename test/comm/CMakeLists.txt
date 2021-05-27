@@ -28,6 +28,7 @@ add_executable(port0_test port0_test.c
         ../../src/cstr.c
         ../../src/collections/ring_buffer_msg.c
         ../../src/comm/port0.c
+        ../../src/fsm.c
         ../../src/pubsub.c
         ../../src/platform.c
         ../../src/union.c
@@ -40,7 +41,15 @@ add_test(port0_test ${CMAKE_CURRENT_BINARY_DIR}/port0_test)
 
 # pubsub_port_test special build to break dependencies
 SET_FILENAME("pubsub_port_test.c")
-add_executable(pubsub_port_test pubsub_port_test.c ../../src/comm/pubsub_port.c ../../src/platform.c ../../src/log.c $<TARGET_OBJECTS:test_objlib>)
+add_executable(pubsub_port_test
+        pubsub_port_test.c
+        ../../src/comm/pubsub_port.c
+        ../../src/cstr.c
+        ../../src/event_manager.c
+        ../../src/fsm.c
+        ../../src/platform.c
+        ../../src/log.c
+        $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(pubsub_port_test test_objlib cmocka)
 target_link_libraries(pubsub_port_test cmocka)
 add_test(pubsub_port_test ${CMAKE_CURRENT_BINARY_DIR}/pubsub_port_test)
@@ -48,7 +57,10 @@ add_test(pubsub_port_test ${CMAKE_CURRENT_BINARY_DIR}/pubsub_port_test)
 # waveform_port_test special build to break dependencies
 SET_FILENAME("waveform_sink_test.c")
 add_executable(waveform_sink_test waveform_sink_test.c
-        ../../src/comm/wave_sink_port.c ../../src/platform.c ../../src/log.c
+        ../../src/comm/wave_sink_port.c
+        ../../src/platform.c
+        ../../src/event_manager.c
+        ../../src/log.c
         ../../src/cstr.c
         $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(waveform_sink_test test_objlib cmocka)
@@ -57,6 +69,8 @@ add_test(waveform_sink_test ${CMAKE_CURRENT_BINARY_DIR}/waveform_sink_test)
 
 add_executable(stream_tester stream_tester.c $<TARGET_OBJECTS:fitterbap_objlib>)
 add_dependencies(stream_tester fitterbap_objlib test_objlib)
+
+add_executable(length_check length_check.c)
 
 include_directories(../../host/include)
 

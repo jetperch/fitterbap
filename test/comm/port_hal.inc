@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "fitterbap/event_manager.h"
+#include "fitterbap/time.h"
+
 struct fbp_transport_s {
     int32_t dummy;
 };
@@ -26,10 +29,49 @@ struct test_s {
     struct fbp_pubsubp_s * s;
     struct fbp_transport_s t;
     struct fbp_pubsub_s p;
+    struct fbp_evm_s * evm;
+    struct fbp_evm_api_s evm_api;
+    struct fbp_time_counter_s time_counter;
 };
+
+struct test_s * instance_;
+
+struct test_s * port_hal_initialize() {
+    struct test_s * self = fbp_alloc_clr(sizeof(struct test_s));
+    self->time_counter.value = 0;
+    self->time_counter.frequency = 1000;
+    instance_ = self;
+    self->evm = fbp_evm_allocate();
+    assert_int_equal(0, fbp_evm_api_get(self->evm, &self->evm_api));
+    return self;
+}
+
+void port_hal_finalize(struct test_s * self) {
+    if (self) {
+        if (self->evm) {
+            fbp_evm_free(self->evm);
+        }
+        self->evm = NULL;
+        memset(&self->evm_api, 0, sizeof(self->evm_api));
+        fbp_free(self);
+    }
+    instance_ = NULL;
+}
+
+void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+    (void) mutex;
+}
+
+void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+    (void) mutex;
+}
 
 void fbp_os_sleep(int64_t duration) {
     (void) duration;
+}
+
+struct fbp_time_counter_s fbp_time_counter() {
+    return instance_->time_counter;
 }
 
 const char * fbp_pubsub_topic_prefix(struct fbp_pubsub_s * self) {
@@ -42,14 +84,15 @@ int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
                              fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     (void) self;
     check_expected_ptr(topic);
-    (void) flags;
+    check_expected(flags);
     (void) cbk_fn;
     (void) cbk_user_data;
     return 0;
 }
 
-#define expect_subscribe(_topic)                            \
-    expect_string(fbp_pubsub_subscribe, topic, _topic);
+#define expect_subscribe(_topic, _flags)                    \
+    expect_string(fbp_pubsub_subscribe, topic, _topic);     \
+    expect_value(fbp_pubsub_subscribe, flags, _flags)
 
 int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
                                fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
@@ -74,7 +117,7 @@ int32_t fbp_pubsub_unsubscribe_from_all(struct fbp_pubsub_s * self,
 }
 
 #define expect_unsubscribe_from_all()                            \
-    expect_value(fbp_pubsub_unsubscribe, value, 0)
+    expect_value(fbp_pubsub_unsubscribe_from_all, value, 0)
 
 int32_t fbp_pubsub_meta(struct fbp_pubsub_s * self, const char * topic, const char * meta_json) {
     (void) self;
@@ -199,10 +242,43 @@ int32_t fbp_pubsub_publish(
     expect_value(fbp_pubsub_publish, type, FBP_UNION_I64);  \
     expect_value(fbp_pubsub_publish, i64, _v)
 
+
+int32_t fbp_pubsub_query(struct fbp_pubsub_s * self, const char * topic, struct fbp_union_s * value) {
+    (void) self;
+    check_expected_ptr(topic);
+    value->type = mock_type(uint8_t);
+    value->value.u64 = 0;
+    value->size = mock_type(uint32_t);
+    switch (value->type) {
+        case FBP_UNION_NULL: break;
+        case FBP_UNION_STR: value->value.str = mock_ptr_type(char *); break;
+        case FBP_UNION_JSON: value->value.str = mock_ptr_type(char *); break;
+        case FBP_UNION_BIN: value->value.bin = mock_ptr_type(uint8_t *); break;
+        case FBP_UNION_F32: value->value.f32 = mock_type(float); break;
+        case FBP_UNION_F64: value->value.f64 = mock_type(double); break;
+        case FBP_UNION_U8: value->value.u8 = mock_type(uint8_t); break;
+        case FBP_UNION_U16: value->value.u16 = mock_type(uint16_t); break;
+        case FBP_UNION_U32: value->value.u32 = mock_type(uint32_t); break;
+        case FBP_UNION_U64: value->value.u64 = mock_type(uint64_t); break;
+        case FBP_UNION_I8: value->value.i8 = mock_type(int8_t); break;
+        case FBP_UNION_I16: value->value.i16 = mock_type(int16_t); break;
+        case FBP_UNION_I32: value->value.i32 = mock_type(int32_t); break;
+        case FBP_UNION_I64: value->value.i64 = mock_type(int64_t); break;
+        default: assert_true(0); break;
+    }
+    return 0;
+}
+
+#define expect_query_str(_topic, _str) \
+    expect_string(fbp_pubsub_query, topic, _topic); \
+    will_return(fbp_pubsub_query, FBP_UNION_STR);         \
+    will_return(fbp_pubsub_query, strlen(_str) + 1);      \
+    will_return(fbp_pubsub_query, (intptr_t)(_str))
+
 int32_t fbp_transport_send(struct fbp_transport_s * self,
                            uint8_t port_id,
                            enum fbp_transport_seq_e seq,
-                           uint16_t port_data,
+                           uint8_t port_data,
                            uint8_t const *msg, uint32_t msg_size,
                            uint32_t timeout_ms) {
     (void) self;
@@ -237,3 +313,11 @@ int32_t fbp_transport_port_register(struct fbp_transport_s * self,
     (void) user_data;
     return 0;
 }
+
+void fbp_transport_event_inject(struct fbp_transport_s * self, enum fbp_dl_event_e event) {
+    (void) self;
+    check_expected(event);
+}
+
+#define expect_inject(event_) \
+    expect_value(fbp_transport_event_inject, event, event_)

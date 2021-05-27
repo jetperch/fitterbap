@@ -267,14 +267,16 @@ uint32_t uart_send_available(struct uart_s *self) {
     return self->send_remaining;
 }
 
-static void read_pend(struct uart_s * self) {
+static int32_t read_pend(struct uart_s * self) {
+    int32_t sync_read_count = 0;
     DWORD read_count = 0;
     struct buf_s * buf = buf_alloc(self);
     while (ReadFile(self->handle, buf->buf, self->buffer_size, &read_count, &buf->overlapped)) {
         FBP_LOGD1("read_pend sync: %d", (int) read_count);
-        self->recv_fn(self->recv_user_data, buf->buf, read_count);
-        buf_free(self, buf);
+        // put into list to ensure in-order processing.
+        fbp_list_add_tail(&self->buf_read, &buf->item);
         buf = buf_alloc(self);
+        ++sync_read_count;
     }
     DWORD last_error = GetLastError();
     if (last_error != ERROR_IO_PENDING) {
@@ -283,6 +285,7 @@ static void read_pend(struct uart_s * self) {
     } else {
         fbp_list_add_tail(&self->buf_read, &buf->item);
     }
+    return sync_read_count;
 }
 
 static void process_read(struct uart_s *self) {
@@ -362,6 +365,7 @@ void uart_handles(struct uart_s *self, uint32_t * handle_count, void ** handles)
 void uart_process(struct uart_s *self) {
     process_read(self);
     process_write(self);
+    process_read(self);
 }
 
 int32_t uart_status_get(struct uart_s *self, struct uart_status_s * stats) {

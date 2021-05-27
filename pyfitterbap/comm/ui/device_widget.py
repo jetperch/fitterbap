@@ -445,6 +445,7 @@ class PubSubWidget(QtWidgets.QWidget):
         if topic == 'h/c/port/0/tx' and value and not len(self._items):
             device = self._device()
             if device is not None:
+                log.info('request device metadata')
                 device.publish('$', None)
         elif topic.endswith('$') and topic != '$' and not topic.endswith('/$'):
             self._on_meta(topic[:-1], value)

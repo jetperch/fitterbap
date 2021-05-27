@@ -13,12 +13,21 @@
 # limitations under the License.
 
 
-__version__ = "0.4.0"
+import numpy as np
 
-__title__ = 'pyfitterbap'
-__description__ = 'Fitterbap python bindings'
-__url__ = 'https://github.com/jetperch/fitterbap'
-__author__ = 'Jetperch LLC'
-__author_email__ = 'dev@jetperch.com'
-__license__ = 'Apache 2.0'
-__copyright__ = 'Copyright 2017-2021 Jetperch LLC'
+
+def run():
+    counts = np.zeros(256, dtype=np.uint8)
+    for i in range(256):
+        k = i
+        while k:
+            if k & 1:
+                counts[i] += 1
+            k = k >> 1
+    counts_str = [str(x) for x in counts]
+    for i in range(0, 256, 16):
+        print(', '.join(counts_str[i:i+16]) + ',')
+
+
+if __name__ == '__main__':
+    run()

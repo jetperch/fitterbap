@@ -84,7 +84,6 @@ cdef extern from "fitterbap/comm/data_link.h":
     struct fbp_dl_config_s:
         uint32_t tx_link_size
         uint32_t tx_window_size
-        uint32_t tx_buffer_size
         uint32_t rx_window_size
         uint32_t tx_timeout
 
@@ -107,9 +106,11 @@ cdef extern from "fitterbap/comm/data_link.h":
 
     enum fbp_dl_event_e:
         FBP_DL_EV_UNKNOWN
-        FBP_DL_EV_RX_RESET_REQUEST
-        FBP_DL_EV_TX_DISCONNECTED
-        FBP_DL_EV_INTERNAL_ERROR
+        FBP_DL_EV_RESET_REQUEST
+        FBP_DL_EV_DISCONNECTED
+        FBP_DL_EV_CONNECTED
+        FBP_DL_EV_TRANSPORT_CONNECTED
+        FBP_DL_EV_APP_CONNECTED
 
     struct fbp_dl_api_s:
         void *user_data

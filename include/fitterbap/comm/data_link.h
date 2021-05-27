@@ -27,6 +27,7 @@
 #include "fitterbap/comm/framer.h"
 #include "fitterbap/event_manager.h"
 #include "fitterbap/os/mutex.h"
+#include "fitterbap/version.h"
 #include <stdint.h>
 
 /**
@@ -51,7 +52,7 @@
  * - Reliable transmission with acknowledgements and not acknowledgements.
  * - Guaranteed in-order delivery.
  * - Multiple pending transmit frames for maximum throughput.
- * - 24-bits of arbitrary metadata per frame to support:
+ * - 16-bits of arbitrary metadata per frame to support:
  *   - multiplexing using "ports"
  *   - Segmentation and reassembly with start & stop bits.
  *   - Message identification
@@ -183,10 +184,6 @@
  *
  * ## References
  *
- *    - Overview
- *      - [Eli Bendersky](http://eli.thegreenplace.net/2009/08/12/framing-in-serial-communications),
- *      - [StackOverflow](http://stackoverflow.com/questions/815758/simple-serial-point-to-point-communication-protocol)
- *      - [Daniel Beer](https://dlbeer.co.nz/articles/packet.html)
  *    - Selective Repeat Automated Repeat Request (SR-ARQ)
  *      - [wikipedia](https://en.wikipedia.org/wiki/Selective_Repeat_ARQ)
  *      - [Bandwidth-delay product @ wikipedia](https://en.wikipedia.org/wiki/Bandwidth-delay_product)
@@ -194,11 +191,6 @@
  *      - [wikipedia](https://en.wikipedia.org/wiki/Point-to-Point_Protocol),
  *      - [RFC](https://tools.ietf.org/html/rfc1661),
  *      - [Segger embOS/embNet PPP/PPPoE](https://www.segger.com/products/connectivity/emnet/add-ons/ppppppoe/)
- *    - HDLC
- *      - [wikipedia](https://en.wikipedia.org/wiki/High-Level_Data_Link_Control)
- *    - Constant Overhead Byte Stuffing (COBS):
- *      - [wikipedia](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing)
- *      - [Embedded Related post](https://www.embeddedrelated.com/showarticle/113.php)
  *    - Alternatives
  *      - [Microcontroller Interconnect Network](https://github.com/min-protocol/min)
  *      - [Telemetry](https://github.com/Overdrivr/Telemetry)
@@ -211,6 +203,13 @@
 
 FBP_CPP_GUARD_START
 
+
+#define FBP_DL_VERSION_MAJOR 1
+#define FBP_DL_VERSION_MINOR 0
+#define FBP_DL_VERSION_PATCH 0
+#define FBP_DL_VERSION  FBP_VERSION_ENCODE_U32(FBP_DL_VERSION_MAJOR, FBP_DL_VERSION_MINOR, FBP_DL_VERSION_PATCH)
+
+
 /// opaque data link instance.
 struct fbp_dl_s;
 
@@ -218,7 +217,6 @@ struct fbp_dl_s;
 struct fbp_dl_config_s {
     uint32_t tx_link_size;    // in frames, normally the same as rx_window_size
     uint32_t tx_window_size;  // in frames
-    uint32_t tx_buffer_size;  // in bytes
     uint32_t rx_window_size;  // in frames
     int64_t tx_timeout;       // transmit timeout in FBP time 34Q30.
 };
@@ -255,21 +253,44 @@ enum fbp_dl_event_e {
     /// An unknown event occurred (should never happen).
     FBP_DL_EV_UNKNOWN,
 
-    /// The remote issued a reset command for our receive path.
-    FBP_DL_EV_RX_RESET_REQUEST,
+    /// The remote issued a reset command.
+    FBP_DL_EV_RESET_REQUEST,
 
     /// The remote device is no longer responding to transmissions.
-    FBP_DL_EV_TX_DISCONNECTED,
+    FBP_DL_EV_DISCONNECTED,
 
     /**
      * @brief The remote device established a transmit connection.
      *
-     * We issued a reset message, and the remote responded.
-     * We are now clear to transmit data to the host.  The receive
-     * path is working, but we will not receive data until the
-     * remote successfully completes the same process.
+     * We received a reset message and cleared our RX & TX state.
      */
-    FBP_DL_EV_TX_CONNECTED,
+    FBP_DL_EV_CONNECTED,
+
+    /**
+     * @brief The connection is established.
+     *
+     * This event is injected using fbp_dl_event_inject().
+     *
+     * In the reference implementation, all ports except for port0
+     * should wait for this event before communicating.
+     * port0 negotiates parameters and exchanges port information
+     * before injecting this event.  This provides a controlled
+     * mechanism to bring up the system.
+     */
+    FBP_DL_EV_TRANSPORT_CONNECTED,
+
+    /**
+     * @brief The application is connected.
+     *
+     * This event is injected using fbp_dl_event_inject().
+     *
+     * In the reference implementation, all ports except for port0
+     * and the PubSub port should wait for this event before communicating.
+     * After port0 emits FBP_DL_EV_TRANSPORT_CONNECTED, the PubSub port
+     * negotiates and exchanges data.  Upon completion, the PubSub port
+     * emits this event.
+     */
+    FBP_DL_EV_APP_CONNECTED,
 };
 
 /**
@@ -295,12 +316,12 @@ typedef void (*fbp_dl_event_fn)(void *user_data, enum fbp_dl_event_e event);
  * @brief The function called upon message receipt.
  *
  * @param user_data The arbitrary user data.
- * @param metadata The arbitrary 24-bit metadata associated with the message.
+ * @param metadata The arbitrary 16-bit metadata associated with the message.
  * @param msg The buffer containing the message.
  *      This buffer is only valid for the duration of the callback.
  * @param msg_size The size of msg_buffer in bytes.
  */
-typedef void (*fbp_dl_recv_fn)(void *user_data, uint32_t metadata, uint8_t *msg, uint32_t msg_size);
+typedef void (*fbp_dl_recv_fn)(void *user_data, uint16_t metadata, uint8_t *msg, uint32_t msg_size);
 
 /**
  * @brief The API event callbacks to the upper layer.
@@ -315,7 +336,7 @@ struct fbp_dl_api_s {
  * @brief Send a message.
  *
  * @param self The instance.
- * @param metadata The arbitrary 24-bit metadata associated with the message.
+ * @param metadata The arbitrary 16-bit metadata associated with the message.
  * @param msg The msg_buffer containing the message.  The driver
  *      copies this buffer, so it only needs to be valid for the duration
  *      of the function call.
@@ -327,7 +348,7 @@ struct fbp_dl_api_s {
  *
  * The port send_done_cbk callback will be called when the send completes.
  */
-FBP_API int32_t fbp_dl_send(struct fbp_dl_s * self, uint32_t metadata,
+FBP_API int32_t fbp_dl_send(struct fbp_dl_s * self, uint16_t metadata,
                             uint8_t const *msg, uint32_t msg_size,
                             uint32_t timeout_ms);
 
@@ -482,6 +503,41 @@ FBP_API void fbp_dl_register_on_send(struct fbp_dl_s * self,
  * @param mutex The mutex instance.
  */
 FBP_API void fbp_dl_register_mutex(struct fbp_dl_s * self, fbp_os_mutex_t mutex);
+
+/**
+ * @brief Get the maximum allowed TX window size.
+ *
+ * @param self The data link instance.
+ * @return The maximum TX window size provided to fbp_dl_initialize().
+ */
+FBP_API uint32_t fbp_dl_tx_window_max_get(struct fbp_dl_s * self);
+
+
+/**
+ * @brief Set the effective TX window size.
+ *
+ * @param self The data link instance.
+ * @param tx_window_size The maximum window size.
+ *
+ * When the data link layer starts, it always starts with the effective
+ * TX window set to 1.  This allows a higher-level MAC protocol to
+ * negotiate the effective window size.  The transmit window size can
+ * be increased up to the maximum provided to fbp_dl_initialize().
+ * After being set, the window size cannot change until reset.
+ */
+FBP_API void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_size);
+
+/**
+ * @brief Get the configured RX window size.
+ *
+ * @param self The data link instance.
+ * @return The RX window size.
+ *
+ * This method is provided for the higher-level MAC layer to negotiate
+ * the window size.  No other modules should use this function.
+ */
+FBP_API uint32_t fbp_dl_rx_window_get(struct fbp_dl_s * self);
+
 
 FBP_CPP_GUARD_END
 

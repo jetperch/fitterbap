@@ -26,7 +26,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-
 static void * hal_alloc(fbp_size_t size_bytes) {
     void * ptr =  test_malloc((size_t) size_bytes);
     // printf("hal_alloc %p\n", ptr);

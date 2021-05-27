@@ -56,7 +56,7 @@ static void on_event(void *user_data, enum fbp_dl_event_e event) {
 static void on_recv(void *user_data,
                     uint8_t port_id,
                     enum fbp_transport_seq_e seq,
-                    uint16_t port_data,
+                    uint8_t port_data,
                     uint8_t *msg, uint32_t msg_size) {
     struct fbp_wavep_s *self = (struct fbp_wavep_s *) user_data;
     if (port_id != self->api.port_id) {
@@ -67,12 +67,12 @@ static void on_recv(void *user_data,
         FBP_LOGW("only single seq supported: %d", (int) seq);
         return;
     }
-    if (port_data & 0x8000) {  // data message
+    if (port_data & 0x80) {  // data message
         if (msg_size < 4) {
             FBP_LOGW("data message too short");
             return;
         }
-        if (port_data & 0xff) {
+        if (port_data & 0x7f) {
             FBP_LOGE("data compression not yet supported");
             //uint32_t sample_id = FBP_BBUF_DECODE_U32_LE(msg);
             return;
@@ -80,7 +80,7 @@ static void on_recv(void *user_data,
         FBP_LOGI("port sz=%d", (int) msg_size);
         fbp_pubsub_publish(self->api.pubsub, self->data_topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
     } else {
-        int msg_type = (int) (port_data >> 12);
+        int msg_type = (int) ((port_data >> 4) & 0x0f);
         switch (msg_type) {
             default:
                 FBP_LOGW("unsupported waveform message type: %d", msg_type);

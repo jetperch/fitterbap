@@ -31,7 +31,7 @@ struct fbp_dl_s {
     struct fbp_transport_s * t;
 };
 
-static int32_t ll_send(void * user_data, uint32_t metadata,
+static int32_t ll_send(void * user_data, uint16_t metadata,
                      uint8_t const *msg, uint32_t msg_size, uint32_t timeout_ms) {
     (void) user_data;
     check_expected(metadata);
@@ -52,7 +52,7 @@ static int setup(void ** state) {
     struct fbp_dl_s * self = fbp_alloc_clr(sizeof(struct fbp_dl_s));
     self->t = fbp_transport_initialize(ll_send, self);
     assert_non_null(self->t);
-    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_TX_CONNECTED);
+    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_CONNECTED);
 
     *state = self;
     return 0;
@@ -67,10 +67,10 @@ static int teardown(void ** state) {
 
 static void test_send(void ** state) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) *state;
-    expect_send(0x1234C0, DATA1, sizeof(DATA1), 0);
-    assert_int_equal(0, fbp_transport_send(self->t, 0, FBP_TRANSPORT_SEQ_SINGLE, 0x1234, DATA1, sizeof(DATA1), 0));
-    expect_send(0x1234Df, DATA1, sizeof(DATA1), 100);
-    assert_int_equal(0, fbp_transport_send(self->t, 0x1f, FBP_TRANSPORT_SEQ_SINGLE, 0x1234, DATA1, sizeof(DATA1), 100));
+    expect_send(0x12C0, DATA1, sizeof(DATA1), 0);
+    assert_int_equal(0, fbp_transport_send(self->t, 0, FBP_TRANSPORT_SEQ_SINGLE, 0x12, DATA1, sizeof(DATA1), 0));
+    expect_send(0x34df, DATA1, sizeof(DATA1), 100);
+    assert_int_equal(0, fbp_transport_send(self->t, 0x1f, FBP_TRANSPORT_SEQ_SINGLE, 0x34, DATA1, sizeof(DATA1), 100));
     assert_int_not_equal(0, fbp_transport_send(self->t, FBP_TRANSPORT_PORT_MAX + 1, FBP_TRANSPORT_SEQ_SINGLE, 0, DATA1, sizeof(DATA1), 0));
 }
 
@@ -83,7 +83,7 @@ static void on_event(void *user_data, enum fbp_dl_event_e event) {
     expect_value(on_event, event, _event);
 
 static void on_recv(void *user_data, uint8_t port_id,
-                    enum fbp_transport_seq_e seq, uint16_t port_data,
+                    enum fbp_transport_seq_e seq, uint8_t port_data,
                     uint8_t *msg, uint32_t msg_size) {
     (void) user_data;
     check_expected(port_id);
@@ -102,35 +102,41 @@ static void on_recv(void *user_data, uint8_t port_id,
 
 static void test_event(void ** state) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) *state;
-    expect_event(FBP_DL_EV_TX_CONNECTED);
+    expect_event(FBP_DL_EV_CONNECTED);
     assert_int_equal(0, fbp_transport_port_register(self->t, 1, NULL, on_event, on_recv, self));
-    expect_event(FBP_DL_EV_RX_RESET_REQUEST);
-    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_RX_RESET_REQUEST);
+    expect_event(FBP_DL_EV_RESET_REQUEST);
+    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_RESET_REQUEST);
 }
 
 static void test_event_when_not_connected(void ** state) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) *state;
-    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_TX_DISCONNECTED);
-    expect_event(FBP_DL_EV_TX_DISCONNECTED);
+    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_DISCONNECTED);
+    expect_event(FBP_DL_EV_DISCONNECTED);
     assert_int_equal(0, fbp_transport_port_register(self->t, 1, NULL, on_event, on_recv, self));
 }
 
+static uint16_t metadata_pack(uint8_t frame_id, enum fbp_transport_seq_e seq, uint8_t port_data) {
+    return frame_id | (seq << 6) | (((uint16_t) port_data) << 8);
+}
+
+#define MPACK(frame_id, seq, port_data)  metadata_pack(frame_id, FBP_TRANSPORT_SEQ_##seq, port_data)
+
 static void test_recv(void ** state) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) *state;
-    expect_event(FBP_DL_EV_TX_CONNECTED);
+    expect_event(FBP_DL_EV_CONNECTED);
     assert_int_equal(0, fbp_transport_port_register(self->t, 1, NULL, on_event, on_recv, self));
 
-    expect_recv(1, FBP_TRANSPORT_SEQ_SINGLE, 0x1234, DATA1, sizeof(DATA1));
-    fbp_transport_on_recv_cbk(self->t, 0x1234C1, DATA1, sizeof(DATA1));
+    expect_recv(1, FBP_TRANSPORT_SEQ_SINGLE, 0x12, DATA1, sizeof(DATA1));
+    fbp_transport_on_recv_cbk(self->t, MPACK(1, SINGLE, 0x12), DATA1, sizeof(DATA1));
 
-    expect_recv(1, FBP_TRANSPORT_SEQ_START, 0xABCD, DATA1, sizeof(DATA1));
-    fbp_transport_on_recv_cbk(self->t, 0xABCD81, DATA1, sizeof(DATA1));
+    expect_recv(1, FBP_TRANSPORT_SEQ_START, 0xAB, DATA1, sizeof(DATA1));
+    fbp_transport_on_recv_cbk(self->t, MPACK(1, START, 0xAB), DATA1, sizeof(DATA1));
 
     expect_recv(1, FBP_TRANSPORT_SEQ_MIDDLE, 0, DATA1, sizeof(DATA1));
-    fbp_transport_on_recv_cbk(self->t, 0x01, DATA1, sizeof(DATA1));
+    fbp_transport_on_recv_cbk(self->t, MPACK(1, MIDDLE, 0), DATA1, sizeof(DATA1));
 
     expect_recv(1, FBP_TRANSPORT_SEQ_STOP, 0, DATA1, sizeof(DATA1));
-    fbp_transport_on_recv_cbk(self->t, 0x41, DATA1, sizeof(DATA1));
+    fbp_transport_on_recv_cbk(self->t, MPACK(1, STOP, 0), DATA1, sizeof(DATA1));
 
     // no registered handler, will be dropped
     fbp_transport_on_recv_cbk(self->t, 0x7, DATA1, sizeof(DATA1));
@@ -145,7 +151,7 @@ static void on_event2(void *user_data, enum fbp_dl_event_e event) {
     expect_value(on_event2, event, _event);
 
 static void on_recv2(void *user_data, uint8_t port_id,
-                     enum fbp_transport_seq_e seq, uint16_t port_data,
+                     enum fbp_transport_seq_e seq, uint8_t port_data,
                      uint8_t *msg, uint32_t msg_size) {
     (void) user_data;
     check_expected(port_id);
@@ -160,20 +166,36 @@ static void on_recv2(void *user_data, uint8_t port_id,
 
 static void test_default(void ** state) {
     struct fbp_dl_s *self = (struct fbp_dl_s *) *state;
-    expect_event2(FBP_DL_EV_TX_CONNECTED);
+    expect_event2(FBP_DL_EV_CONNECTED);
     assert_int_equal(0, fbp_transport_port_register(self->t, 1, NULL, on_event2, on_recv2, self));
-    expect_event(FBP_DL_EV_TX_CONNECTED);
+    expect_event(FBP_DL_EV_CONNECTED);
     assert_int_equal(0, fbp_transport_port_register_default(self->t, on_event, on_recv, self));
 
     expect_recv2(1);
-    fbp_transport_on_recv_cbk(self->t, 0x1234C1, DATA1, sizeof(DATA1));
+    fbp_transport_on_recv_cbk(self->t, 0x12C1, DATA1, sizeof(DATA1));
 
     expect_recv(2, FBP_TRANSPORT_SEQ_STOP, 0, DATA1, sizeof(DATA1));
-    fbp_transport_on_recv_cbk(self->t, 0x42, DATA1, sizeof(DATA1));
+    fbp_transport_on_recv_cbk(self->t, MPACK(2, STOP, 0), DATA1, sizeof(DATA1));
 
-    expect_event2(FBP_DL_EV_RX_RESET_REQUEST);
-    expect_event(FBP_DL_EV_RX_RESET_REQUEST);
-    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_RX_RESET_REQUEST);
+    expect_event2(FBP_DL_EV_RESET_REQUEST);
+    expect_event(FBP_DL_EV_RESET_REQUEST);
+    fbp_transport_on_event_cbk(self->t, FBP_DL_EV_RESET_REQUEST);
+}
+
+static void test_event_inject(void ** state) {
+    struct fbp_dl_s *self = (struct fbp_dl_s *) *state;
+
+    expect_event(FBP_DL_EV_CONNECTED);
+    assert_int_equal(0, fbp_transport_port_register(self->t, 1, NULL, on_event, on_recv, self));
+
+    expect_event(FBP_DL_EV_TRANSPORT_CONNECTED);
+    fbp_transport_event_inject(self->t, FBP_DL_EV_TRANSPORT_CONNECTED);
+
+    expect_event(FBP_DL_EV_APP_CONNECTED);
+    fbp_transport_event_inject(self->t, FBP_DL_EV_APP_CONNECTED);
+
+    // ignored
+    fbp_transport_event_inject(self->t, FBP_DL_EV_DISCONNECTED);
 }
 
 int main(void) {
@@ -184,6 +206,7 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_event_when_not_connected, setup, teardown),
             cmocka_unit_test_setup_teardown(test_recv, setup, teardown),
             cmocka_unit_test_setup_teardown(test_default, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_event_inject, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

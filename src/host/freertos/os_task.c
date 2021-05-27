@@ -19,6 +19,10 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+FBP_API intptr_t fbp_os_current_task_id() {
+    return ((intptr_t) xTaskGetCurrentTaskHandle());
+}
+
 void fbp_os_sleep(int64_t duration) {
     if (duration < 0) {
         return;

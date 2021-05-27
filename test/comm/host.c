@@ -163,7 +163,6 @@ int main(int argc, char * argv[]) {
 
     struct fbp_dl_config_s dl_config = {
             .tx_window_size = 8,
-            .tx_buffer_size = 1 << 12,
             .rx_window_size = 64,
             .tx_timeout = 15 * FBP_TIME_MILLISECOND,
             .tx_link_size = 64,

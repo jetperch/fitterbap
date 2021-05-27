@@ -228,7 +228,7 @@ struct fbp_fsm_s {
     fbp_fsm_event_name_cbk event_name_fn;
     /** The event FIFO. */
     struct fbp_fsm_event_fifo_s events;
-    /** Flag used to queue reentrant calls to fbp_fsm_event(). */
+    /** Internal flag used to queue reentrant calls to fbp_fsm_event().  Init to 0.  */
     uint8_t reentrant;
 };
 

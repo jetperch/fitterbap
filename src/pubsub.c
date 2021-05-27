@@ -139,7 +139,8 @@ static bool is_reserved_char(char ch) {
 }
 
 static bool topic_name_set(struct topic_s * topic, const char * name) {
-    for (int i = 0; i < (FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL - 1); ++i) {
+    const char * name_orig = name;
+    for (int i = 0; i < FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL; ++i) {
         if (*name) {
             topic->name[i] = *name++;
         } else {
@@ -147,7 +148,7 @@ static bool topic_name_set(struct topic_s * topic, const char * name) {
             return true;
         }
     }
-    FBP_LOGW("topic name truncated: %s", name);
+    FBP_LOGW("topic name truncated: %s", name_orig);
     topic->name[FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL - 1] = 0;
     return false;
 }

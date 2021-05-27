@@ -52,6 +52,7 @@ FBP_CPP_GUARD_START
  */
 struct fbp_stack_s {
     struct fbp_dl_s * dl;
+    struct fbp_evm_api_s evm_api;
     struct fbp_transport_s * transport;
     struct fbp_port0_s * port0;
     struct fbp_pubsub_s * pubsub;
@@ -85,6 +86,17 @@ struct fbp_stack_s * fbp_stack_initialize(
  * @return 0 or error code.
  */
 FBP_API int32_t fbp_stack_finalize(struct fbp_stack_s * self);
+
+/**
+ * @brief The time remaining until the next process call.
+ *
+ * @param self The instance.
+ * @return The interval until the next scheduled event.  If no events are
+ *      currently pending, returns INT64_MAX.
+ *
+ * when the interval expires, call fbp_stack_process().
+ */
+FBP_API int64_t fbp_stack_interval_next(struct fbp_stack_s * self);
 
 /**
  * @brief Process to handle retransmission.

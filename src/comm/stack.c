@@ -31,6 +31,7 @@ struct fbp_stack_s * fbp_stack_initialize(
 
     struct fbp_stack_s * self = fbp_alloc_clr(sizeof(struct fbp_stack_s));
     self->pubsub = pubsub;
+    self->evm_api = *evm_api;
 
     self->dl = fbp_dl_initialize(config, evm_api, ll_instance);
     if (!self->dl) {
@@ -51,7 +52,7 @@ struct fbp_stack_s * fbp_stack_initialize(
     };
     fbp_dl_register_upper_layer(self->dl, &dl_api);
 
-    self->port0 = fbp_port0_initialize(port0_mode, self->dl, self->transport, fbp_transport_send,
+    self->port0 = fbp_port0_initialize(port0_mode, self->dl, evm_api, self->transport, fbp_transport_send,
                                         pubsub, port0_topic_prefix);
     if (!self->port0) {
         fbp_stack_finalize(self);
@@ -74,7 +75,7 @@ struct fbp_stack_s * fbp_stack_initialize(
             fbp_stack_finalize(self);
             return NULL;
     }
-    self->pubsub_port = fbp_pubsubp_initialize(pubsub, pmode);
+    self->pubsub_port = fbp_pubsubp_initialize(pubsub, evm_api, pmode);
     if (!self->pubsub_port) {
         fbp_stack_finalize(self);
         return NULL;
@@ -110,8 +111,19 @@ int32_t fbp_stack_finalize(struct fbp_stack_s * self) {
     return 0;
 }
 
+int64_t fbp_stack_interval_next(struct fbp_stack_s * self) {
+    int64_t now = self->evm_api.timestamp(self->evm_api.evm);
+    int64_t evm_duration = fbp_evm_interval_next(self->evm_api.evm, now);
+    int64_t dl_duration = fbp_dl_service_interval(self->dl);
+
+    int64_t duration = (evm_duration > dl_duration) ? dl_duration : evm_duration;
+    return duration;
+}
+
 void fbp_stack_process(struct fbp_stack_s * self) {
     fbp_dl_process(self->dl);
+    int64_t timestamp = self->evm_api.timestamp(self->evm_api.evm);
+    fbp_evm_process(self->evm_api.evm, timestamp);
 }
 
 void fbp_stack_mutex_set(struct fbp_stack_s * self, fbp_os_mutex_t mutex) {

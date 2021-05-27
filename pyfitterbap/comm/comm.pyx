@@ -147,7 +147,6 @@ cdef class Comm:
             baudrate=None,
             tx_link_size=None,
             tx_window_size=None,
-            tx_buffer_size=None,
             rx_window_size=None,
             tx_timeout=None):
 
@@ -156,12 +155,10 @@ cdef class Comm:
         self._subscriber = subscriber
 
         baudrate = 3000000 if baudrate is None else int(baudrate)
-        config.tx_link_size = 8 if tx_link_size is None else int(tx_link_size)
+        config.tx_link_size = 64 if tx_link_size is None else int(tx_link_size)
         config.tx_window_size = 8 if tx_window_size is None else int(tx_window_size)
-        config.tx_buffer_size = (1 << 12) if tx_buffer_size is None else int(tx_buffer_size)
         config.rx_window_size = 64 if rx_window_size is None else int(rx_window_size)
         config.tx_timeout = TX_TIMEOUT_DEFAULT if tx_timeout is None else int(tx_timeout)
-        config.tx_link_size = 64 if tx_link_size is None else int(tx_link_size)
         device_str = device.encode('utf-8')
         log.info('comm_initialize(%s, %s)', device_str, baudrate)
         self._comm = fbp_comm_initialize(&config, device_str, baudrate, Comm._subscriber_cbk, <void *> self)

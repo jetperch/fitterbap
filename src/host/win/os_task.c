@@ -18,6 +18,9 @@
 #include "fitterbap/os/task.h"
 #include <windows.h>
 
+intptr_t fbp_os_current_task_id() {
+    return ((intptr_t) GetCurrentThreadId());
+}
 
 void fbp_os_sleep(int64_t duration) {
     if (duration < 0) {

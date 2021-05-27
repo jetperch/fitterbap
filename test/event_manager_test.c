@@ -50,6 +50,7 @@ static void test_allocate(void **state) {
     SETUP();
     assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
     assert_int_equal(FBP_TIME_MIN, fbp_evm_time_next(evm));
+    assert_int_equal(0, fbp_evm_scheduled_event_count(evm));
     fbp_evm_process(evm, 10);
     TEARDOWN();
 }
@@ -57,12 +58,14 @@ static void test_allocate(void **state) {
 static void test_single_event(void **state) {
     SETUP();
     assert_int_equal(1, fbp_evm_schedule(evm, 10, cbk_full, NULL));
+    assert_int_equal(1, fbp_evm_scheduled_event_count(evm));
     assert_int_equal(10, fbp_evm_time_next(evm));
     assert_int_equal(8, fbp_evm_interval_next(evm, 2));
 
     fbp_evm_process(evm, 9);
     expect_value(cbk_full, event_id, 1);
     fbp_evm_process(evm, 10);
+    assert_int_equal(0, fbp_evm_scheduled_event_count(evm));
     TEARDOWN();
 }
 

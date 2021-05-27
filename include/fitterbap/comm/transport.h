@@ -33,6 +33,20 @@
  *
  * @brief Provide port multiplexing and segmentation / reassembly.
  *
+ * This transport layer assigns the data-link layer metadata field as:
+ *
+ * <table class="doxtable message">
+ *  <tr><th>7</td><th>6</td><th>5</td><th>4</td>
+ *      <th>3</td><th>2</td><th>1</td><th>0</td></tr>
+ *  <tr>
+ *      <td colspan="1">start</td>
+ *      <td colspan="1">stop</td>
+ *      <td colspan="1">rsv=0</td>
+ *      <td colspan="5">port_id[4:0]</td>
+ *  </tr>
+ *  <tr><td colspan="8">user_data[7:0]</td></tr>
+ * </table>
+ *
  * @{
  */
 
@@ -65,7 +79,7 @@ typedef void (*fbp_transport_event_fn)(void *user_data, enum fbp_dl_event_e even
  * @param user_data The arbitrary user data.
  * @param port_id The port id for this port.
  * @param seq The frame reassembly information.
- * @param port_data The arbitrary 16-bit port data.  Each port is
+ * @param port_data The arbitrary 8-bit port data.  Each port is
  *      free to assign meaning to this value.
  * @param msg The buffer containing the message.
  *      This buffer is only valid for the duration of the callback.
@@ -74,14 +88,14 @@ typedef void (*fbp_transport_event_fn)(void *user_data, enum fbp_dl_event_e even
 typedef void (*fbp_transport_recv_fn)(void *user_data,
                                       uint8_t port_id,
                                       enum fbp_transport_seq_e seq,
-                                      uint16_t port_data,
+                                      uint8_t port_data,
                                       uint8_t *msg, uint32_t msg_size);
 
 /**
  * @brief The function called to send a message to the data link layer.
  *
  * @param user_data The arbitrary user data (data link layer instance).
- * @param metadata The arbitrary 24-bit metadata associated with the message.
+ * @param metadata The arbitrary 16-bit metadata associated with the message.
  * @param msgr The msg_buffer containing the message.  The driver
  *      copies this buffer, so it only needs to be valid for the duration
  *      of the function call.
@@ -91,7 +105,7 @@ typedef void (*fbp_transport_recv_fn)(void *user_data,
  *      retry until success or until the timeout_ms elapses.
  * @return 0 or error code.
  */
-typedef int32_t (*fbp_transport_ll_send)(void * user_data, uint32_t metadata,
+typedef int32_t (*fbp_transport_ll_send)(void * user_data, uint16_t metadata,
                                          uint8_t const *msg, uint32_t msg_size,
                                          uint32_t timeout_ms);
 
@@ -101,7 +115,7 @@ typedef int32_t (*fbp_transport_ll_send)(void * user_data, uint32_t metadata,
  * @param self The instance.
  * @param port_id The port id for this port.
  * @param seq The frame reassembly information.
- * @param port_data The arbitrary 16-bit port data.  Each port is
+ * @param port_data The arbitrary 8-bit port data.  Each port is
  *      free to assign meaning to this value.
  * @param msg The msg_buffer containing the message.  The data link layer
  *      copies this buffer, so it only needs to be valid for the duration
@@ -115,7 +129,7 @@ typedef int32_t (*fbp_transport_ll_send)(void * user_data, uint32_t metadata,
 typedef int32_t (*fbp_transport_send_fn)(struct fbp_transport_s * self,
                                          uint8_t port_id,
                                          enum fbp_transport_seq_e seq,
-                                         uint16_t port_data,
+                                         uint8_t port_data,
                                          uint8_t const *msg, uint32_t msg_size,
                                          uint32_t timeout_ms);
 
@@ -197,7 +211,7 @@ FBP_API int32_t fbp_transport_port_register_default(
  * @param self The instance.
  * @param port_id The port id for this port.
  * @param seq The frame reassembly information.
- * @param port_data The arbitrary 16-bit port data.  Each port is
+ * @param port_data The arbitrary 8-bit port data.  Each port is
  *      free to assign meaning to this value.
  * @param msg The msg_buffer containing the message.  The data link layer
  *      copies this buffer, so it only needs to be valid for the duration
@@ -211,7 +225,7 @@ FBP_API int32_t fbp_transport_port_register_default(
 FBP_API int32_t fbp_transport_send(struct fbp_transport_s * self,
                                    uint8_t port_id,
                                    enum fbp_transport_seq_e seq,
-                                   uint16_t port_data,
+                                   uint8_t port_data,
                                    uint8_t const *msg, uint32_t msg_size,
                                    uint32_t timeout_ms);
 
@@ -231,7 +245,7 @@ FBP_API void fbp_transport_on_event_cbk(struct fbp_transport_s * self, enum fbp_
  * @brief The function to call when the lower-layer receives a message.
  *
  * @param self The instance.
- * @param metadata The arbitrary 24-bit metadata associated with the message.
+ * @param metadata The arbitrary 16-bit metadata associated with the message.
  * @param msg The buffer containing the message.
  *      This buffer is only valid for the duration of the callback.
  * @param msg_size The size of msg_buffer in bytes.
@@ -239,7 +253,7 @@ FBP_API void fbp_transport_on_event_cbk(struct fbp_transport_s * self, enum fbp_
  * This function can be safely cast to fbp_dl_recv_fn and provided
  * to fbp_dl_register_upper_layer().
  */
-FBP_API void fbp_transport_on_recv_cbk(struct fbp_transport_s * self, uint32_t metadata,
+FBP_API void fbp_transport_on_recv_cbk(struct fbp_transport_s * self, uint16_t metadata,
                                        uint8_t *msg, uint32_t msg_size);
 
 /**
@@ -250,6 +264,20 @@ FBP_API void fbp_transport_on_recv_cbk(struct fbp_transport_s * self, uint32_t m
  * @return The metadata, or NULL if not present.
  */
 FBP_API const char * fbp_transport_meta_get(struct fbp_transport_s * self, uint8_t port_id);
+
+/**
+ * @brief Inject the TRANSPORT or APP CONNECTED events.
+ *
+ * @param self The transport instance.
+ * @param event The allowed event to inject.  Only FBP_DL_EV_TRANSPORT_CONNECTED
+ *      and FBP_DL_EV_APP_CONNECTED are currently allowed.
+ *      All other events not allowed.
+ *
+ * Use care with this function.  Normally,
+ * port0 injects FBP_DL_EV_TRANSPORT_CONNECTED and
+ * pubsubp injects FBP_DL_EV_APP_CONNECTED.
+ */
+FBP_API void fbp_transport_event_inject(struct fbp_transport_s * self, enum fbp_dl_event_e event);
 
 FBP_CPP_GUARD_END
 

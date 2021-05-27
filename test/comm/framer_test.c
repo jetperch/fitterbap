@@ -33,6 +33,8 @@ static uint8_t SOF1_64[] = {S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, 
                             S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1,
                             S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1};
 static uint8_t PAYLOAD1[] = {1, 2, 3, 4, 5, 6, 7, 8};
+static uint8_t EOF[] = {FBP_FRAMER_SOF1};
+
 
 struct test_s {
     struct fbp_framer_s f;
@@ -40,7 +42,7 @@ struct test_s {
     uint8_t frame1[FBP_FRAMER_MAX_SIZE];
 };
 
-static void on_data(void * user_data, uint16_t frame_id, uint32_t metadata,
+static void on_data(void * user_data, uint16_t frame_id, uint16_t metadata,
                     uint8_t *msg_buffer, uint32_t msg_size) {
     struct test_s * self = (struct test_s *) user_data;
     (void) self;
@@ -50,7 +52,7 @@ static void on_data(void * user_data, uint16_t frame_id, uint32_t metadata,
     check_expected_ptr(msg_buffer);
 }
 
-static void expect_data(uint16_t frame_id, uint32_t metadata,
+static void expect_data(uint16_t frame_id, uint16_t metadata,
                         uint8_t const *msg_buffer, uint32_t msg_size) {
     expect_value(on_data, frame_id, frame_id);
     expect_value(on_data, metadata, metadata);
@@ -58,12 +60,17 @@ static void expect_data(uint16_t frame_id, uint32_t metadata,
     expect_memory(on_data, msg_buffer, msg_buffer, msg_size);
 }
 
-static void send_data(struct test_s * self, uint16_t frame_id, uint32_t metadata,
+static void send_eof(struct fbp_framer_s * self) {
+    fbp_framer_ll_recv(self, EOF, sizeof(EOF));
+}
+
+static void send_data(struct test_s * self, uint16_t frame_id, uint16_t metadata,
                       uint8_t const *msg_buffer, uint32_t msg_size) {
     uint8_t b[FBP_FRAMER_MAX_SIZE];
     assert_int_equal(0, fbp_framer_construct_data(b, frame_id, metadata, msg_buffer, msg_size));
-    expect_data(frame_id, metadata, msg_buffer, msg_size);
     fbp_framer_ll_recv(&self->f, b, msg_size + FBP_FRAMER_OVERHEAD_SIZE);
+    expect_data(frame_id, metadata, msg_buffer, msg_size);
+    send_eof(&self->f);
 }
 
 static void on_link(void * user_data, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
@@ -81,8 +88,9 @@ static void expect_link(enum fbp_framer_type_e frame_type, uint16_t frame_id) {
 static void send_link(struct test_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     uint8_t b[FBP_FRAMER_LINK_SIZE];
     assert_int_equal(0, fbp_framer_construct_link(b, frame_type, frame_id));
-    expect_link(frame_type, frame_id);
     fbp_framer_ll_recv(&self->f, b, sizeof(b));
+    expect_link(frame_type, frame_id);
+    send_eof(&self->f);
 }
 
 static void on_framing_error(void * user_data) {
@@ -173,9 +181,10 @@ static void test_data_split(void ** state) {
     uint16_t sz = sizeof(PAYLOAD1) + FBP_FRAMER_OVERHEAD_SIZE;
     for (uint16_t frame_id = 1; frame_id < (sz - 1); ++frame_id) {
         assert_int_equal(0, fbp_framer_construct_data(b, frame_id, 2, PAYLOAD1, sizeof(PAYLOAD1)));
-        expect_data(frame_id, 2, PAYLOAD1, sizeof(PAYLOAD1));
         fbp_framer_ll_recv(&self->f, b, frame_id);
         fbp_framer_ll_recv(&self->f, b + frame_id, sizeof(PAYLOAD1) + FBP_FRAMER_OVERHEAD_SIZE - frame_id);
+        expect_data(frame_id, 2, PAYLOAD1, sizeof(PAYLOAD1));
+        send_eof(&self->f);
     }
 }
 
@@ -217,7 +226,6 @@ static void test_construct_data_checks(void ** state) {
     (void) self;
     uint8_t b[FBP_FRAMER_MAX_SIZE];
     assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_framer_construct_data(b, FBP_FRAMER_FRAME_ID_MAX + 1, 0, PAYLOAD1, sizeof(PAYLOAD1)));
-    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_framer_construct_data(b, 0, FBP_FRAMER_MESSAGE_ID_MAX + 1, PAYLOAD1, sizeof(PAYLOAD1)));
     assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_framer_construct_data(b, 0, 0, PAYLOAD1, 0));
     assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_framer_construct_data(b, 0, 0, PAYLOAD1, FBP_FRAMER_PAYLOAD_MAX_SIZE + 1));
 }
@@ -254,6 +262,60 @@ static void test_frame_id_subtract(void ** state) {
     assert_int_equal(-11, fbp_framer_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, 10));
 }
 
+static uint8_t count_table_u8[] = {
+        0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+        1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+        1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+        2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+        1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+        2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+        2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+        1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+        2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+        2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+        2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+        4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8,
+};
+
+static uint8_t count_u16(uint16_t x) {
+    return count_table_u8[x & 0xff] + count_table_u8[(x >> 8) & 0xff];
+}
+
+// validate that the length CRC has Hamming distance of 5 as expected.
+// https://users.ece.cmu.edu/~koopman/crc/index.html
+static void test_length_crc(void ** state) {
+    (void) state;
+
+    uint8_t hd = 8;
+    uint8_t hd_this;
+
+    uint16_t a16;
+    uint16_t b16;
+    uint8_t * a8 = (uint8_t *) &a16;
+    uint8_t * b8 = (uint8_t *) &b16;
+
+    for (int a = 0; a < 255; ++a) {
+        a8[0] = (uint8_t) a;
+        a8[1] = fbp_framer_length_crc(a8[0]);
+        for (int b = a + 1; b < 256; ++b) {
+            b8[0] = (uint8_t) b;
+            b8[1] = fbp_framer_length_crc(b8[0]);
+            if (a == b) {
+                continue;
+            }
+            hd_this = count_u16(a16 ^ b16);
+            if (hd_this < hd) {
+                hd = hd_this;
+            }
+        }
+    }
+    assert_int_equal(5, hd);
+}
+
 int main(void) {
     hal_test_initialize();
     const struct CMUnitTest tests[] = {
@@ -275,6 +337,7 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_reset, setup, teardown),
             cmocka_unit_test_setup_teardown(test_truncated_flush_with_sof, setup, teardown),
             cmocka_unit_test_setup_teardown(test_frame_id_subtract, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_length_crc, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -145,6 +145,7 @@ Full system:
 
 Communication protocols:
 
+*   [luos](https://www.luos.io/)
 *   [Telemetry](https://github.com/Overdrivr/Telemetry)
 *   [min](https://github.com/min-protocol/min)
 *   [SerialFiller](https://github.com/gbmhunter/SerialFiller)

@@ -44,18 +44,17 @@ FBP_CPP_GUARD_START
  * - Send & receive timing data: sample_id & UTC pairs
  * - Compression
  *
- * port_data[15:12] == 0: unsupported
- * port_data[15:12] == 1: start
+ * port_data[7:4] == 0: unsupported
+ * port_data[7:4] == 1: start
  *     - 64-bit starting sample_id, ignoring div
  *     - 32-bit data type
- * port_data[15:12] == 2: stop
+ * port_data[7:4] == 2: stop
  *     - 64-bit ending sample_id, ignoring div
- * port_data[15:12] == 3: skip (explicit indicator)
+ * port_data[7:4] == 3: skip (explicit indicator)
  *     - 64-bit sample_id of first missing sample
  *     - 64-bit sample_id of last missing sample
- * port_data[15] == 1: data packet
- *     - port_data[14:8], reserved, set to 0
- *     - port_data[7:0], compression type, 0=no compression
+ * port_data[7] == 1: data packet
+ *     - port_data[6:0], compression type, 0=no compression
  *     - 32-bit sample_id[31:0]
  *     - waveform data, packed
  */

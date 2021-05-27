@@ -75,6 +75,7 @@ extensions = [
             'src/comm/transport.c',
             'src/crc.c',
             'src/cstr.c',
+            'src/fsm.c',
             'src/log.c',
             'src/pubsub.c',
             'src/union.c',

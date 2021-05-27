@@ -34,14 +34,16 @@ struct fbp_transport_s {
     /// The defined ports.
     struct port_s ports[FBP_TRANSPORT_PORT_MAX];
     struct port_s port_default;
-    enum fbp_dl_event_e last_tx_event;
+    enum fbp_dl_event_e last_state_event;   // to properly initialize new port registrations
 };
 
 void fbp_transport_on_event_cbk(struct fbp_transport_s * self, enum fbp_dl_event_e event) {
     switch (event) {
-        case FBP_DL_EV_TX_CONNECTED:  // intentional fall-through
-        case FBP_DL_EV_TX_DISCONNECTED:
-            self->last_tx_event = event;
+        case FBP_DL_EV_CONNECTED:       // intentional fall-through
+        case FBP_DL_EV_DISCONNECTED:    // intentional fall-through
+        case FBP_DL_EV_TRANSPORT_CONNECTED:
+        case FBP_DL_EV_APP_CONNECTED:
+            self->last_state_event = event;
             break;
         default:
             break;
@@ -56,11 +58,11 @@ void fbp_transport_on_event_cbk(struct fbp_transport_s * self, enum fbp_dl_event
     }
 }
 
-void fbp_transport_on_recv_cbk(struct fbp_transport_s * self, uint32_t metadata,
+void fbp_transport_on_recv_cbk(struct fbp_transport_s * self, uint16_t metadata,
                     uint8_t *msg, uint32_t msg_size) {
     uint8_t port_id = metadata & FBP_TRANSPORT_PORT_MAX;
     enum fbp_transport_seq_e seq = (enum fbp_transport_seq_e) ((metadata >> 6) & 3);
-    uint16_t port_data = (uint16_t) ((metadata >> 8) & 0xffff);
+    uint8_t port_data = (uint8_t) (metadata >> 8);
     if (self->ports[port_id].recv_fn) {
         self->ports[port_id].recv_fn(self->ports[port_id].user_data, port_id, seq, port_data, msg, msg_size);
     } else if (self->port_default.recv_fn) {
@@ -73,7 +75,7 @@ void fbp_transport_on_recv_cbk(struct fbp_transport_s * self, uint32_t metadata,
 struct fbp_transport_s * fbp_transport_initialize(fbp_transport_ll_send send_fn, void * send_user_data) {
     struct fbp_transport_s * t = fbp_alloc_clr(sizeof(struct fbp_transport_s));
     FBP_ASSERT_ALLOC(t);
-    t->last_tx_event = FBP_DL_EV_TX_DISCONNECTED;
+    t->last_state_event = FBP_DL_EV_DISCONNECTED;
     t->send_fn = send_fn;
     t->send_user_data = send_user_data;
     return t;
@@ -101,7 +103,7 @@ int32_t fbp_transport_port_register(struct fbp_transport_s * self,
     self->ports[port_id].event_fn = event_fn;
     self->ports[port_id].recv_fn = recv_fn;
     if (event_fn) {
-        event_fn(user_data, self->last_tx_event);
+        event_fn(user_data, self->last_state_event);
     }
     return 0;
 }
@@ -117,7 +119,7 @@ int32_t fbp_transport_port_register_default(
     self->port_default.event_fn = event_fn;
     self->port_default.recv_fn = recv_fn;
     if (event_fn) {
-        event_fn(user_data, self->last_tx_event);
+        event_fn(user_data, self->last_state_event);
     }
     return 0;
 }
@@ -125,15 +127,15 @@ int32_t fbp_transport_port_register_default(
 int32_t fbp_transport_send(struct fbp_transport_s * self,
                            uint8_t port_id,
                            enum fbp_transport_seq_e seq,
-                           uint16_t port_data,
+                           uint8_t port_data,
                            uint8_t const *msg, uint32_t msg_size,
                            uint32_t timeout_ms) {
     if (port_id > FBP_TRANSPORT_PORT_MAX) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
-    uint32_t metadata = ((seq & 0x3) << 6)
+    uint16_t metadata = ((seq & 0x3) << 6)
         | (port_id & FBP_TRANSPORT_PORT_MAX)
-        | (((uint32_t) port_data) << 8);
+        | (((uint16_t) port_data) << 8);
 
     return self->send_fn(self->send_user_data, metadata, msg, msg_size, timeout_ms);
 }
@@ -143,4 +145,14 @@ const char * fbp_transport_meta_get(struct fbp_transport_s * self, uint8_t port_
         return NULL;
     }
     return self->ports[port_id].meta;
+}
+
+void fbp_transport_event_inject(struct fbp_transport_s * self, enum fbp_dl_event_e event) {
+    switch (event) {
+        case FBP_DL_EV_TRANSPORT_CONNECTED: break;
+        case FBP_DL_EV_APP_CONNECTED: break;
+        default:
+            return;
+    }
+    fbp_transport_on_event_cbk(self, event);
 }

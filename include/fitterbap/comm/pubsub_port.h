@@ -52,40 +52,52 @@ struct fbp_pubsubp_s;
 
 /// The port directional mode.
 enum fbp_pubsubp_mode_e {
-    /// Communicate upstream (client)
-    FBP_PUBSUBP_MODE_UPSTREAM,
     /// Communicate downstream (server)
     FBP_PUBSUBP_MODE_DOWNSTREAM,
+    /// Communicate upstream (client)
+    FBP_PUBSUBP_MODE_UPSTREAM,
 };
 
 /**
- * @brief Port message type for port_data[7:0].
+ * @brief Port message type for port_data[3:0].
+ *
+ * port_data[7] is 1=retain for message types that need it.
  */
 enum fbp_pubsubp_msg_e {
     /**
-     * @brief Connection established message for reliable state recovery.
+     * @brief Connection negotiation message for reliable state recovery.
      *
-     * Format consists of uint64_t v[3] where
-     *    v[0]: 0=request message from server, 1=response from client
-     *    v[1]: server_connection_count
-     *    v[2]: client_connection_count
+     * Format is fbp_pubsubp_msg_negotiate_s.
      *
-     * This message allows each side to detect who is behind.  When the
-     * connection is established, the server sends the request to the
-     * client.  The client responds by populating its connection_count.
+     * This message allows each side to negotiate who supplies the retained
+     * state.  When the connection is established, the downlink server sends
+     * the request to the client with it's connection count.  The client
+     * determines the source using this message, and replies to the server
+     * responds by populating its connection_count and the resolution.
+     *
      * If the client detects that server_connection_count == 1 or
-     * client_connection_count > server_connection_count, then it subscribes
-     * to the local PubSub instance with RETAIN.  It then sends
-     * MSG_TOPIC_LIST without RETAIN.
+     * client_connection_count > server_connection_count, then it resolves
+     * to source=client.  The client then sends MSG_TOPIC_LIST without
+     * RETAIN. The client then subscribes to the local PubSub instance
+     * with RETAIN and forwards all retained values to server.  Once all
+     * retained values have been sent, it sends MSG_CONNECTED.
+     *
+     * If the client detects that server_connection_count > client_connection_count,
+     * or server_connection_count != 1 and force upstream state, then it
+     * resolves to source=server.  The client then subscribes to the
+     * local PubSub instance without RETAIN.  The client then sends MSG_TOPIC_LIST
+     * with RETAIN, and the server forwards all matching retained values
+     * to the client.  Once all retained values have been sent, it sends
+     * MSG_CONNECTED.
      *
      * When connection is lost, issue fbp_pubsub_unsubscribe_from_all().
      */
-    FBP_PUBSUBP_MSG_CONN,
+    FBP_PUBSUBP_MSG_NEGOTIATE = 0,
 
     /**
      * @brief Update the list of subscribed topics.
      *
-     * port_data[8] 0=no retained, 1=retained
+     * port_data[7] 0=no retained, 1=retained
      *
      * This message is sent from the client to the server to update
      * the subscribed topics, normally in response to a new connection
@@ -94,10 +106,12 @@ enum fbp_pubsubp_msg_e {
      * The payload is the unit-separator (0x1f) separated list of topics
      * to subscribe, which is compatible with _/topic/list.
      */
-    FBP_PUBSUBP_MSG_TOPIC_LIST,
+    FBP_PUBSUBP_MSG_TOPIC_LIST = 1,
 
     /**
      * @brief Add a topic subscription.
+     *
+     * port_data[7] 0=no retained, 1=retained
      *
      * payload is the null-terminated topic string.
      *
@@ -105,7 +119,7 @@ enum fbp_pubsubp_msg_e {
      * the subscribed topics, normally in response to _/topic/add.
      * The subscription is always LINK without RETAIN.
      */
-    FBP_PUBSUBP_MSG_TOPIC_ADD,
+    FBP_PUBSUBP_MSG_TOPIC_ADD = 2,
 
     /**
      * @brief Remove a topic subscription.
@@ -115,28 +129,55 @@ enum fbp_pubsubp_msg_e {
      * This message is sent from the client to the server to update
      * the subscribed topics, normally in response to _/topic/remove.
      */
-    FBP_PUBSUBP_MSG_TOPIC_REMOVE,
+    FBP_PUBSUBP_MSG_TOPIC_REMOVE = 3,
 
     /**
      * @brief Publish a topic.
      *
-     * port_data[15:13] are the fbp_union_flag_e flags.
-     * port_data[12:8] is the fbp_union_e value type.
-     * msg[0] is the topic length.
-     * msg[1:k] topic including null-termination
-     * msg[k+1] is the payload length
-     * msg[k+2:] The payload.  Strings are null-terminated.
+     * port_data[7] 0=no retained, 1=retained
+     *
+     * msg[0] is the fbp_union_e type
+     * msg[1] reserved, write 0
+     * msg[2] is the topic length.
+     * msg[3:k] topic including null-termination
+     * msg[k+3] is the payload length
+     * msg[k+4:] The payload.  Strings are null-terminated.
      */
-    FBP_PUBSUBP_MSG_PUBLISH,
+    FBP_PUBSUBP_MSG_PUBLISH = 4,
+
+    /**
+     * @brief Signal that the connection is fully established.
+     *
+     * port_data: ignored
+     *
+     * msg[0]: status
+     * msg[1]: 0=req, 1=rsp
+     */
+    FBP_PUBSUBP_MSG_CONNECTED = 5,
 };
 
-#define FBP_PUBSUBP_PORT_DATA_MSG_MASK (0x00ff)
-#define FBP_PUBSUBP_PORT_DATA_RETAIN_BIT (0x0100)
+#define FBP_PUBSUBP_PORT_DATA_MSG_MASK (0x0f)
+#define FBP_PUBSUBP_PORT_DATA_RETAIN_BIT (0x80)
+
+/**
+ * @brief The FBP_PUBSUBP_MSG_NEGOTIATE payload.
+ */
+struct fbp_pubsubp_msg_negotiate_s {
+    /// The major8.minor8.patch16 version.
+    uint32_t version;
+    uint8_t status;       // req:0, rsp:0=success or error code
+    uint8_t resolution;   // 0=server provides state, 1=client provides state
+    uint8_t msg_type;     // 0=request from server, 1=response from client.
+    uint8_t rsv1_u8;
+    uint64_t client_connection_count;
+    uint64_t server_connection_count;
+};
 
 /**
  * @brief Create and initialize a new PubSub port instance.
  *
  * @param pubsub The pubsub instance.
+ * @parma evm The event manager instance.
  * @param mode The port mode.
  * @return The new PubSub port instance.
  *
@@ -145,6 +186,7 @@ enum fbp_pubsubp_msg_e {
  * it establishes the connection.
  */
 FBP_API struct fbp_pubsubp_s * fbp_pubsubp_initialize(struct fbp_pubsub_s * pubsub,
+                                                      struct fbp_evm_api_s * evm,
                                                       enum fbp_pubsubp_mode_e mode);
 
 /**
@@ -186,7 +228,7 @@ FBP_API void fbp_pubsubp_on_event(struct fbp_pubsubp_s *self, enum fbp_dl_event_
  * @param self The pubsub port instance.
  * @param port_id The port id for this port.
  * @param seq The frame reassembly information.
- * @param port_data The arbitrary 16-bit port data.  Each port is
+ * @param port_data The arbitrary 8-bit port data.  Each port is
  *      free to assign meaning to this value.
  * @param msg The buffer containing the message.
  *      This buffer is only valid for the duration of the callback.
@@ -197,7 +239,7 @@ FBP_API void fbp_pubsubp_on_event(struct fbp_pubsubp_s *self, enum fbp_dl_event_
 FBP_API void fbp_pubsubp_on_recv(struct fbp_pubsubp_s *self,
                                  uint8_t port_id,
                                  enum fbp_transport_seq_e seq,
-                                 uint16_t port_data,
+                                 uint8_t port_data,
                                  uint8_t *msg, uint32_t msg_size);
 
 /**
@@ -212,6 +254,16 @@ FBP_API void fbp_pubsubp_on_recv(struct fbp_pubsubp_s *self,
  */
 FBP_API uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
                                       const char * topic, const struct fbp_union_s * value);
+
+
+/**
+ * @brief Get the feedback topic used by this instance.
+ *
+ * @param self The pubsub port instance.
+ * @return The feedback topic string.
+ * @note Normally only needed for unit testing.
+ */
+FBP_API const char * fbp_pubsubp_feedback_topic(struct fbp_pubsubp_s *self);
 
 FBP_CPP_GUARD_END
 

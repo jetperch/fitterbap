@@ -29,7 +29,7 @@
 
 /**
  * @ingroup fbp_os
- * @defgroup fbp_os_task OS Mutex abstraction
+ * @defgroup fbp_os_task OS task abstraction
  *
  * @brief Provide a simple OS task abstraction.
  *
@@ -37,6 +37,14 @@
  */
 
 FBP_CPP_GUARD_START
+
+/**
+ * @brief Get the identifier for the currently running task.
+ *
+ * @return The task ID.  If running single-threaded, return 0.
+ */
+FBP_API intptr_t fbp_os_current_task_id();
+
 
 /**
  * @brief Sleep (pause thread execution) for a specified duration.
