@@ -17,10 +17,16 @@
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
 #include "fitterbap/comm/framer.h"
+#include "fitterbap/config.h"
 #include "fitterbap/ec.h"
 #include "fitterbap/crc.h"
 #include "fitterbap/log.h"
 #include "fitterbap/platform.h"
+
+
+#ifndef FBP_FRAMER_CRC32
+#error Must define FBP_FRAMER_CRC32 in fitterbap/config.h
+#endif
 
 
 enum state_e {
@@ -116,7 +122,7 @@ static bool validate_crc(uint8_t const * frame) {
         | (((uint32_t) crc_value[1]) << 8)
         | (((uint32_t) crc_value[2]) << 16)
         | (((uint32_t) crc_value[3]) << 24);
-    uint32_t crc_calc = fbp_crc32(0, frame + 2, frame_sz - FBP_FRAMER_FOOTER_SIZE - 2);
+    uint32_t crc_calc = FBP_FRAMER_CRC32(0, frame + 2, frame_sz - FBP_FRAMER_FOOTER_SIZE - 2);
     return (crc_rx == crc_calc);
 }
 
@@ -324,7 +330,7 @@ int32_t fbp_framer_construct_data(uint8_t * b, uint16_t frame_id, uint16_t metad
     b[6] = metadata & 0xff;
     b[7] = (metadata >> 8) & 0xff;
     memcpy(b + FBP_FRAMER_HEADER_SIZE, msg, msg_size);
-    uint32_t crc = fbp_crc32(0, b + 2, msg_size + FBP_FRAMER_HEADER_SIZE - 2);
+    uint32_t crc = FBP_FRAMER_CRC32(0, b + 2, msg_size + FBP_FRAMER_HEADER_SIZE - 2);
     b[FBP_FRAMER_HEADER_SIZE + msg_size + 0] = crc & 0xff;
     b[FBP_FRAMER_HEADER_SIZE + msg_size + 1] = (crc >> 8) & 0xff;
     b[FBP_FRAMER_HEADER_SIZE + msg_size + 2] = (crc >> 16) & 0xff;
@@ -371,7 +377,7 @@ int32_t fbp_framer_construct_link(uint8_t * b, enum fbp_framer_type_e frame_type
     b[1] = FBP_FRAMER_SOF2;
     b[2] = (frame_type << 3) | ((frame_id >> 8) & 0x7);
     b[3] = (uint8_t) (frame_id & 0xff);
-    uint32_t crc = fbp_crc32(0, b + 2, 2);
+    uint32_t crc = FBP_FRAMER_CRC32(0, b + 2, 2);
     b[4] = crc & 0xff;
     b[5] = (crc >> 8) & 0xff;
     b[6] = (crc >> 16) & 0xff;

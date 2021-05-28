@@ -15,6 +15,7 @@
  */
 
 #include "fitterbap/crc.h"
+#include "fitterbap/config.h"
 
 #define CRC8_POLYNOMIAL ((uint8_t) 0xE0)
 #define CRC16_POLYNOMIAL ((uint16_t) 0x8408)
@@ -63,35 +64,7 @@ uint16_t fbp_crc_ccitt_16(uint16_t crc, uint8_t const *data, uint32_t length) {
     return crc;
 }
 
-
-#if 0
-
-uint32_t fbp_crc32(uint32_t crc, uint8_t const *data, uint32_t length) {
-   uint32_t byte;
-   uint32_t mask;
-   uint8_t const * data_end;
-   int j;
-
-   if ((0 == length) || (0 == data)) {
-      return crc;
-   }
-
-   data_end = data + length;
-   crc = ~crc;
-   while (data < data_end) {
-      byte = (uint32_t) (*data++);
-      crc = crc ^ byte;
-      for (j = 7; j >= 0; --j) {  // Process each bit in byte
-         mask = (uint32_t) -((int32_t) (crc & 1));
-         crc = (crc >> 1) ^ (CRC32_POLYNOMIAL & mask);
-      }
-   }
-   crc = ~crc;
-   return crc;
-}
-
-#else
-
+#if defined(FBP_CRC_CRC32) && FBP_CRC_CRC32
 static const uint32_t crc32_table[256] = {
         0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
         0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,

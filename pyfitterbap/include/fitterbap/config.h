@@ -43,6 +43,9 @@
 #endif
 */
 
+#define FBP_FRAMER_CRC32 fbp_crc32
+#define FBP_CRC_CRC32 1
+
 #ifdef __linux__
 #include "fitterbap/host/linux/config.h"
 #elif _WIN32

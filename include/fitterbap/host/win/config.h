@@ -25,6 +25,9 @@
 
 #include "fitterbap/config.h"
 
+#define FBP_FRAMER_CRC32 fbp_crc32
+#define FBP_CRC_CRC32 1
+
 #define FBP_PLATFORM_STDLIB 1
 #define FBP_CSTR_FLOAT_ENABLE 0
 typedef void * fbp_os_mutex_t;

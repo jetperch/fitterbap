@@ -42,6 +42,16 @@
    fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
 #endif
 
+/**
+ * @brief The 32-bit CRC function to use for the comm framer.
+ *
+ * The signature must be:
+ *   uint32_t (*fn)(uint32_t crc, uint8_t const *data, uint32_t length)
+ */
+//#define FBP_FRAMER_CRC32 fbp_crc32
+//#define FBP_CRC_CRC32 1
+
+
 // Uncomment for your platform
 //#define FBP_PLATFORM_STDLIB 1
 // #define FBP_PLATFORM_ARM 1

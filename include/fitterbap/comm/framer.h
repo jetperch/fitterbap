@@ -92,7 +92,7 @@
  *     10 is start, 01 is end, 00 is middle and 11 is a single frame message.
  *   - "unique_id" that is unique for all messages in flight for a port.
  * - "payload" contains the arbitrary payload of "length" total_bytes.
- * - "frame_crc" contains the CRC-32 computed over the header and payload.
+ * - "frame_crc" contains the 32-bit CRC computed over the header and payload.
  *   The SOF1, SOF2, frame_crc, and EOF are excluded from the calculation.
  * - "EOF" contains an end of frame byte which allows for reliable
  *   receiver timeouts and receiver framer reset.   It also decreases the
@@ -146,6 +146,45 @@
  * the total byte count for data frames.  If the
  * frame_crc matches the computed CRC and EOF matches,
  * then the entire frame is valid.
+ *
+ *
+ * ## Configuration options
+ *
+ * The fitterbap/config.h file allows for a configuration options.  The
+ * following options affect the framer:
+ *
+ * ### 32-bit CRC:
+ *
+ * The 32-bit CRC uses a table-based CRC-32-CCITT by default.  As discussed
+ * below, other CRC choices, such as CRC-32C, provide even better error
+ * performance.  My microcontrollers also offer hardware acceleration.
+ *
+ * Define FBP_FRAMER_CRC32 to the function that the framer should use to
+ * compute the 32-bit CRC.  The standard implementation uses fbp_crc32
+ * declared by fitterbap/crc.h and defined by src/crc32.c.
+ *
+ *
+ * ## CRC selection
+ *
+ * Cyclic redundancy check (CRC) [Wikipedia](https://en.wikipedia.org/wiki/Cyclic_redundancy_check)
+ * is one approach to detecting data errors.  Unfortunately, many different,
+ * incompatible CRC polynomials and variations exist.  Check out Philip Koopman's
+ * [CRC Polynomial Zoo](https://users.ece.cmu.edu/~koopman/crc/crc32.html).
+ *
+ * CRCs guarantee that they detect a certain number of bit changes, called the
+ * Hamming Distance (HD).  A CRC with an HD of 2 means that the algorithm can
+ * detect all single bit changes.  It requires two bit changes before a CRC
+ * could match the corrupted data.  The longer the data, the shorter the HD.
+ * Some CRC polynomials are better than others.
+ *
+ * For our application, we compute a 32-bit CRC over 262 bytes (2096 bits).
+ * So, how do common 32-bit CRCs stack up?
+ *
+ * [CRC-32 (ethernet)](https://users.ece.cmu.edu/~koopman/crc/c32/0x82608edb.txt):
+ * HD=5 @ 2096 bits
+ *
+ * [CRC-32C](https://users.ece.cmu.edu/~koopman/crc/c32/0x8f6e37a0.txt):
+ * HD=6 @ 2096 bits
  *
  *
  * ## Analysis
@@ -238,10 +277,42 @@
  *     since each length value has one and only one corresponding CRC8 value.
  *
  * However, assuming a 1e-6 bit error rate and the Hamming distance of 5, we
- * need 5 or more bit errors to occur to possibly match.  The odds are then:
+ * need 5 or more bit errors to occur to possibly match.  Using python 3 with
+ * gmpy2, the odds of bit errors exceeding the Hamming distance are then:
  *
- *     sum([math.comb(16, i) * (p**i) * ((1-p)**(16-i)) for i in range(5, 17)])
+ *     import math
+ *     from gmpy2 import mpfr
+ *     gmpy2.get_context().precision=256
+ *     def crc_false_positive(bit_error_rate, length_bits, hamming_distance):
+ *         p = mpfr(bit_error_rate)
+ *         pt = sum([math.comb(length_bits, i) * (p**i) *
+ *                  (mpfr(1-p)**(length_bits-i)) for i in range(0, hamming_distance)])
+ *         return 1 - pt
+ *     crc_false_positive(1e-6, 8 + 8, 5)
  *     = 4e-27
+ *
+ * Now how about the CRC-32 with HD=5 over 2096 bits?
+ *
+ *     = crc_false_positive(1e-6, 2096 + 32, 5)
+ *     = 3.3e-16 frames
+ *
+ * However, this only assets that an false positive is possible.  We still
+ * need to match the CRC-32 value, with likelihood 2**-32.  The actual
+ * likelihood is then:
+ *
+ *     = 3.3e-16 * 2**-32
+ *     = 7.68e-26
+ *
+ * At 3 Mbaud, we have 1119 frames / second, so our expected error rate is:
+ *
+ *     = 1 / 7.68e-26 / 1119 / (60 * 60 * 24 * 365)
+ *     = 368,979,371,273,698 years
+ *
+ * If we select CRC-32C with HD=6, the result is even better:
+ *
+ *     = crc_false_positive(1e-6, 2096 + 32, 6)
+ *     = 1.17e-19 frames
+ *     => 1e18 years
  *
  *
  * ## References

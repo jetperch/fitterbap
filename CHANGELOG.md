@@ -17,7 +17,8 @@ This file contains the list of changes made to the Fitterbap library.
     *   Improved port0 and pubsubp negotiation.
     *   Added FBP_DL_EV_TRANSPORT_CONNECTED and FBP_DL_EV_APP_CONNECTED.
     *   Simplified data link to always buffer using full-sized TX frames.
-        Removed tx_buffer_size from fbp_dl_config_s. 
+        Removed tx_buffer_size from fbp_dl_config_s.
+    *   Added 32-bit CRC configuration option.    
 *   Added fbp_os_current_task_id() to assist reentrant code implementations.
 *   Modified fbp_evm_interval_next return code.  
     Returns INT64_MAX rather than -1 on no scheduled events to simplify caller.
