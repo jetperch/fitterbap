@@ -191,7 +191,7 @@ static void send(struct host_s *host) {
     }
     int32_t rv = fbp_dl_send(host->udl, msg->metadata, msg->msg_buffer, msg->msg_size, 100);
     if (rv) {
-        FBP_LOGE("fbp_dl_send error %d: %s", (int) rv, fbp_error_code_description(rv));
+        FBP_LOGW("fbp_dl_send error %d: %s", (int) rv, fbp_error_code_description(rv));
     } else {
         ++host->metadata;
         fbp_list_add_tail(&host->target->recv_expect, &msg->item);
@@ -304,8 +304,10 @@ static void process(struct stream_tester_s * self) {
         } else {
             process_host(&self->b);
         }
-        fbp_dl_process(self->a.udl);
-        fbp_dl_process(self->b.udl);
+
+        // process the events
+        fbp_evm_process(self->a.evm, self->now);
+        fbp_evm_process(self->b.evm, self->now);
     }
 }
 

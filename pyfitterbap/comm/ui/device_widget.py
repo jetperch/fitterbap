@@ -15,6 +15,7 @@
 
 from PySide2 import QtCore, QtGui, QtWidgets
 from .expanding_widget import ExpandingWidget
+from pyfitterbap.comm.comm import Port0Events
 import logging
 import weakref
 
@@ -442,7 +443,7 @@ class PubSubWidget(QtWidgets.QWidget):
 
     def _on_update(self, topic, value, retain=None):
         # print(f'{topic} : {value}')
-        if topic == 'h/c/port/0/tx' and value and not len(self._items):
+        if topic == 'h/c/0/ev' and value == Port0Events.APP_CONNECTED and not len(self._items):
             device = self._device()
             if device is not None:
                 log.info('request device metadata')

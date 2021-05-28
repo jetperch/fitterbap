@@ -37,7 +37,8 @@
  * This module contains an event manager for scheduling, cancelling, and
  * processing events based upon the passage of time.  This module is intended
  * to allow event scheduling within a single thread.  It provides an optional
- * locking mechanism through fbp_evm_register_mutex() to support accesses
+ * locking mechanism through fbp_evm_register_mutex() and
+ * fbp_evm_register_schedule_callback() to support accesses
  * from multiple threads.
  *
  * @{
@@ -55,6 +56,18 @@ struct fbp_evm_s;
  * @param event_id The event that completed.
  */
 typedef void (*fbp_evm_callback)(void * user_data, int32_t event_id);
+
+/**
+ * @brief Function called whenever the next event time changes.
+ *
+ * @param user_data Arbitrary user data.
+ * @param next_time The time for the next event.
+ *
+ * When used in a threaded environment, this function can signal the
+ * thread when it should call fbp_evm_process().  This hook often
+ * eliminates the need for more complicated wrappers.
+ */
+typedef void (*fbp_evm_on_schedule)(void * user_data, int64_t next_time);
 
 /**
  * @brief Get the current time in FBP 34Q30 format.
@@ -79,8 +92,9 @@ typedef int64_t (*fbp_evm_timestamp_fn)(struct fbp_evm_s * evm);
  *      can also be used to cancel the event with event_cancel.
  *      On error, return 0.
  */
-typedef int32_t (*fbp_evm_schedule_fn)(struct fbp_evm_s * evm, int64_t timestamp,
-                    fbp_evm_callback cbk_fn, void * cbk_user_data);
+typedef int32_t (*fbp_evm_schedule_fn)(
+        struct fbp_evm_s * evm, int64_t timestamp,
+        fbp_evm_callback cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Cancel a pending event.
@@ -151,7 +165,7 @@ FBP_API int32_t fbp_evm_cancel(struct fbp_evm_s * self, int32_t event_id);
  *
  * @param self The event manager instance.
  * @return The time for the next scheduled event.  If no events are
- *      currently pending, returns FBP_TIME_MIN.
+ *      currently pending, returns FBP_TIME_MAX.
  */
 FBP_API int64_t fbp_evm_time_next(struct fbp_evm_s * self);
 
@@ -187,7 +201,7 @@ FBP_API int32_t fbp_evm_scheduled_event_count(struct fbp_evm_s * self);
 FBP_API int32_t fbp_evm_process(struct fbp_evm_s * self, int64_t time_current);
 
 /**
- * @brief Register a mutex to support blocking multi-threaded operation.
+ * @brief Register a mutex to support blocking multi-threaded operation [optional].
  *
  * @param self The event manager instance.
  * @param mutex The mutex instance.
@@ -195,7 +209,25 @@ FBP_API int32_t fbp_evm_process(struct fbp_evm_s * self, int64_t time_current);
 void fbp_evm_register_mutex(struct fbp_evm_s * self, fbp_os_mutex_t mutex);
 
 /**
- * @brief Populate the API.
+ * @brief Register a  schedule update callback function [optional].
+ *
+ * @param self The event manager instance.
+ * @param cbk_fn The callback function.
+ * @param cbk_user_data The arbitrary data for cbk_fn.
+ *
+ * For instances running in a thread where other threads schedule events,
+ * a schedule update callback can notify the thread to reschedule
+ * its wait duration.
+ *
+ * Only one schedule update callback function may be registered at at time.
+ * Registering a new function automatically unregisters the old function.
+ * Pass cbk_fn to remove the current registration.
+ */
+void fbp_evm_register_schedule_callback(struct fbp_evm_s * self,
+                                        fbp_evm_on_schedule cbk_fn, void * cbk_user_data);
+
+/**
+ * @brief Populate an API structure.
  *
  * @param self The event manager instance.
  * @param api The API instance to populate with the default functions.

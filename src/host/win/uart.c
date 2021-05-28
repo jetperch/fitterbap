@@ -109,6 +109,7 @@ static struct buf_s * buf_alloc(struct uart_s * self) {
 
 static void buf_free(struct uart_s * self, struct buf_s * buf) {
     if (buf) {
+        ResetEvent(buf->overlapped.hEvent);
         fbp_list_add_tail(&self->buf_free, &buf->item);
     }
 }
@@ -365,7 +366,6 @@ void uart_handles(struct uart_s *self, uint32_t * handle_count, void ** handles)
 void uart_process(struct uart_s *self) {
     process_read(self);
     process_write(self);
-    process_read(self);
 }
 
 int32_t uart_status_get(struct uart_s *self, struct uart_status_s * stats) {

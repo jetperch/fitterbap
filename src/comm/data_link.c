@@ -40,6 +40,7 @@
 #include <inttypes.h>
 
 #define SEND_COUNT_MAX (25)
+#define INTERVAL_MIN (FBP_TIME_MICROSECOND * 100)
 
 
 enum state_e {
@@ -98,10 +99,8 @@ struct fbp_dl_s {
     enum state_e state;
     int64_t tx_reset_last;
 
-    fbp_dl_on_send_fn on_send_cbk;
-    void * on_send_user_data;
-
     struct fbp_evm_api_s evm;
+    int32_t event_id;
     fbp_os_mutex_t mutex;
 
     struct fbp_framer_s rx_framer;
@@ -127,6 +126,44 @@ static inline int64_t time_get(struct fbp_dl_s * self) {
     return self->evm.timestamp(self->evm.evm);
 }
 
+static void fbp_dl_process(struct fbp_dl_s * self);
+
+static void on_event(void * user_data, int32_t event_id) {
+    (void) event_id;
+    struct fbp_dl_s * self = (struct fbp_dl_s *) user_data;
+    self->event_id = 0;
+    fbp_dl_process(self);
+}
+
+static void event_schedule(struct fbp_dl_s * self, int64_t next_event) {
+    int64_t now = time_get(self);
+    if (fbp_rbu64_size(&self->tx_link_buf)) {
+        next_event = now;
+    }
+    if (self->event_id) {
+        self->evm.cancel(self->evm.evm, self->event_id);
+        self->event_id = 0;
+    }
+    self->event_id = self->evm.schedule(self->evm.evm, next_event, on_event, self);
+}
+
+static void event_schedule_immediate(struct fbp_dl_s * self) {
+    if (self->event_id) {
+        self->evm.cancel(self->evm.evm, self->event_id);
+        self->event_id = 0;
+    }
+    self->event_id = self->evm.schedule(self->evm.evm, time_get(self), on_event, self);
+}
+
+static bool is_any_send_pending(struct fbp_dl_s * self) {
+    for (uint16_t offset = 0; offset < self->tx_frame_count; ++offset) {
+        if (self->tx_frames[offset].state == TX_FRAME_ST_SEND) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static int32_t send_inner(struct fbp_dl_s * self,
                     uint16_t metadata,
                     uint8_t const *msg, uint32_t msg_size) {
@@ -149,6 +186,7 @@ static int32_t send_inner(struct fbp_dl_s * self,
 
     int32_t rv = fbp_framer_construct_data(f->msg, frame_id, metadata, msg, msg_size);
     FBP_ASSERT(0 == rv);  // fbp_framer_validate already checked
+    bool send_already_pending = is_any_send_pending(self);
 
     // queue transmit frame for send_data()
     f->last_send_time = time_get(self);
@@ -158,11 +196,10 @@ static int32_t send_inner(struct fbp_dl_s * self,
     self->tx_status.msg_bytes += msg_size;
     self->tx_frame_next_id = (frame_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
     // frame queued for send_data()
-    unlock(self);
-
-    if (self->on_send_cbk) {
-        self->on_send_cbk(self->on_send_user_data);
+    if (!send_already_pending) {
+        event_schedule_immediate(self);
     }
+    unlock(self);
     return 0;
 }
 
@@ -254,14 +291,16 @@ static void send_data(struct fbp_dl_s * self, uint16_t frame_id) {
 
 static void send_link_pending(struct fbp_dl_s * self) {
     uint32_t pending_sz = fbp_rbu64_size(&self->tx_link_buf);
-    uint32_t send_sz = self->ll_instance.send_available(self->ll_instance.user_data) / FBP_FRAMER_LINK_SIZE;
-    if (pending_sz <= send_sz) {
-        send_sz = pending_sz;
-    }
-    if (!send_sz) {
+    if (!pending_sz) {
         return;
     }
-
+    uint32_t send_sz = self->ll_instance.send_available(self->ll_instance.user_data) / FBP_FRAMER_LINK_SIZE;
+    if (!send_sz) {
+        FBP_LOGW("send_link_pending send_available = 0");
+        return;
+    } else if (pending_sz <= send_sz) {
+        send_sz = pending_sz;
+    }
     if ((self->tx_link_buf.tail + send_sz) > self->tx_link_buf.buf_size) {
         // wrap around, send in two parts
         uint32_t sz = self->tx_link_buf.buf_size - self->tx_link_buf.tail;
@@ -282,12 +321,15 @@ static void send_link(struct fbp_dl_s * self, enum fbp_framer_type_e frame_type,
         return;
     }
     uint64_t b;
+    bool is_link_pending = (fbp_rbu64_size(&self->tx_link_buf) != 0);
     int32_t rv = fbp_framer_construct_link((uint8_t *) &b, frame_type, frame_id);
     if (rv) {
         FBP_LOGW("send_link error: %d", (int) rv);
         return;
     } else if (!fbp_rbu64_push(&self->tx_link_buf, b)) {
         FBP_LOGW("link buffer full");
+    } else if (!is_link_pending) {
+        event_schedule_immediate(self);
     }
 }
 
@@ -579,65 +621,44 @@ void fbp_dl_ll_recv(struct fbp_dl_s * self,
     fbp_framer_ll_recv(&self->rx_framer, buffer, buffer_size);
 }
 
-int64_t fbp_dl_service_interval(struct fbp_dl_s * self) {
-    int64_t rv = FBP_TIME_MAX;
-    int32_t frame_count = fbp_framer_frame_id_subtract(self->tx_frame_next_id, self->tx_frame_last_id);
-    int64_t now = time_get(self);
-
-    if (self->state == ST_CONNECTED) {
-        for (int32_t offset = 0; offset < frame_count; ++offset) {
-            uint16_t frame_id = (self->tx_frame_last_id + offset) & FBP_FRAMER_FRAME_ID_MAX;
-            uint16_t idx = (frame_id + offset) & (self->tx_frame_count - 1);
-            struct tx_frame_s *f = &self->tx_frames[idx];
-            if (f->state == TX_FRAME_ST_SENT) {
-                int64_t delta = now - f->last_send_time;
-                if (delta >= self->tx_timeout) {
-                    return 0;
-                }
-                delta = self->tx_timeout - delta;
-                if (delta < rv) {
-                    rv = delta;
-                }
-            }
-        }
-    } else {
-        int64_t delta = now - self->tx_reset_last;
-        int64_t duration = reset_timeout_duration(self);
-        if (delta >= duration) {
-            return 0;
-        } else {
-            rv = duration - delta;
-        }
-    }
-    return rv;
-}
-
-static void process_disconnected(struct fbp_dl_s * self) {
-    int64_t now = time_get(self);
-    int64_t delta = now - self->tx_reset_last;
-    int64_t duration = reset_timeout_duration(self);
-    if (delta >= duration) {
+static int64_t process_disconnected(struct fbp_dl_s * self, int64_t now) {
+    int64_t next = self->tx_reset_last + reset_timeout_duration(self);
+    if (next <= now) {
         send_reset_request(self);
         send_link_pending(self);
+        return now + reset_timeout_duration(self);
+    } else {
+        return next;
     }
 }
 
-static void tx_timeout(struct fbp_dl_s * self) {
+static inline int64_t tmin(int64_t a, int64_t b) {
+    return (a < b) ? a : b;
+}
+
+static int64_t tx_timeout(struct fbp_dl_s * self, int64_t now) {
     struct tx_frame_s * f;
     int32_t frame_count = fbp_framer_frame_id_subtract(self->tx_frame_next_id, self->tx_frame_last_id);
-    int64_t now = time_get(self);
+    int64_t next_event = INT64_MAX;
+
     for (int32_t offset = 0; offset < frame_count; ++offset) {
         uint16_t frame_id = (self->tx_frame_last_id + offset) & FBP_FRAMER_FRAME_ID_MAX;
         uint16_t idx = frame_id & (self->tx_frame_count - 1);
         f = &self->tx_frames[idx];
         if (f->state == TX_FRAME_ST_SENT) {
-            int64_t delta = now - f->last_send_time;
-            if (delta >= self->tx_timeout) {
+            int64_t next = f->last_send_time + self->tx_timeout;
+            if (next <= now) {
                 FBP_LOGD1("tx timeout on %d", (int) frame_id);
                 f->state = TX_FRAME_ST_SEND;
+                next_event = now;
+            } else {
+                next_event = tmin(next_event, next);
             }
+        } else if (f->state == TX_FRAME_ST_SEND) {
+            next_event = now;
         }
     }
+    return next_event;
 }
 
 static void tx_transmit(struct fbp_dl_s * self) {
@@ -675,17 +696,22 @@ void tx_eof(struct fbp_dl_s * self) {
     }
 }
 
-void fbp_dl_process(struct fbp_dl_s * self) {
+static void fbp_dl_process(struct fbp_dl_s * self) {
+    int64_t next_event = INT64_MAX;
     lock(self);
     self->process_task_id = fbp_os_current_task_id();
+    int64_t now = time_get(self);
+    int64_t earliest_next_event = now + INTERVAL_MIN;
     send_link_pending(self);
     if (self->state == ST_DISCONNECTED) {
-        process_disconnected(self);
+        next_event = process_disconnected(self, now);
     } else {
-        tx_timeout(self);
+        next_event = tx_timeout(self, now);
         tx_transmit(self);
     }
     tx_eof(self);
+    next_event = fbp_time_max(next_event, earliest_next_event);
+    event_schedule(self, next_event);
     unlock(self);
 }
 
@@ -826,12 +852,6 @@ void fbp_dl_status_clear(struct fbp_dl_s * self) {
     unlock(self);
 }
 
-void fbp_dl_register_on_send(struct fbp_dl_s * self,
-                              fbp_dl_on_send_fn cbk_fn, void * cbk_user_data) {
-    self->on_send_cbk = cbk_fn;
-    self->on_send_user_data = cbk_user_data;
-}
-
 void fbp_dl_register_mutex(struct fbp_dl_s * self, fbp_os_mutex_t mutex) {
     self->mutex = mutex;
 }
@@ -847,6 +867,8 @@ void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_size) {
     if (self->tx_frame_count != 1) {
         FBP_LOGE("Duplicate window set - ignore");
         return;
+    } else {
+        FBP_LOGI("fbp_dl_tx_window_set(%" PRIu32 ")", tx_window_size);
     }
     self->tx_frame_count = tx_window_size;
 

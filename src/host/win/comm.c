@@ -37,8 +37,13 @@
 struct fbp_comm_s {
     struct fbp_stack_s * stack;
     struct fbp_uartt_s * uart;
+
     struct fbp_pubsub_s * pubsub;
     fbp_os_mutex_t pubsub_mutex;
+    HANDLE pubsub_signal_event;
+    int pubsub_quit;
+    HANDLE pubsub_thread;
+
     struct fbp_evm_api_s evm_api;
     fbp_pubsub_subscribe_fn subscriber_fn;
     void * subscriber_user_data;
@@ -61,15 +66,9 @@ static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size)
     fbp_dl_ll_recv(self->stack->dl, buffer, buffer_size);
 }
 
-static void on_pubsub_process(void * user_data, int32_t event_id) {
-    (void) event_id;
-    struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
-    fbp_pubsub_process(self->pubsub);
-}
-
 static void on_publish_fn(void * user_data) {
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
-    self->evm_api.schedule(self->evm_api.evm, 0, on_pubsub_process, self);
+    SetEvent(self->pubsub_signal_event);
 }
 
 static void on_port_recv_default(void *user_data,
@@ -105,6 +104,57 @@ static void on_port_recv_default(void *user_data,
     fbp_pubsub_publish(self->pubsub, topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
 }
 
+static DWORD WINAPI pubsub_task(LPVOID lpParam) {
+    struct fbp_comm_s * self = (struct fbp_comm_s *) lpParam;
+    while (!self->pubsub_quit) {
+        WaitForSingleObject(self->pubsub_signal_event, 1000);
+        ResetEvent(self->pubsub_signal_event);
+        fbp_pubsub_process(self->pubsub);
+    }
+    return 0;
+}
+
+static int32_t pubsub_task_start(struct fbp_comm_s * self) {
+    if (self->pubsub_thread) {
+        FBP_LOGW("pubsub_task_start but already running");
+        return FBP_ERROR_BUSY;
+    }
+
+    self->pubsub_thread = CreateThread(
+            NULL,                   // default security attributes
+            0,                      // use default stack size
+            pubsub_task,            // thread function name
+            self,                   // argument to thread function
+            0,                      // use default creation flags
+            NULL);                  // returns the thread identifier
+    if (!self->pubsub_thread) {
+        FBP_LOGE("Could not start pubsub thread: %d", (int) GetLastError());
+        return FBP_ERROR_NOT_ENOUGH_MEMORY;
+    }
+
+    if (!SetThreadPriority(self->pubsub_thread, THREAD_PRIORITY_ABOVE_NORMAL)) {
+        FBP_LOGE("Could not elevate thread priority: %d", (int) GetLastError());
+    }
+    return 0;
+}
+
+static int32_t pubsub_task_stop(struct fbp_comm_s * self) {
+    int rc = 0;
+    if (self) {
+        self->pubsub_quit = 1;
+        SetEvent(self->pubsub_signal_event);
+        if (self->pubsub_thread) {
+            if (WAIT_OBJECT_0 != WaitForSingleObject(self->pubsub_thread, 1000)) {
+                FBP_LOGW("UART thread failed to shut down gracefully");
+                rc = FBP_ERROR_TIMED_OUT;
+            }
+            CloseHandle(self->pubsub_thread);
+            self->pubsub_thread = NULL;
+        }
+    }
+    return rc;
+}
+
 struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
                                         const char * device,
                                         uint32_t baudrate,
@@ -124,6 +174,12 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
     self->subscriber_user_data = cbk_user_data;
     self->pubsub = fbp_pubsub_initialize(PUBSUB_PREFIX, PUBSUB_BUFFER_SIZE);
     if (!self->pubsub) {
+        goto on_error;
+    }
+
+    self->pubsub_quit = 0;
+    self->pubsub_signal_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!self->pubsub_signal_event) {
         goto on_error;
     }
 
@@ -158,6 +214,9 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
 
     fbp_uartt_evm_api(self->uart, &self->evm_api);
     fbp_pubsub_register_on_publish(self->pubsub, on_publish_fn, self);
+    if (pubsub_task_start(self)) {
+        goto on_error;
+    }
 
     self->stack = fbp_stack_initialize(config, FBP_PORT0_MODE_SERVER, PORT0_PREFIX, &self->evm_api, &ll, self->pubsub);
     if (!self->stack) {
@@ -165,7 +224,7 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
     }
     fbp_transport_port_register_default(self->stack->transport, NULL, on_port_recv_default, self);
 
-    if (fbp_uartt_start(self->uart, (fbp_uartt_process_fn) fbp_stack_process, self->stack)) {
+    if (fbp_uartt_start(self->uart)) {
         goto on_error;
     }
 
@@ -184,6 +243,7 @@ on_error:
 void fbp_comm_finalize(struct fbp_comm_s * self) {
     if (self) {
         fbp_uartt_stop(self->uart);
+        pubsub_task_stop(self);
         if (self->stack) {
             fbp_stack_finalize(self->stack);
             self->stack = NULL;
@@ -199,6 +259,10 @@ void fbp_comm_finalize(struct fbp_comm_s * self) {
         if (self->pubsub_mutex) {
             fbp_os_mutex_free(self->pubsub_mutex);
             self->pubsub_mutex = NULL;
+        }
+        if (self->pubsub_signal_event) {
+            CloseHandle(self->pubsub_signal_event);
+            self->pubsub_signal_event = NULL;
         }
         fbp_free(self);
     }

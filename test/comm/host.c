@@ -70,11 +70,6 @@ static void app_log_printf_(const char *format, ...) {
     va_end(arg);
 }
 
-static void on_process(void * user_data) {
-    struct host_s * self = (struct host_s *) user_data;
-    fbp_stack_process(self->stack);
-}
-
 static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size) {
     struct host_s * self = (struct host_s *) user_data;
     fbp_dl_ll_recv(self->stack->dl, buffer, buffer_size);
@@ -184,7 +179,7 @@ int main(int argc, char * argv[]) {
     fbp_uartt_mutex(h_.uart, &mutex);
     fbp_dl_register_mutex(h_.stack->dl, mutex);
 
-    if (fbp_uartt_start(h_.uart, on_process, &h_)) {
+    if (fbp_uartt_start(h_.uart)) {
         FBP_LOGE("fbp_uartt_start failed");
         return 1;
     }

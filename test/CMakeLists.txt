@@ -47,7 +47,12 @@ ADD_CMOCKA_TEST(crc_test)
 ADD_CMOCKA_TEST(cstr_test)
 ADD_CMOCKA_TEST(dbc_test)
 ADD_CMOCKA_TEST(ec_test)
-ADD_CMOCKA_TEST(event_manager_test)
+
+add_executable(event_manager_test event_manager_test.c ../src/event_manager.c)
+add_dependencies(event_manager_test cmocka)
+target_link_libraries(event_manager_test cmocka)
+add_test(event_manager_test ${CMAKE_CURRENT_BINARY_DIR}/event_manager_test)
+
 ADD_CMOCKA_TEST(fsm_test)
 ADD_CMOCKA_TEST(lfsr_test)
 ADD_CMOCKA_TEST(log_test)

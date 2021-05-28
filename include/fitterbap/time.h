@@ -434,6 +434,28 @@ static inline int64_t fbp_time_utc_us() {
     return FBP_TIME_TO_MICROSECONDS(fbp_time_utc());
 }
 
+/**
+ * @brief Return the minimum time.
+ *
+ * @param a The first time value.
+ * @param b The second time value.
+ * @return The smaller value of a and b.
+ */
+static inline int64_t fbp_time_min(int64_t a, int64_t b) {
+    return (a < b) ? a : b;
+}
+
+/**
+ * @brief Return the maximum time.
+ *
+ * @param a The first time value.
+ * @param b The second time value.
+ * @return The larger value of a and b.
+ */
+static inline int64_t fbp_time_max(int64_t a, int64_t b) {
+    return (a > b) ? a : b;
+}
+
 FBP_CPP_GUARD_END
 
 /** @} */

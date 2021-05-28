@@ -20,16 +20,41 @@
 #include <cmocka.h>
 #include <stdlib.h>
 #include "fitterbap/event_manager.h"
+#include "fitterbap/platform.h"
 #include "fitterbap/time.h"
-#include "hal_test_impl.h"
 
+int64_t count_ms_ = 0;
 
 #define SETUP() \
-    (void) state;   \
+    (void) state; \
+    count_ms_ = 0;    \
     struct fbp_evm_s * evm = fbp_evm_allocate()
 
 #define TEARDOWN() \
     fbp_evm_free(evm)
+
+struct fbp_time_counter_s fbp_time_counter() {
+    struct fbp_time_counter_s counter;
+    counter.value = count_ms_;
+    counter.frequency = 1000;
+    return counter;
+}
+
+void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+    check_expected_ptr(mutex);
+}
+
+void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+    check_expected_ptr(mutex);
+}
+
+void * fbp_alloc(fbp_size_t size_bytes) {
+    return test_malloc(size_bytes);
+}
+
+void fbp_free(void * ptr) {
+    test_free(ptr);
+}
 
 void cbk_full(void * user_data, int32_t event_id) {
     (void) user_data;
@@ -49,7 +74,7 @@ void cbk2(void * user_data, int32_t event_id) {
 static void test_allocate(void **state) {
     SETUP();
     assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
-    assert_int_equal(FBP_TIME_MIN, fbp_evm_time_next(evm));
+    assert_int_equal(FBP_TIME_MAX, fbp_evm_time_next(evm));
     assert_int_equal(0, fbp_evm_scheduled_event_count(evm));
     fbp_evm_process(evm, 10);
     TEARDOWN();
@@ -77,6 +102,9 @@ static void test_insert_two_events_in_order(void **state) {
 
     expect_value(cbk1, event_id, 1);
     fbp_evm_process(evm, 10);
+    assert_int_equal(20, fbp_evm_time_next(evm));
+    assert_int_equal(10, fbp_evm_interval_next(evm, 10));
+
     expect_value(cbk2, event_id, 2);
     fbp_evm_process(evm, 20);
     assert_int_equal(INT64_MAX, fbp_evm_interval_next(evm, 10));
@@ -112,14 +140,72 @@ static void test_insert_two_events_and_cancel_first(void **state) {
     TEARDOWN();
 }
 
+static void test_api(void **state) {
+    SETUP();
+    struct fbp_evm_api_s api;
+    assert_int_equal(0, fbp_evm_api_get(evm, &api));
+    api.timestamp(api.evm);
+    TEARDOWN();
+}
+
+static void schedule(void * user_data, int64_t next_time) {
+    (void) user_data;
+    check_expected(next_time);
+}
+
+#define expect_schedule(next_time_) \
+    expect_value(schedule, next_time, next_time_)
+
+static void test_on_schedule(void **state) {
+    SETUP();
+    fbp_evm_register_schedule_callback(evm, schedule, NULL);
+    expect_schedule(10);
+    assert_int_equal(1, fbp_evm_schedule(evm, 10, cbk1, NULL));
+    assert_int_equal(2, fbp_evm_schedule(evm, 20, cbk1, NULL));
+    expect_schedule(5);
+    assert_int_equal(3, fbp_evm_schedule(evm, 5, cbk1, NULL));
+    TEARDOWN();
+}
+
+#define expect_mutex() \
+    expect_any(fbp_os_mutex_lock, mutex); \
+    expect_any(fbp_os_mutex_unlock, mutex)
+
+
+static void test_mutex(void **state) {
+    SETUP();
+    fbp_evm_register_mutex(evm, (fbp_os_mutex_t) evm);
+
+    expect_mutex();
+    assert_int_equal(1, fbp_evm_schedule(evm, 10, cbk1, NULL));
+    expect_mutex();
+    assert_int_equal(10, fbp_evm_interval_next(evm, 0));
+    expect_mutex();
+    assert_int_equal(10, fbp_evm_time_next(evm));
+    expect_mutex();
+    assert_int_equal(1, fbp_evm_scheduled_event_count(evm));
+    expect_mutex();
+    assert_int_equal(0, fbp_evm_process(evm, 0));
+    expect_mutex();
+    assert_int_equal(0, fbp_evm_cancel(evm, 1));
+    expect_mutex();
+    fbp_evm_register_schedule_callback(evm, NULL, NULL);
+
+    expect_mutex();
+    TEARDOWN();
+}
+
+
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_allocate),
             cmocka_unit_test(test_single_event),
             cmocka_unit_test(test_insert_two_events_in_order),
             cmocka_unit_test(test_insert_two_events_out_of_order),
             cmocka_unit_test(test_insert_two_events_and_cancel_first),
+            cmocka_unit_test(test_api),
+            cmocka_unit_test(test_on_schedule),
+            cmocka_unit_test(test_mutex),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

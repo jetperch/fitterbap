@@ -35,6 +35,8 @@ struct event_s {
 struct fbp_evm_s {
     int32_t event_counter;
     fbp_os_mutex_t mutex;
+    fbp_evm_on_schedule on_schedule_fn;
+    void * on_schedule_user_data;
     struct fbp_list_s events_pending;
     struct fbp_list_s events_free;
 };
@@ -101,16 +103,24 @@ int32_t fbp_evm_schedule(struct fbp_evm_s * self, int64_t timestamp,
 
     struct fbp_list_s * node;
     struct event_s * ev_next;
+    int count = 0;
     fbp_list_foreach(&self->events_pending, node) {
         ev_next = EVGET(node);
         if (ev->timestamp < ev_next->timestamp) {
             fbp_list_insert_before(node, &ev->node);
             unlock(self);
+            if ((count == 0) && self->on_schedule_fn) {
+                self->on_schedule_fn(self->on_schedule_user_data, ev->timestamp);
+            }
             return ev->event_id;
         }
+        ++count;
     }
     fbp_list_add_tail(&self->events_pending, &ev->node);
     unlock(self);
+    if ((count == 0) && self->on_schedule_fn) {
+        self->on_schedule_fn(self->on_schedule_user_data, ev->timestamp);
+    }
     return ev->event_id;
 }
 
@@ -122,6 +132,7 @@ int32_t fbp_evm_cancel(struct fbp_evm_s * self, int32_t event_id) {
         ev = EVGET(node);
         if (ev->event_id == event_id) {
             fbp_list_remove(node);
+            ev->cbk_fn = NULL;
             fbp_list_add_tail(&self->events_free, node);
             break;
         }
@@ -134,7 +145,7 @@ int64_t fbp_evm_time_next(struct fbp_evm_s * self) {
     int64_t rv;
     lock(self);
     if (fbp_list_is_empty(&self->events_pending)) {
-        rv = FBP_TIME_MIN;
+        rv = FBP_TIME_MAX;
     } else {
         rv = EVGET(fbp_list_peek_head(&self->events_pending))->timestamp;
     }
@@ -146,7 +157,7 @@ int64_t fbp_evm_interval_next(struct fbp_evm_s * self, int64_t time_current) {
     lock(self);
     if (fbp_list_is_empty(&self->events_pending)) {
         unlock(self);
-        return INT64_MAX;
+        return FBP_TIME_MAX;
     }
     struct event_s * ev = EVGET(fbp_list_peek_head(&self->events_pending));
     if (ev->timestamp <= time_current) {
@@ -179,6 +190,7 @@ int32_t fbp_evm_process(struct fbp_evm_s * self, int64_t time_current) {
         unlock(self);
         ev->cbk_fn(ev->cbk_user_data, ev->event_id);
         lock(self);
+        ev->cbk_fn = NULL;
         fbp_list_add_tail(&self->events_free, node);
         ++count;
     }
@@ -193,6 +205,14 @@ static int64_t timestamp_default(struct fbp_evm_s * self) {
 
 void fbp_evm_register_mutex(struct fbp_evm_s * self, fbp_os_mutex_t mutex) {
     self->mutex = mutex;
+}
+
+void fbp_evm_register_schedule_callback(struct fbp_evm_s * self,
+                                        fbp_evm_on_schedule cbk_fn, void * cbk_user_data) {
+    lock(self);
+    self->on_schedule_fn = cbk_fn;
+    self->on_schedule_user_data = cbk_user_data;
+    unlock(self);
 }
 
 int32_t fbp_evm_api_get(struct fbp_evm_s * self, struct fbp_evm_api_s * api) {

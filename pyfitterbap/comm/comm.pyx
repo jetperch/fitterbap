@@ -127,6 +127,15 @@ cdef _dl_status_decode(fbp_dl_status_s * status):
     }
 
 
+class Port0Events:
+    UNKNOWN = FBP_DL_EV_UNKNOWN
+    RESET_REQUEST = FBP_DL_EV_RESET_REQUEST
+    DISCONNECTED = FBP_DL_EV_DISCONNECTED
+    CONNECTED = FBP_DL_EV_CONNECTED
+    TRANSPORT_CONNECTED = FBP_DL_EV_TRANSPORT_CONNECTED
+    APP_CONNECTED = FBP_DL_EV_APP_CONNECTED
+
+
 cdef class Comm:
     """A Communication Device using the FBP stack.
 
@@ -155,9 +164,9 @@ cdef class Comm:
         self._subscriber = subscriber
 
         baudrate = 3000000 if baudrate is None else int(baudrate)
-        config.tx_link_size = 64 if tx_link_size is None else int(tx_link_size)
-        config.tx_window_size = 8 if tx_window_size is None else int(tx_window_size)
-        config.rx_window_size = 64 if rx_window_size is None else int(rx_window_size)
+        config.tx_link_size = 256 if tx_link_size is None else int(tx_link_size)
+        config.tx_window_size = 256 if tx_window_size is None else int(tx_window_size)
+        config.rx_window_size = 256 if rx_window_size is None else int(rx_window_size)
         config.tx_timeout = TX_TIMEOUT_DEFAULT if tx_timeout is None else int(tx_timeout)
         device_str = device.encode('utf-8')
         log.info('comm_initialize(%s, %s)', device_str, baudrate)

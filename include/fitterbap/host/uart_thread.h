@@ -46,39 +46,26 @@ FBP_CPP_GUARD_START
 /// The opaque instance.
 struct fbp_uartt_s;
 
-/**
- * @brief Function called on UART processing.
- *
- * @param user_data The arbitrary data.
- *
- * This function will be called from the UART data link thread
- * running at high priority.  This function must not block and
- * should return quickly.  The uart thread mutex is unlocked
- * before calling this function.
- */
-typedef void (*fbp_uartt_process_fn)(void * user_data);
-
 FBP_API struct fbp_uartt_s * fbp_uartt_initialize(
         const char *device_path,
         struct uart_config_s const * config);
 
 FBP_API void fbp_uartt_finalize(struct fbp_uartt_s *self);
 
-FBP_API int32_t fbp_uartt_start(
-        struct fbp_uartt_s * self,
-        fbp_uartt_process_fn process_fn,
-        void * process_user_data);
+FBP_API int32_t fbp_uartt_start(struct fbp_uartt_s * self);
 
 FBP_API int32_t fbp_uartt_stop(struct fbp_uartt_s * self);
 
 /**
- * @brief Populate the EVM API.
+ * @brief Populate the event manager API.
  *
- * @param self The event manager instance.
- * @param api[out] The API instance to populate with the default functions.
+ * @param self The UART thread instance.
+ * @param api[out] The API instance populated with the event manager instance
+ *      and callbacks running on the UART thread.
  * @return 0 or error code.
  *
- * Use fbp_time_rel for api->timestamp by default.
+ * All events for processing on this thread MUST be posted to this
+ * event manager.
  */
 FBP_API int32_t fbp_uartt_evm_api(struct fbp_uartt_s * self, struct fbp_evm_api_s * api);
 

@@ -88,26 +88,6 @@ struct fbp_stack_s * fbp_stack_initialize(
 FBP_API int32_t fbp_stack_finalize(struct fbp_stack_s * self);
 
 /**
- * @brief The time remaining until the next process call.
- *
- * @param self The instance.
- * @return The interval until the next scheduled event.  If no events are
- *      currently pending, returns INT64_MAX.
- *
- * when the interval expires, call fbp_stack_process().
- */
-FBP_API int64_t fbp_stack_interval_next(struct fbp_stack_s * self);
-
-/**
- * @brief Process to handle retransmission.
- *
- * @param self The instance.
- *
- * todo eliminate this function, use fbp_evm_schedule() and fbp_evm_process()
- */
-FBP_API void fbp_stack_process(struct fbp_stack_s * self);
-
-/**
  * @brief Set the mutex used by the stack.
  *
  * @param self The stack instance.

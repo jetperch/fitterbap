@@ -32,6 +32,7 @@
 
 const char FBP_PORT0_META[] = "{\"type\":\"oam\", \"name\": \"oam\"}";
 static const char STATE_TOPIC[] = "0/state";
+static const char EVENT_TOPIC[] = "0/ev";
 static const char REMOTE_STATUS_TOPIC[] = "0/rstat";
 static const char ECHO_ENABLE_META_TOPIC[] = "0/echo/enable";
 static const char ECHO_OUTSTANDING_META_TOPIC[] = "0/echo/window";
@@ -291,6 +292,7 @@ void fbp_port0_on_event_cbk(struct fbp_port0_s * self, enum fbp_dl_event_e event
         default:
             break;
     }
+    publish(self, EVENT_TOPIC, &fbp_union_u32(event));
 }
 
 typedef void (*dispatch_fn)(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size);

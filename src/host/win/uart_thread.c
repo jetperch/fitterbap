@@ -27,14 +27,19 @@
 
 
 struct fbp_uartt_s {
-    fbp_uartt_process_fn process_fn;
-    void * process_user_data;
     struct fbp_evm_s * evm;
+    HANDLE signal_event;
     fbp_os_mutex_t mutex;
     HANDLE thread;
     volatile int quit;
     struct uart_s * uart;
 };
+
+static void on_schedule(void * user_data, int64_t next_time) {
+    struct fbp_uartt_s * self = (struct fbp_uartt_s *) user_data;
+    (void) next_time;
+    SetEvent(self->signal_event);
+}
 
 struct fbp_uartt_s * fbp_uartt_initialize(const char *device_path, struct uart_config_s const * config) {
     char dev_str[1024];
@@ -43,10 +48,16 @@ struct fbp_uartt_s * fbp_uartt_initialize(const char *device_path, struct uart_c
         return NULL;
     }
 
+    self->signal_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!self->signal_event) {
+        FBP_LOGE("signal_event alloc failed");
+        fbp_uartt_finalize(self);
+    }
+
     FBP_LOGI("fbp_uartt_initialize(%s, %d)", device_path, (int) config->baudrate);
     self->mutex = fbp_os_mutex_alloc();
-
     self->evm = fbp_evm_allocate();
+    fbp_evm_register_schedule_callback(self->evm, on_schedule, self);
     fbp_evm_register_mutex(self->evm, self->mutex);
     struct fbp_evm_api_s evm_api;
     fbp_evm_api_get(self->evm, &evm_api);
@@ -71,6 +82,7 @@ struct fbp_uartt_s * fbp_uartt_initialize(const char *device_path, struct uart_c
 
 void fbp_uartt_finalize(struct fbp_uartt_s *self) {
     if (self) {
+        fbp_uartt_stop(self);
         fbp_os_mutex_t mutex = self->mutex;
         if (mutex) {
             fbp_os_mutex_lock(mutex);
@@ -86,6 +98,10 @@ void fbp_uartt_finalize(struct fbp_uartt_s *self) {
             fbp_evm_free(self->evm);
             self->evm = NULL;
         }
+        if (self->signal_event) {
+            CloseHandle(self->signal_event);
+            self->signal_event = NULL;
+        }
         fbp_free(self);
         if (mutex) {
             fbp_os_mutex_unlock(mutex);
@@ -99,37 +115,26 @@ static DWORD WINAPI task(LPVOID lpParam) {
     HANDLE handles[16];
 
     struct fbp_uartt_s * self = (struct fbp_uartt_s *) lpParam;
+    handles[0] = self->signal_event;
     while (!self->quit) {
         handle_count = 0;
-        uart_handles(self->uart, &handle_count, &handles[handle_count]);
+        uart_handles(self->uart, &handle_count, handles + 1);
         int64_t time_start = fbp_time_rel();
         int64_t duration_i64 = fbp_evm_interval_next(self->evm, time_start);
+        duration_i64 = fbp_time_min(duration_i64, 25 * FBP_TIME_MILLISECOND);
         int64_t duration_ms = FBP_TIME_TO_COUNTER(duration_i64, 1000);
-        if (duration_ms > 1) {
-            duration_ms = 1;
-        }
-
-        if (handle_count) {
-            WaitForMultipleObjects(handle_count, handles, FALSE, (DWORD) duration_ms);
-        } else {
-            Sleep((DWORD) duration_ms);
-        }
+        WaitForMultipleObjects(handle_count + 1, handles, FALSE, (DWORD) duration_ms);
+        ResetEvent(self->signal_event);
 
         fbp_os_mutex_lock(self->mutex);
         uart_process(self->uart);
         fbp_os_mutex_unlock(self->mutex);
         fbp_evm_process(self->evm, fbp_time_rel());
-        if (self->process_fn) {
-            self->process_fn(self->process_user_data);
-        }
     }
     return 0;
 }
 
-int32_t fbp_uartt_start(struct fbp_uartt_s * self,
-                         fbp_uartt_process_fn process_fn, void * process_user_data) {
-    self->process_fn = process_fn;
-    self->process_user_data = process_user_data;
+int32_t fbp_uartt_start(struct fbp_uartt_s * self) {
     if (self->thread) {
         FBP_LOGW("fbp_udl_start but already running");
         return FBP_ERROR_BUSY;
@@ -155,8 +160,8 @@ int32_t fbp_uartt_start(struct fbp_uartt_s * self,
 int32_t fbp_uartt_stop(struct fbp_uartt_s * self) {
     int rc = 0;
     if (self) {
-        self->process_fn = NULL;
         self->quit = 1;
+        SetEvent(self->signal_event);
         if (self->thread) {
             if (WAIT_OBJECT_0 != WaitForSingleObject(self->thread, 1000)) {
                 FBP_LOGW("UART thread failed to shut down gracefully");
@@ -174,9 +179,12 @@ int32_t fbp_uartt_evm_api(struct fbp_uartt_s * self, struct fbp_evm_api_s * api)
 }
 
 void fbp_uartt_send(struct fbp_uartt_s * self, uint8_t const * buffer, uint32_t buffer_size) {
+    fbp_os_mutex_lock(self->mutex);
     if (uart_send_available(self->uart) >= buffer_size) {
         uart_write(self->uart, buffer, buffer_size);
+        SetEvent(self->signal_event);  // reschedule
     }
+    fbp_os_mutex_unlock(self->mutex);
 }
 
 uint32_t fbp_uartt_send_available(struct fbp_uartt_s * self) {

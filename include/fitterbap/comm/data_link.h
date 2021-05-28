@@ -294,17 +294,6 @@ enum fbp_dl_event_e {
 };
 
 /**
- * @brief Function called whenever a new message is sent.
- *
- * @param user_data Arbitrary user data.
- *
- * When used in a threaded environment, this function can signal the
- * thread that it should call fbp_dl_process().  This automatic
- * hook often eliminates the need for more complicated wrappers.
- */
-typedef void (*fbp_dl_on_send_fn)(void * user_data);
-
-/**
  * @brief The function called on events.
  *
  * @param user_data The arbitrary user data.
@@ -362,24 +351,6 @@ FBP_API int32_t fbp_dl_send(struct fbp_dl_s * self, uint16_t metadata,
  */
 FBP_API void fbp_dl_ll_recv(struct fbp_dl_s * self,
                             uint8_t const * buffer, uint32_t buffer_size);
-
-/**
- * @brief The maximum time until the next fbp_dl_process() call.
- *
- * @param self The instance.
- * @return The maximum time in FBP time until the system must call
- *      fbp_dl_process().  The system may call process sooner.
- */
-FBP_API int64_t fbp_dl_service_interval(struct fbp_dl_s * self);
-
-/**
- * @brief Process to handle retransmission.
- *
- * @param self The instance.
- *
- * todo eliminate this function, use fbp_evm_schedule() and fbp_evm_process()
- */
-FBP_API void fbp_dl_process(struct fbp_dl_s * self);
 
 /**
  * @brief Write data to the low-level driver instance.
@@ -481,20 +452,6 @@ FBP_API int32_t fbp_dl_status_get(
  * @param self The data link instance.
  */
 FBP_API void fbp_dl_status_clear(struct fbp_dl_s * self);
-
-/**
- * @brief Register the function called for each call to fbp_dl_send().
- *
- * @param self The data link instance.
- * @param cbk_fn The callback function.
- * @param cbk_user_data The arbitrary data for cbk_fn.
- *
- * Threaded implementations can use this callback to set an event,
- * task notification, or file handle to tell the thread that
- * fbp_dl_process() should be invoked.
- */
-FBP_API void fbp_dl_register_on_send(struct fbp_dl_s * self,
-                                     fbp_dl_on_send_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Register a send-side mutex.

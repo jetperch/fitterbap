@@ -36,13 +36,13 @@ void fbp_os_mutex_free(fbp_os_mutex_t mutex) {
 }
 
 void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
-    if (pdFALSE == xSemaphoreTake(mutex, MUTEX_LOCK_TIMEOUT_TICKS)) {
+    if (pdFALSE == xSemaphoreTakeRecursive(mutex, MUTEX_LOCK_TIMEOUT_TICKS)) {
         FBP_FATAL("mutex lock failed");
     }
 }
 
 void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
-    if (pdFALSE == xSemaphoreGive(mutex)) {
+    if (pdFALSE == xSemaphoreGiveRecursive(mutex)) {
         FBP_FATAL("mutex unlock failed");
     }
 }
