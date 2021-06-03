@@ -90,8 +90,7 @@ void fbp_uartt_finalize(struct fbp_uartt_s *self) {
         }
         fbp_uartt_stop(self);
         if (self->uart) {
-            uart_close(self->uart);
-            fbp_free(self->uart);
+            uart_free(self->uart);
             self->uart = NULL;
         }
         if (self->evm) {

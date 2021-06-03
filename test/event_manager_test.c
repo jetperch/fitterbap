@@ -41,11 +41,15 @@ struct fbp_time_counter_s fbp_time_counter() {
 }
 
 void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
-    check_expected_ptr(mutex);
+    if (mutex) {
+        check_expected_ptr(mutex);
+    }
 }
 
 void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
-    check_expected_ptr(mutex);
+    if (mutex) {
+        check_expected_ptr(mutex);
+    }
 }
 
 void * fbp_alloc(fbp_size_t size_bytes) {

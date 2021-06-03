@@ -58,7 +58,7 @@ FBP_API void fbp_os_mutex_free(fbp_os_mutex_t mutex);
 /**
  * @brief Lock a mutex.
  *
- * @param mutex The mutex to lock.
+ * @param mutex The mutex to lock.  If NULL, then skip the lock.
  *
  * Be sure to call fbp_os_mutex_unlock() when done.
  *
@@ -73,7 +73,7 @@ FBP_API void fbp_os_mutex_lock(fbp_os_mutex_t mutex);
  * @brief Unlock a mutex.
  *
  * @param mutex The mutex to unlock, which was previously locked
- *      with fbp_os_mutex_lock().
+ *      with fbp_os_mutex_lock().  If NULL, then skip the unlock.
  */
 FBP_API void fbp_os_mutex_unlock(fbp_os_mutex_t mutex);
 

@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.4.0
 
-2021 May 28 (in progress)
+2021 Jun 3
 
 *   Improved comm stack based upon EOC2021 attendee feedback - thank you!
     *   Added framer length crc-8 and mandatory EOF match.
@@ -24,6 +24,7 @@ This file contains the list of changes made to the Fitterbap library.
 *   Modified fbp_evm_interval_next return code.  
     Returns INT64_MAX rather than -1 on no scheduled events to simplify caller.
 *   Added fbp_evm_on_schedule for improved event_manager thread integration. 
+*   Fixed deadlock between GIL and native mutex.
 
 
 ## 0.3.2

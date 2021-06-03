@@ -17,6 +17,8 @@
 
 #include "fitterbap/os/mutex.h"
 #include "fitterbap/assert.h"
+#include "fitterbap/ec.h"
+#include "fitterbap/log.h"
 #include <windows.h>
 
 
@@ -38,14 +40,24 @@ void fbp_os_mutex_free(fbp_os_mutex_t mutex) {
 }
 
 void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
-    DWORD rc = WaitForSingleObject(mutex, MUTEX_LOCK_TIMEOUT_MS);
-    if (WAIT_OBJECT_0 != rc) {
-        FBP_FATAL("mutex lock failed");
+    if (mutex) {
+        DWORD rc = WaitForSingleObject(mutex, MUTEX_LOCK_TIMEOUT_MS);
+        if (WAIT_OBJECT_0 != rc) {
+            FBP_LOG_CRITICAL("mutex lock failed: %d", rc);
+            FBP_FATAL("mutex lock failed");
+        }
+    } else {
+        FBP_LOGD1("lock, but mutex is null");
     }
 }
 
 void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
-    if (!ReleaseMutex(mutex)) {
-        FBP_FATAL("mutex unlock failed");
+    if (mutex) {
+        if (!ReleaseMutex(mutex)) {
+            FBP_LOG_CRITICAL("mutex unlock failed");
+            FBP_FATAL("mutex unlock failed");
+        }
+    } else {
+        FBP_LOGD1("unlock, but mutex is null");
     }
 }

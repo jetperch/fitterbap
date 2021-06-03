@@ -40,8 +40,8 @@ cdef extern from "fitterbap/union.h":
 
     enum fbp_union_flag_e:
         FBP_UNION_FLAG_NONE = 0
-        FBP_UNION_FLAG_CONST = (1 << 0)
-        FBP_UNION_FLAG_RETAIN = (1 << 1)
+        FBP_UNION_FLAG_RETAIN = (1 << 0)
+        FBP_UNION_FLAG_CONST = (1 << 1)
 
     union fbp_union_inner_u:
         const char * str
@@ -76,7 +76,7 @@ cdef extern from "fitterbap/pubsub.h":
         FBP_PUBSUB_SFLAG_RSP = (1 << 3)
 
     ctypedef uint8_t (*fbp_pubsub_subscribe_fn)(void * user_data,
-            const char * topic, const fbp_union_s * value)
+            const char * topic, const fbp_union_s * value) nogil
 
 
 cdef extern from "fitterbap/comm/data_link.h":
@@ -125,9 +125,9 @@ cdef extern from "fitterbap/host/comm.h":
                                      const char * device,
                                      uint32_t baudrate,
                                      fbp_pubsub_subscribe_fn cbk_fn,
-                                     void * cbk_user_data)
-    void fbp_comm_finalize(fbp_comm_s * self)
+                                     void * cbk_user_data) nogil
+    void fbp_comm_finalize(fbp_comm_s * self) nogil
     int32_t fbp_comm_publish(fbp_comm_s * self,
-                             const char * topic, const fbp_union_s * value)
-    int32_t fbp_comm_query(fbp_comm_s * self, const char * topic, fbp_union_s * value)
-    int32_t fbp_comm_status_get(fbp_comm_s * self, fbp_dl_status_s * status)
+                             const char * topic, const fbp_union_s * value) nogil
+    int32_t fbp_comm_query(fbp_comm_s * self, const char * topic, fbp_union_s * value) nogil
+    int32_t fbp_comm_status_get(fbp_comm_s * self, fbp_dl_status_s * status) nogil

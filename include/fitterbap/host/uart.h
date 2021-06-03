@@ -41,8 +41,9 @@ typedef void (*uart_recv_fn)(void *user_data, uint8_t *buffer, uint32_t buffer_s
 
 struct uart_config_s {
     uint32_t baudrate;
-    uint32_t send_size_total;
-    uint32_t buffer_size;
+    uint32_t send_buffer_size;
+    uint32_t send_buffer_count;
+    uint32_t recv_buffer_size;
     uint32_t recv_buffer_count;
     uart_recv_fn recv_fn;
     void *recv_user_data;
@@ -58,6 +59,8 @@ struct uart_status_s {
 struct uart_s;
 
 FBP_API struct uart_s *uart_alloc();
+
+FBP_API void uart_free(struct uart_s * self);
 
 FBP_API int32_t uart_open(struct uart_s *self, const char *device_path, struct uart_config_s const * config);
 

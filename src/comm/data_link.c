@@ -289,15 +289,15 @@ static void send_data(struct fbp_dl_s * self, uint16_t frame_id) {
     }
 }
 
-static void send_link_pending(struct fbp_dl_s * self) {
+static int send_link_pending(struct fbp_dl_s * self) {
     uint32_t pending_sz = fbp_rbu64_size(&self->tx_link_buf);
     if (!pending_sz) {
-        return;
+        return 0;
     }
     uint32_t send_sz = self->ll_instance.send_available(self->ll_instance.user_data) / FBP_FRAMER_LINK_SIZE;
     if (!send_sz) {
-        FBP_LOGW("send_link_pending send_available = 0");
-        return;
+        FBP_LOGD1("send_link_pending send_available = 0");
+        return 1;
     } else if (pending_sz <= send_sz) {
         send_sz = pending_sz;
     }
@@ -314,6 +314,7 @@ static void send_link_pending(struct fbp_dl_s * self) {
         fbp_rbu64_discard(&self->tx_link_buf, send_sz);
     }
     self->tx_eof_pending = 1;
+    return 0;
 }
 
 static void send_link(struct fbp_dl_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
@@ -628,6 +629,7 @@ static int64_t process_disconnected(struct fbp_dl_s * self, int64_t now) {
         send_link_pending(self);
         return now + reset_timeout_duration(self);
     } else {
+        send_link_pending(self);
         return next;
     }
 }
@@ -702,10 +704,9 @@ static void fbp_dl_process(struct fbp_dl_s * self) {
     self->process_task_id = fbp_os_current_task_id();
     int64_t now = time_get(self);
     int64_t earliest_next_event = now + INTERVAL_MIN;
-    send_link_pending(self);
     if (self->state == ST_DISCONNECTED) {
         next_event = process_disconnected(self, now);
-    } else {
+    } else if (!send_link_pending(self)) {
         next_event = tx_timeout(self, now);
         tx_transmit(self);
     }

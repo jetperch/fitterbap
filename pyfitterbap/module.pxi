@@ -87,6 +87,8 @@ cdef extern from "fitterbap/platform.h":
     void fbp_free(void * ptr) nogil
 
 cdef void _fbp_fatal(const char * file, int line, const char * msg) with gil:
+    # since called from within C code, this exception will be ignored.
+    # Consider a better error handler method.
     raise RuntimeError(f'fbp_fatal({file}, {line}, {msg}')
 
 cdef void fbp_fatal(const char * file, int line, const char * msg) nogil:

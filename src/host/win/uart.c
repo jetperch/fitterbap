@@ -36,12 +36,15 @@ struct uart_s {
     HANDLE handle;
     uart_recv_fn recv_fn;
     void * recv_user_data;
-    struct fbp_list_s buf_free;
+
+    uint32_t write_buffer_size;
     struct fbp_list_s buf_write;
+    struct fbp_list_s buf_write_free;
+
+    uint32_t read_buffer_size;
     struct fbp_list_s buf_read;
-    uint32_t send_remaining;
-    uint32_t buffer_size;
-    uint32_t recv_buffer_count;
+    struct fbp_list_s buf_read_free;
+
     struct uart_status_s status;
 };
 
@@ -85,43 +88,85 @@ BOOL GetErrorMessage(DWORD dwErrorCode, char * pBuffer, DWORD cchBufferLength) {
     FBP_LOGE(format ": %d: %s", __VA_ARGS__, (int) error_, error_msg_); \
 }
 
-static struct buf_s * buf_alloc(struct uart_s * self) {
-    struct buf_s * buf;
-    if (fbp_list_is_empty(&self->buf_free)) {
-        buf = fbp_alloc_clr(sizeof(struct buf_s) + self->buffer_size);
-        FBP_ASSERT_ALLOC(buf);
-        fbp_list_initialize(&buf->item);
-        buf->overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-        FBP_ASSERT_ALLOC(buf->overlapped.hEvent);
-    } else {
-        struct fbp_list_s * item = fbp_list_remove_head(&self->buf_free);
-        buf = FBP_CONTAINER_OF(item, struct buf_s, item);
-        /*
-        buf->overlapped.Internal = 0;
-        buf->overlapped.InternalHigh = 0;
-        buf->overlapped.Offset = 0;
-        buf->overlapped.OffsetHigh = 0;
-        */
-        ResetEvent(buf->overlapped.hEvent);
-    }
+static struct buf_s * buf_alloc(uint32_t sz) {
+    struct buf_s * buf = fbp_alloc_clr(sizeof(struct buf_s) + sz);
+    FBP_ASSERT_ALLOC(buf);
+    fbp_list_initialize(&buf->item);
+    buf->overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    FBP_ASSERT_ALLOC(buf->overlapped.hEvent);
     return buf;
 }
 
-static void buf_free(struct uart_s * self, struct buf_s * buf) {
+static void buf_free(struct buf_s * buf) {
+    CloseHandle(buf->overlapped.hEvent);
+    fbp_free(buf);
+}
+
+static void buf_reset(struct buf_s * buf) {
+    buf->overlapped.Internal = 0;
+    buf->overlapped.InternalHigh = 0;
+    buf->overlapped.Offset = 0;
+    buf->overlapped.OffsetHigh = 0;
+    ResetEvent(buf->overlapped.hEvent);
+}
+
+static inline struct buf_s * buf_alloc_from_list(struct fbp_list_s * list) {
+    struct buf_s * buf;
+    struct fbp_list_s * item = fbp_list_remove_head(list);
+    if (!item) {
+        return NULL;
+    }
+    buf = FBP_CONTAINER_OF(item, struct buf_s, item);
+    return buf;
+}
+
+static inline void buf_free_to_list(struct buf_s * buf, struct fbp_list_s * list) {
     if (buf) {
         ResetEvent(buf->overlapped.hEvent);
-        fbp_list_add_tail(&self->buf_free, &buf->item);
+        fbp_list_add_tail(list, &buf->item);
     }
+}
+
+static struct buf_s * write_buf_alloc(struct uart_s * self) {
+    return buf_alloc_from_list(&self->buf_write_free);
+}
+
+static void write_buf_free(struct uart_s * self, struct buf_s * buf) {
+    buf_free_to_list(buf, &self->buf_write_free);
+}
+
+static struct buf_s * read_buf_alloc(struct uart_s * self) {
+    return buf_alloc_from_list(&self->buf_read_free);
+}
+
+static void read_buf_free(struct uart_s * self, struct buf_s * buf) {
+    buf_free_to_list(buf, &self->buf_read_free);
 }
 
 struct uart_s * uart_alloc() {
     struct uart_s * self = (struct uart_s *) fbp_alloc(sizeof(struct uart_s));
     fbp_memset(self, 0, sizeof(self));
     self->handle = INVALID_HANDLE_VALUE;
-    fbp_list_initialize(&self->buf_free);
     fbp_list_initialize(&self->buf_write);
+    fbp_list_initialize(&self->buf_write_free);
     fbp_list_initialize(&self->buf_read);
+    fbp_list_initialize(&self->buf_read_free);
     return self;
+}
+
+void uart_free(struct uart_s * self) {
+    uart_close(self);
+    fbp_free(self);
+}
+
+static void buf_list_free(struct fbp_list_s * list) {
+    struct fbp_list_s * item;
+    struct buf_s * buf;
+    fbp_list_foreach(list, item) {
+        buf = FBP_CONTAINER_OF(item, struct buf_s, item);
+        buf_free(buf);
+    }
+    fbp_list_initialize(list);
 }
 
 void uart_close(struct uart_s * self) {
@@ -129,15 +174,25 @@ void uart_close(struct uart_s * self) {
         CloseHandle(self->handle);
         self->handle = INVALID_HANDLE_VALUE;
     }
+    buf_list_free(&self->buf_write);
+    buf_list_free(&self->buf_write_free);
+    buf_list_free(&self->buf_read);
+    buf_list_free(&self->buf_read_free);
 }
 
 int32_t uart_open(struct uart_s * self, const char *device_path, struct uart_config_s const * config) {
     uart_close(self);
     self->recv_fn = config->recv_fn;
     self->recv_user_data = config->recv_user_data;
-    self->buffer_size = config->buffer_size;
-    self->send_remaining = config->send_size_total;
-    self->recv_buffer_count = config->recv_buffer_count;
+    self->write_buffer_size = config->send_buffer_size;
+    self->read_buffer_size = config->recv_buffer_size;
+
+    for (uint32_t i = 0; i < config->send_buffer_count; ++i) {
+        fbp_list_add_tail(&self->buf_write_free, &buf_alloc(self->write_buffer_size)->item);
+    }
+    for (uint32_t i = 0; i < config->recv_buffer_count; ++i) {
+        fbp_list_add_tail(&self->buf_read_free, &buf_alloc(self->read_buffer_size)->item);
+    }
 
     // https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
     DCB dcb = {
@@ -217,47 +272,38 @@ int32_t uart_open(struct uart_s * self, const char *device_path, struct uart_con
 int32_t uart_write(struct uart_s * self, uint8_t const * buffer, uint32_t buffer_size) {
     uint32_t sz;
     struct buf_s * buf;
-    if (buffer_size > self->send_remaining) {
-        FBP_LOGE("uart_write(%d bytes), but only %d remaining", (int) buffer_size, (int) self->send_remaining);
+    uint32_t send_remaining = uart_send_available(self);
+    if (buffer_size > send_remaining) {
+        FBP_LOGE("uart_write(%d bytes), but only %d remaining", (int) buffer_size, (int) send_remaining);
         return FBP_ERROR_NOT_ENOUGH_MEMORY;
     }
     while (buffer_size) {
         sz = buffer_size;
-        if (sz > self->buffer_size) {
-            sz = self->buffer_size;
+        if (sz > self->write_buffer_size) {
+            sz = self->write_buffer_size;
         }
-
-        uint8_t * b;
-        uint32_t b_sz = sz;
         DWORD write_count = 0;
+        buf = write_buf_alloc(self);
+        FBP_ASSERT_ALLOC(buf);  // should never fail since we checked uart_send_available()
+        fbp_memcpy(buf->buf, buffer, sz);
 
-        while (b_sz) {
-            buf = buf_alloc(self);
-            fbp_memcpy(buf->buf, buffer, sz);
-            b = buf->buf;
-            buf->size = sz;
-            buffer_size -= sz;
-            buffer += sz;
-
-            if (!WriteFile(self->handle, b, b_sz, &write_count, &buf->overlapped)) {
-                break;
-            }
+        if (WriteFile(self->handle, buf->buf, sz, &write_count, &buf->overlapped)) {
+            // unusual synchronous completion, but ok
             FBP_LOGW("uart_write overlapped completed immediately");
-            b += write_count;
-            b_sz -= write_count;
-            buf_free(self, buf);
-            buf = 0;
-        }
-        if (!b_sz) {
-            // wrote the entire message synchronously, ok.
-        } else if (GetLastError() != ERROR_IO_PENDING) {
-            WINDOWS_LOGE("%s", "uart_write overlapped failed");
-            buf_free(self, buf);
-            return FBP_ERROR_IO;
-        } else {
+            buffer += write_count;
+            buffer_size -= write_count;
+            write_buf_free(self, buf);
+        } else if (GetLastError() == ERROR_IO_PENDING) {
+            // normal, expected overlapped IO path
+            buffer += sz;
+            buffer_size -= sz;
             fbp_list_add_tail(&self->buf_write, &buf->item);
             FBP_LOGD3("write pend: %d", (int) sz);
-            self->send_remaining -= sz;
+        } else {
+            // overlapped error
+            WINDOWS_LOGE("%s", "uart_write overlapped failed");
+            write_buf_free(self, buf);
+            return FBP_ERROR_IO;
         }
     }
 
@@ -265,28 +311,44 @@ int32_t uart_write(struct uart_s * self, uint8_t const * buffer, uint32_t buffer
 }
 
 uint32_t uart_send_available(struct uart_s *self) {
-    return self->send_remaining;
+    return fbp_list_length(&self->buf_write_free) * self->write_buffer_size;
 }
 
-static int32_t read_pend(struct uart_s * self) {
-    int32_t sync_read_count = 0;
+static int32_t read_pend_one(struct uart_s * self) {
     DWORD read_count = 0;
-    struct buf_s * buf = buf_alloc(self);
-    while (ReadFile(self->handle, buf->buf, self->buffer_size, &read_count, &buf->overlapped)) {
+    struct buf_s * buf = read_buf_alloc(self);
+    if (!buf) {
+        return -1;
+    }
+    buf->size = self->read_buffer_size;
+
+    if (ReadFile(self->handle, buf->buf, buf->size, &read_count, &buf->overlapped)) {
+        // synchronous return, put into list to ensure in-order processing.
         FBP_LOGD1("read_pend sync: %d", (int) read_count);
-        // put into list to ensure in-order processing.
+        SetEvent(buf->overlapped.hEvent);
+        buf->size = read_count;
         fbp_list_add_tail(&self->buf_read, &buf->item);
-        buf = buf_alloc(self);
-        ++sync_read_count;
-    }
-    DWORD last_error = GetLastError();
-    if (last_error != ERROR_IO_PENDING) {
-        WINDOWS_LOGE("%s", "ReadFile not pending");
-        buf_free(self, buf);
+        return 1;
+    } else if (GetLastError() == ERROR_IO_PENDING) {
+        // normal, async return
+        fbp_list_add_tail(&self->buf_read, &buf->item);
+        return 0;
     } else {
-        fbp_list_add_tail(&self->buf_read, &buf->item);
+        WINDOWS_LOGE("%s", "ReadFile not pending");
+        read_buf_free(self, buf);
+        return -1;
     }
-    return sync_read_count;
+}
+
+static void read_pend_all(struct uart_s * self) {
+    int32_t rc;
+    while (1) {
+        rc = read_pend_one(self);
+        if (rc < 0) {
+            return;
+        }
+
+    }
 }
 
 static void process_read(struct uart_s *self) {
@@ -309,18 +371,16 @@ static void process_read(struct uart_s *self) {
                 self->recv_fn(self->recv_user_data, buf->buf, read_count);
             }
         } else if (last_error == ERROR_TIMEOUT) {
-            // no worries!
+            // no received data, no worries!
         } else {
             WINDOWS_LOGE("%s", "process_read error");
         }
-        buf_free(self, buf);
-        read_pend(self);
+        read_buf_free(self, buf);
+        read_pend_all(self);
         FBP_LOGD3("read %d", (int) read_count);
     }
 
-    for (uint32_t count = (uint32_t) fbp_list_length(&self->buf_read); count < self->recv_buffer_count; ++count) {
-        read_pend(self);
-    }
+    read_pend_all(self);
 }
 
 static void process_write(struct uart_s *self) {
@@ -335,11 +395,10 @@ static void process_write(struct uart_s *self) {
         if (last_error == ERROR_IO_INCOMPLETE) {
             break;  // still in progress
         }
-        self->send_remaining += buf->size;
         self->status.write_bytes += buf->size;
         ++self->status.write_buffer_count;
         fbp_list_remove_head(&self->buf_write);
-        buf_free(self, buf);
+        write_buf_free(self, buf);
         FBP_LOGD3("write complete");
     }
 }
@@ -360,7 +419,7 @@ void uart_handles(struct uart_s *self, uint32_t * handle_count, void ** handles)
         buf = FBP_CONTAINER_OF(item, struct buf_s, item);
         handles[count++] = buf->overlapped.hEvent;
     }
-    *handle_count += count;
+    *handle_count = count;
 }
 
 void uart_process(struct uart_s *self) {

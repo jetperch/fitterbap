@@ -66,11 +66,11 @@ enum fbp_union_flag_e {
     /// No flags specified.
     FBP_UNION_FLAG_NONE = 0,
 
-    /// The value points to a const that will remain valid indefinitely.
-    FBP_UNION_FLAG_CONST = (1 << 0),
-
     /// The PubSub instance should retain this value.
-    FBP_UNION_FLAG_RETAIN = (1 << 1),
+    FBP_UNION_FLAG_RETAIN = (1 << 0),
+
+    /// The value points to a const that will remain valid indefinitely.
+    FBP_UNION_FLAG_CONST = (1 << 1),
 };
 
 /// The actual value holder for fbp_union_s.

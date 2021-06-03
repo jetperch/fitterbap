@@ -42,15 +42,11 @@ struct fbp_evm_s {
 };
 
 static inline void lock(struct fbp_evm_s * self) {
-    if (self->mutex) {
-        fbp_os_mutex_lock(self->mutex);
-    }
+    fbp_os_mutex_lock(self->mutex);
 }
 
 static inline void unlock(struct fbp_evm_s * self) {
-    if (self->mutex) {
-        fbp_os_mutex_unlock(self->mutex);
-    }
+    fbp_os_mutex_unlock(self->mutex);
 }
 
 struct fbp_evm_s * fbp_evm_allocate() {

@@ -26,7 +26,7 @@
 
 
 #define FEEDBACK_TOPIC_PREFIX "_/fb/"
-
+FBP_STATIC_ASSERT((int) FBP_UNION_FLAG_RETAIN == (int) FBP_PUBSUB_SFLAG_RETAIN, retain_flags_must_be_same);
 
 enum state_e {
     ST_DISCONNECTED,   // Not connected
@@ -44,9 +44,9 @@ enum state_e {
 enum events_e {
     EV_DISCONNECT,
     EV_TRANSPORT_CONNECT,
-    EV_NEGOTIATE_REQ,
     EV_SENT,
     EV_RECV,
+    EV_RECV_NEGOTIATE,
     EV_END_TOPIC,
     EV_TICK,
     EV_TIMEOUT,
@@ -78,6 +78,7 @@ static const char * event_to_str(struct fbp_fsm_s * self, fbp_fsm_event_t event)
         case EV_TRANSPORT_CONNECT: return "transport_connect";
         case EV_SENT: return "sent";
         case EV_RECV: return "recv";
+        case EV_RECV_NEGOTIATE: return "recv_negotiate";
         case EV_END_TOPIC: return "end_topic";
         case EV_TICK: return "tick";
         case EV_TIMEOUT: return "timeout";
@@ -260,18 +261,10 @@ static void on_negotiate(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e se
         FBP_LOGW("version mismatch - caution!");
     }
 
-    if (is_client(self) ? (self->fsm.state != ST_NEGOTIATE_REQ) : (self->fsm.state != ST_NEGOTIATE_RSP)) {
-        FBP_LOGW("unexpected negotiate received");
-        if (negotiate.msg_type == 0) {
-            emit_event(self, EV_NEGOTIATE_REQ);
-        }
-        return;
-    }
-
     if (is_client(self)) {
-        if (negotiate.msg_type != 0) {
-            FBP_LOGW("client received rsp");
-            return;
+        if ((negotiate.msg_type != 0) || (self->fsm.state != ST_NEGOTIATE_REQ)) {
+            FBP_LOGW("client received unexpected negotiate %d", (int) negotiate.msg_type);
+            // will force into ST_NEGOTIATE_RSP
         }
         self->source = 0;
         self->server_connection_count = negotiate.server_connection_count;
@@ -279,17 +272,22 @@ static void on_negotiate(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e se
             self->source = 1;  // client provides state
         }
     } else {
-        if (negotiate.msg_type != 1) {
-            FBP_LOGW("server received req");
+        if ((negotiate.msg_type != 1) || (self->fsm.state != ST_NEGOTIATE_RSP)) {
+            FBP_LOGW("server received unexpected negotiate %d", (int) negotiate.msg_type);
             return;
         } else if (negotiate.status != 0) {
-            FBP_LOGW("client negotiate error: %d", (int) negotiate.status);
+            FBP_LOGW("negotiate status error: %d", (int) negotiate.status);
             return;
         }
         self->client_connection_count = negotiate.client_connection_count;
         self->source = negotiate.resolution;
     }
-    emit_event(self, EV_RECV);
+    FBP_LOGI("server=%d, client=%d, resolution=%d=%s",
+             (int) self->server_connection_count, (int) self->client_connection_count,
+             (int) self->source,
+             self->source ? "client" : "server");
+
+    emit_event(self, EV_RECV_NEGOTIATE);
 }
 
 static uint8_t port_data_to_flags(uint8_t port_data) {
@@ -323,7 +321,7 @@ static void on_topic_list(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e s
         }
         end_ch = *end;
         *end = 0;
-        FBP_LOGI("topic list subscribe: %s", topic);
+        FBP_LOGI("topic list subscribe: %s flags=0x%02x", topic, (unsigned int) flags);
         fbp_pubsub_subscribe(self->pubsub, topic, flags,
                              (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
         if (end_ch) {
@@ -518,8 +516,12 @@ void fbp_pubsubp_on_recv(struct fbp_pubsubp_s *self,
     }
 }
 
-static inline uint8_t retain_bit(struct fbp_pubsubp_s *self) {
-    return self->mode ? 0 : FBP_PUBSUBP_PORT_DATA_RETAIN_BIT;
+static inline uint8_t topic_retain_bit(struct fbp_pubsubp_s *self) {
+    if (self->mode && (self->source == 0)) {
+        return FBP_PUBSUBP_PORT_DATA_RETAIN_BIT;
+    } else {
+        return 0;
+    }
 }
 
 int32_t send_topic_list(struct fbp_pubsubp_s * self) {
@@ -527,7 +529,7 @@ int32_t send_topic_list(struct fbp_pubsubp_s * self) {
     fbp_pubsub_query(self->pubsub, FBP_PUBSUB_TOPIC_LIST, &value);
 
     uint32_t sz = value.size ? value.size : ((uint32_t) (strlen(value.value.str) + 1));
-    uint8_t port_data = FBP_PUBSUBP_MSG_TOPIC_LIST | retain_bit(self);
+    uint8_t port_data = FBP_PUBSUBP_MSG_TOPIC_LIST | topic_retain_bit(self);
     return fbp_transport_send(self->transport, self->port_id, FBP_TRANSPORT_SEQ_SINGLE,
                               port_data, (const uint8_t *) value.value.str, sz, 0);
 }
@@ -537,20 +539,20 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
     uint8_t port_data = 0;
     if (!self->transport) {
         return 0;
-    } else if (self->fsm.state <= ST_TOPIC_LIST) {
-        FBP_LOGW("fbp_pubsubp_on_update before ready");
-        return 0;
     } else if (topic[0] == '_') {
-        if ((self->fsm.state != ST_CONNECTED) && (0 == strcmp(self->feedback_topic, topic))) {
+        if (0 == strcmp(self->feedback_topic, topic)) {
+            FBP_LOGI("fbp_pubsubp_on_update end topic");
             emit_event(self, EV_END_TOPIC);
             return 0;
         } else if (value->type != FBP_UNION_STR) {
             return 0;  // ignore
+        } else if (self->mode == 0) {
+            return 0;  // ignore server
         } else if (0 == strcmp(FBP_PUBSUB_TOPIC_LIST, topic)) {
             return 0;  // topic list handled explicitly, skip here
         } else if (0 == strcmp(FBP_PUBSUB_TOPIC_ADD, topic)) {
             uint32_t sz = value->size ? value->size : ((uint32_t) (strlen(value->value.str) + 1));
-            port_data = FBP_PUBSUBP_MSG_TOPIC_ADD | retain_bit(self);
+            port_data = FBP_PUBSUBP_MSG_TOPIC_ADD | topic_retain_bit(self);
             return fbp_transport_send(self->transport, self->port_id, FBP_TRANSPORT_SEQ_SINGLE,
                                       port_data, (const uint8_t *) value->value.str, sz, FBP_PUBSUBP_TIMEOUT_MS);
         } else if (0 == strcmp(FBP_PUBSUB_TOPIC_REMOVE, topic)) {
@@ -561,6 +563,9 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
         } else {
             return 0;  // do not forward any other "_" topics.
         }
+    } else if (self->fsm.state <= ST_TOPIC_LIST) {
+        FBP_LOGW("fbp_pubsubp_on_update before ready");
+        return 0;
     }
 
     bool retain = (value->flags & FBP_UNION_FLAG_RETAIN) != 0;
@@ -619,8 +624,8 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
             }
             break;
         }
-        case FBP_UNION_F32: FBP_BBUF_ENCODE_U32_LE(p, *((uint32_t*) &value->value.f32)); payload_sz = 4; break;
-        case FBP_UNION_F64: FBP_BBUF_ENCODE_U64_LE(p, *((uint64_t*) &value->value.f64)); payload_sz = 8; break;
+        case FBP_UNION_F32: FBP_BBUF_ENCODE_U32_LE(p, value->value.u32); payload_sz = 4; break;  // u32 intentional
+        case FBP_UNION_F64: FBP_BBUF_ENCODE_U64_LE(p, value->value.u64); payload_sz = 8; break;  // u64 intentional
         case FBP_UNION_U8: p[0] = value->value.u8; payload_sz = 1; break;
         case FBP_UNION_U16: FBP_BBUF_ENCODE_U16_LE(p, value->value.u16); payload_sz = 2; break;
         case FBP_UNION_U32: FBP_BBUF_ENCODE_U32_LE(p, value->value.u32); payload_sz = 4; break;
@@ -644,11 +649,15 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
     timeout_set(self, 1000); \
     tick_clear(self)
 
+static inline void unsubscribe(struct fbp_pubsubp_s * self) {
+    fbp_pubsub_unsubscribe_from_all(self->pubsub,
+                                    (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+}
+
 static fbp_fsm_state_t on_enter_disconnected(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     ON_ENTER(fsm);
     timeout_clear(self);
-    fbp_pubsub_unsubscribe_from_all(self->pubsub,
-                                    (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    unsubscribe(self);
     return FBP_STATE_ANY;
 }
 
@@ -690,8 +699,17 @@ static fbp_fsm_state_t on_send_tick(struct fbp_fsm_s * fsm, fbp_fsm_event_t even
 static fbp_fsm_state_t on_enter_negotiate_req(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     ON_ENTER(fsm);
     self->source = 0;
-    fbp_pubsub_unsubscribe_from_all(self->pubsub,
-                                    (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    unsubscribe(self);
+    if (self->mode == 0) {
+        fbp_pubsub_subscribe(self->pubsub, self->feedback_topic, 0,
+                             (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    }
+    return on_send_tick(fsm, event);
+}
+
+static fbp_fsm_state_t on_enter_client_negotiate_rsp(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
+    ON_ENTER(fsm);
+    unsubscribe(self);
     return on_send_tick(fsm, event);
 }
 
@@ -745,20 +763,9 @@ static fbp_fsm_state_t if_client_is_source(struct fbp_fsm_s * fsm, fbp_fsm_event
     return (self->source == 1) ? FBP_STATE_ANY : FBP_STATE_SKIP;
 }
 
-static fbp_fsm_state_t negotiate_req_guard(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    struct fbp_pubsubp_s * self = (struct fbp_pubsubp_s *) fsm;
-    switch (self->fsm.state) {
-        case ST_DISCONNECTED: return FBP_STATE_SKIP;
-        case ST_NEGOTIATE_REQ: return FBP_STATE_SKIP;
-        case ST_NEGOTIATE_RSP: return FBP_STATE_SKIP;
-        default: return FBP_STATE_ANY;
-    }
-}
-
 static const struct fbp_fsm_transition_s client_transitions[] = {  // priority encoded
     {ST_DISCONNECTED, ST_NEGOTIATE_REQ, EV_TRANSPORT_CONNECT, on_start},
-    {ST_NEGOTIATE_REQ, ST_NEGOTIATE_RSP, EV_RECV, NULL},
+    {ST_NEGOTIATE_REQ, ST_NEGOTIATE_RSP, EV_RECV_NEGOTIATE, NULL},
     {ST_NEGOTIATE_RSP, ST_TOPIC_LIST, EV_SENT, NULL},
     {ST_TOPIC_LIST, ST_UPDATE_RECV, EV_SENT, if_server_is_source},
     {ST_TOPIC_LIST, ST_UPDATE_SEND, EV_SENT, if_client_is_source},
@@ -775,7 +782,7 @@ static const struct fbp_fsm_transition_s client_transitions[] = {  // priority e
     {ST_CONN_REQ_SEND, FBP_STATE_NULL, EV_TICK, on_send_tick},
     {ST_CONN_RSP_SEND, FBP_STATE_NULL, EV_TICK, on_send_tick},
 
-    {FBP_STATE_ANY, ST_NEGOTIATE_REQ, EV_NEGOTIATE_REQ, negotiate_req_guard},
+    {FBP_STATE_ANY, ST_NEGOTIATE_RSP, EV_RECV_NEGOTIATE, NULL},
     {FBP_STATE_ANY, ST_DISCONNECTED, EV_DISCONNECT, NULL},
     {FBP_STATE_ANY, ST_NEGOTIATE_REQ, EV_TIMEOUT,        NULL},
     {FBP_STATE_ANY, ST_DISCONNECTED, FBP_EVENT_RESET,   NULL},
@@ -784,7 +791,7 @@ static const struct fbp_fsm_transition_s client_transitions[] = {  // priority e
 static const struct fbp_fsm_transition_s server_transitions[] = {  // priority encoded
     {ST_DISCONNECTED, ST_NEGOTIATE_REQ, EV_TRANSPORT_CONNECT, on_start},
     {ST_NEGOTIATE_REQ, ST_NEGOTIATE_RSP, EV_SENT, NULL},
-    {ST_NEGOTIATE_RSP, ST_TOPIC_LIST, EV_RECV, NULL},
+    {ST_NEGOTIATE_RSP, ST_TOPIC_LIST, EV_RECV_NEGOTIATE, NULL},
     {ST_TOPIC_LIST, ST_UPDATE_RECV, EV_RECV, if_client_is_source},
     {ST_TOPIC_LIST, ST_UPDATE_SEND, EV_RECV, if_server_is_source},
 
@@ -800,7 +807,6 @@ static const struct fbp_fsm_transition_s server_transitions[] = {  // priority e
     {ST_CONN_REQ_SEND, FBP_STATE_NULL, EV_TICK, on_send_tick},
     {ST_CONN_RSP_SEND, FBP_STATE_NULL, EV_TICK, on_send_tick},
 
-    {FBP_STATE_ANY, ST_NEGOTIATE_REQ, EV_NEGOTIATE_REQ, negotiate_req_guard},
     {FBP_STATE_ANY, ST_DISCONNECTED, EV_DISCONNECT, NULL},
     {FBP_STATE_ANY, ST_NEGOTIATE_REQ, EV_TIMEOUT,        NULL},
     {FBP_STATE_ANY, ST_DISCONNECTED, FBP_EVENT_RESET,   NULL},
@@ -809,7 +815,7 @@ static const struct fbp_fsm_transition_s server_transitions[] = {  // priority e
 static const struct fbp_fsm_state_s client_states[] = {
     {ST_DISCONNECTED,   "disconnected",  on_enter_disconnected, NULL},
     {ST_NEGOTIATE_REQ,  "negotiate_req", on_enter_negotiate_req, NULL},
-    {ST_NEGOTIATE_RSP,  "negotiate_rsp", on_enter_send, NULL},
+    {ST_NEGOTIATE_RSP,  "negotiate_rsp", on_enter_client_negotiate_rsp, NULL},
     {ST_TOPIC_LIST,     "topic_list",    on_enter_send, NULL},
     {ST_UPDATE_SEND,    "update_send",   on_enter_update_send, NULL},
     {ST_UPDATE_RECV,    "update_recv",   on_enter_update_recv, NULL},

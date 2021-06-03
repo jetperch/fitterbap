@@ -94,6 +94,10 @@ int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
     expect_string(fbp_pubsub_subscribe, topic, _topic);     \
     expect_value(fbp_pubsub_subscribe, flags, _flags)
 
+#define expect_any_subscribe()                    \
+    expect_any(fbp_pubsub_subscribe, topic);     \
+    expect_any(fbp_pubsub_subscribe, flags)
+
 int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
                                fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     (void) self;

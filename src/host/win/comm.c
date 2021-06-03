@@ -200,8 +200,9 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
 
     struct uart_config_s uart_config = {
             .baudrate = baudrate,
-            .send_size_total = 3 * FBP_FRAMER_MAX_SIZE,
-            .buffer_size = FBP_FRAMER_MAX_SIZE,
+            .send_buffer_size = (FBP_FRAMER_MAX_SIZE + 4) / 2,
+            .send_buffer_count = 8,
+            .recv_buffer_size = FBP_FRAMER_MAX_SIZE,
             .recv_buffer_count = 16,
             .recv_fn = on_uart_recv,
             .recv_user_data = self,

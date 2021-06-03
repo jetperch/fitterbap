@@ -97,6 +97,7 @@ static void publish_after_connect(struct test_s * self) {
 static void test_server_connect_initial(void ** state) {
     INITIALIZE(FBP_PUBSUBP_MODE_DOWNSTREAM);
     expect_unsubscribe_from_all();
+    expect_any_subscribe();
     expect_send(PORT_ID, FBP_PUBSUBP_MSG_NEGOTIATE, &NEGOTIATE_REQ, sizeof(NEGOTIATE_REQ), 0);
     fbp_pubsubp_on_event(self->s, FBP_DL_EV_TRANSPORT_CONNECTED);
 
@@ -136,6 +137,7 @@ static void initialize_client(struct test_s * self) {
     expect_send(PORT_ID, FBP_PUBSUBP_MSG_TOPIC_LIST, (uint8_t *) topic_list, sizeof(topic_list), 0);
     expect_subscribe("", FBP_PUBSUB_SFLAG_RSP | FBP_PUBSUB_SFLAG_RETAIN);
     expect_publish_u32(fbp_pubsubp_feedback_topic(self->s), 1);
+    expect_unsubscribe_from_all();
     fbp_pubsubp_on_recv(self->s, PORT_ID, FBP_TRANSPORT_SEQ_SINGLE, FBP_PUBSUBP_MSG_NEGOTIATE,
                         (uint8_t *) &NEGOTIATE_REQ, sizeof(NEGOTIATE_REQ));
 
