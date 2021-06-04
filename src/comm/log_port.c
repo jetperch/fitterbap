@@ -132,6 +132,17 @@ void on_transport_recv(void *user_data,
     self->recv_fn(self->recv_user_data, &record);
 }
 
+static const char * find_basename(const char * filename) {
+    const char * p = filename;
+    while (*filename) {
+        if (*filename == '/') {
+            p = filename + 1;
+        }
+        ++filename;
+    }
+    return p;
+}
+
 int32_t fbp_logp_publish(struct fbp_port_api_s * api, uint8_t level, const char * filename, uint32_t line, const char * format, ...) {
     int32_t rc = 0;
     va_list args;
@@ -140,9 +151,11 @@ int32_t fbp_logp_publish(struct fbp_port_api_s * api, uint8_t level, const char 
     if ((level > 0x0f) || (line >= 0x100000)) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
-    if (!self->is_connected) {
+    if (!self || !self->is_connected) {
         return FBP_ERROR_UNAVAILABLE;
     }
+    filename = find_basename(filename);
+
     lock(self);
     if (fbp_list_is_empty(&self->msg_free)) {
         rc = FBP_ERROR_FULL;
@@ -180,6 +193,11 @@ int32_t fbp_logp_publish_record(struct fbp_port_api_s * api, struct fbp_logp_rec
     int32_t rc = 0;
     char * p;
     struct logp_s * self = (struct logp_s *) api;
+    if (!self || !self->is_connected) {
+        return FBP_ERROR_UNAVAILABLE;
+    }
+    const char * filename = find_basename(record->filename);
+
     lock(self);
     if (fbp_list_is_empty(&self->msg_free)) {
         rc = FBP_ERROR_FULL;
@@ -195,8 +213,8 @@ int32_t fbp_logp_publish_record(struct fbp_port_api_s * api, struct fbp_logp_rec
         msg->msg.header.timestamp = record->timestamp;
 
         p = msg->msg.data;
-        for (int i = 0; (i < FBP_LOGP_FILENAME_SIZE_MAX) && (*record->filename); ++i) {
-            *p++ = *record->filename++;
+        for (int i = 0; (i < FBP_LOGP_FILENAME_SIZE_MAX) && (*filename); ++i) {
+            *p++ = *filename++;
         }
         *p++ = FBP_LOGP_SEP;
         for (int i = 0; (i < FBP_LOGP_MESSAGE_SIZE_MAX) && (*record->message); ++i) {
@@ -226,7 +244,7 @@ int32_t fbp_logp_process(struct fbp_port_api_s * api) {
     struct logp_s * self = (struct logp_s *) api;
     struct msg_s * msg;
     int32_t rc;
-    while (1) {
+    while (self->api.transport) {
         lock(self);
         if (fbp_list_is_empty(&self->msg_pend)) {
             unlock(self);
@@ -244,6 +262,7 @@ int32_t fbp_logp_process(struct fbp_port_api_s * api) {
             return rc;
         }
     }
+    return 0;
 }
 
 FBP_API struct fbp_port_api_s * fbp_logp_factory(struct fbp_logp_config_s const * config) {
