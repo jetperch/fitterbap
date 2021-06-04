@@ -55,6 +55,19 @@ target_link_libraries(pubsub_port_test cmocka)
 add_test(pubsub_port_test ${CMAKE_CURRENT_BINARY_DIR}/pubsub_port_test)
 
 # waveform_port_test special build to break dependencies
+SET_FILENAME("log_port_test.c")
+add_executable(log_port_test log_port_test.c
+        ../../src/comm/log_port.c
+        ../../src/platform.c
+        ../../src/event_manager.c
+        ../../src/log.c
+        ../../third-party/tinyprintf/tinyprintf.c
+        $<TARGET_OBJECTS:test_objlib>)
+add_dependencies(log_port_test test_objlib cmocka)
+target_link_libraries(log_port_test cmocka)
+add_test(log_port_test ${CMAKE_CURRENT_BINARY_DIR}/log_port_test)
+
+# waveform_port_test special build to break dependencies
 SET_FILENAME("waveform_sink_test.c")
 add_executable(waveform_sink_test waveform_sink_test.c
         ../../src/comm/wave_sink_port.c
