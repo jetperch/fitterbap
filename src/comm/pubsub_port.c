@@ -654,6 +654,18 @@ static inline void unsubscribe(struct fbp_pubsubp_s * self) {
                                     (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
 }
 
+static void client_subscribe(struct fbp_pubsubp_s * self) {
+    if (self->mode) {
+        uint8_t flags = FBP_PUBSUB_SFLAG_RSP;
+        if (self->source) {
+            flags |= FBP_PUBSUB_SFLAG_RETAIN;
+        }
+        fbp_pubsub_subscribe(self->pubsub, "", flags, (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    } else {
+        // server subscribes to specific topics using topic list
+    }
+}
+
 static fbp_fsm_state_t on_enter_disconnected(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     ON_ENTER(fsm);
     timeout_clear(self);
@@ -725,15 +737,7 @@ static fbp_fsm_state_t on_enter_recv_wait(struct fbp_fsm_s * fsm, fbp_fsm_event_
 
 static fbp_fsm_state_t on_enter_update_send(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     ON_ENTER(fsm);
-    if (self->mode) {
-        uint8_t flags = FBP_PUBSUB_SFLAG_RSP;
-        if (self->source) {
-            flags |= FBP_PUBSUB_SFLAG_RETAIN;
-        }
-        fbp_pubsub_subscribe(self->pubsub, "", flags, (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
-    } else {
-        // already subscribed from topic list
-    }
+    client_subscribe(self);
     publish_feedback_topic(self);
     return FBP_STATE_ANY;
 }
@@ -741,6 +745,7 @@ static fbp_fsm_state_t on_enter_update_send(struct fbp_fsm_s * fsm, fbp_fsm_even
 static fbp_fsm_state_t on_enter_update_recv(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     ON_ENTER(fsm);
     timeout_set(self, 5000);
+    client_subscribe(self);
     return FBP_STATE_ANY;
 }
 
