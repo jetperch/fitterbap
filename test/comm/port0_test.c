@@ -53,6 +53,7 @@ struct fbp_transport_s {
     struct fbp_dl_s dl2;
     struct fbp_evm_api_s evm;
     int64_t timestamp;
+    uint64_t counter;
     struct ev_s events[EVENT_COUNT_MAX];
 };
 
@@ -65,6 +66,18 @@ struct fbp_transport_s * instance_;
 #define META_MSG_PORT1 "\x21" META_PORT1
 #define TX_WINDOW_SIZE 16
 #define RX_WINDOW_SIZE 12
+
+struct fbp_time_counter_s fbp_time_counter() {
+    return (struct fbp_time_counter_s) {.frequency = 1000, .value = instance_->counter};
+}
+
+void fbp_ts_update(struct fbp_ts_s * self, uint64_t src_tx, int64_t tgt_rx, int64_t tgt_tx, uint64_t src_rx) {
+    (void) self;
+    (void) src_tx;
+    (void) tgt_rx;
+    (void) tgt_tx;
+    (void) src_rx;
+}
 
 void fbp_dl_reset_tx_from_event(struct fbp_dl_s * dl_ptr) {
     if (!instance_->p2) {
@@ -267,7 +280,7 @@ static int teardown(void ** state) {
     struct fbp_pubsub_s * pubsub = fbp_pubsub_initialize("h", 1024);   \
     assert_non_null(pubsub);                                           \
     expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);          \
-    struct fbp_port0_s * p = fbp_port0_initialize(FBP_PORT0_MODE_##mode_, &self->dl1, &self->evm, self, ll_send, pubsub, "h/c0/"); \
+    struct fbp_port0_s * p = fbp_port0_initialize(FBP_PORT0_MODE_##mode_, &self->dl1, &self->evm, self, ll_send, pubsub, "h/c0/", NULL); \
     assert_non_null(p); \
     self->p1 = p
 
@@ -281,15 +294,16 @@ static int teardown(void ** state) {
 
 static void server_timestamp(struct fbp_transport_s * self) {
     // timestamp, receive request and respond
-    int64_t timesync_req[4] = {0, 0, 0, 0};
-    int64_t timesync_rsp[4] = {0, 0, 0, 0};
+    int64_t timesync_req[5] = {0, 0, 0, 0, 0};
+    int64_t timesync_rsp[5] = {0, 0, 0, 0, 0};
     self->timestamp += FBP_TIME_MILLISECOND * 10;
-    timesync_req[0] = self->timestamp;
+    timesync_req[1] = self->timestamp;
     timesync_rsp[0] = timesync_req[0];
+    timesync_rsp[1] = timesync_req[1];
     self->timestamp += FBP_TIME_MILLISECOND;
-    timesync_rsp[0] = timesync_req[0];
-    timesync_rsp[1] = self->timestamp;
+    timesync_rsp[1] = timesync_req[1];
     timesync_rsp[2] = self->timestamp;
+    timesync_rsp[3] = self->timestamp;
     expect_send(0, FBP_TRANSPORT_SEQ_SINGLE, RSP(TIMESYNC), timesync_rsp, sizeof(timesync_rsp));
     fbp_port0_on_recv_cbk(self->p1, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(TIMESYNC), (uint8_t *) timesync_req, sizeof(timesync_req));
 }
@@ -342,16 +356,17 @@ static void test_server_connect(void ** state) {
 
 static void client_timestamp(struct fbp_transport_s * self) {
     // timestamp, receive request and respond
-    int64_t timesync[4] = {0, 0, 0, 0};
-    timesync[0] = self->events[evm_next_idx(self)].timestamp;
+    int64_t timesync[5] = {0, 0, 0, 0, 0};
+    self->counter = 1234;
+    timesync[1] = self->counter;
     assert_int_equal(self->timestamp, fbp_time_utc());
 
     expect_send(0, FBP_TRANSPORT_SEQ_SINGLE, REQ(TIMESYNC), timesync, sizeof(timesync));
     evm_process_next(self);
 
     self->timestamp += FBP_TIME_MILLISECOND;
-    timesync[1] = self->timestamp;
     timesync[2] = self->timestamp;
+    timesync[3] = self->timestamp;
     fbp_port0_on_recv_cbk(self->p1, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(TIMESYNC), (uint8_t *) timesync, sizeof(timesync));
 }
 
@@ -441,11 +456,11 @@ static void setup_dual(struct fbp_transport_s * self) {
     assert_non_null(self->pubsub2);
 
     expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);
-    self->p1 = fbp_port0_initialize(FBP_PORT0_MODE_SERVER, &self->dl1, &self->evm, self, send_p1_to_p2, self->pubsub1, "h/c0/"); \
+    self->p1 = fbp_port0_initialize(FBP_PORT0_MODE_SERVER, &self->dl1, &self->evm, self, send_p1_to_p2, self->pubsub1, "h/c0/", NULL); \
     assert_non_null(self->p1);
 
     expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl2);
-    self->p2 = fbp_port0_initialize(FBP_PORT0_MODE_CLIENT, &self->dl2, &self->evm, self, send_p2_to_p1, self->pubsub2, "d/c0/"); \
+    self->p2 = fbp_port0_initialize(FBP_PORT0_MODE_CLIENT, &self->dl2, &self->evm, self, send_p2_to_p1, self->pubsub2, "d/c0/", NULL); \
     assert_non_null(self->p2);
 }
 

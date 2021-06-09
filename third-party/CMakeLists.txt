@@ -5,12 +5,6 @@ set(INCLUDES
         ${CMAKE_CURRENT_SOURCE_DIR}/tinyprintf
 )
 
-set(LIBS
-        tinyprintf
-)
-
-add_library(tinyprintf tinyprintf/tinyprintf.c)
-
 if (NOT CMAKE_CROSSCOMPILING)
     SET(cmocka_dir ${CMAKE_CURRENT_SOURCE_DIR}/../third-party/cmocka)
     include(CheckCCompilerFlag)
@@ -30,4 +24,4 @@ if (NOT CMAKE_CROSSCOMPILING)
 endif()
 
 set(THIRD_PARTY_INCLUDES ${INCLUDES} PARENT_SCOPE)
-set(THIRD_PARTY_LIBS ${LIBS} PARENT_SCOPE)
+set(THIRD_PARTY_LIBS "" PARENT_SCOPE)

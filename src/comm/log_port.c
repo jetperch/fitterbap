@@ -244,25 +244,34 @@ int32_t fbp_logp_process(struct fbp_port_api_s * api) {
     struct logp_s * self = (struct logp_s *) api;
     struct msg_s * msg;
     int32_t rc;
-    while (self->api.transport) {
-        lock(self);
+    if (!self->api.transport) {
+        return 0;
+    }
+    lock(self);
+    while (1) {
         if (fbp_list_is_empty(&self->msg_pend)) {
             unlock(self);
             return 0;
         }
         msg = (struct msg_s *) fbp_list_remove_head(&self->msg_pend);
         unlock(self);
-        rc = fbp_transport_send(self->api.transport, self->api.port_id,
-                                FBP_TRANSPORT_SEQ_SINGLE, 0,
-                                (uint8_t *) &msg->msg.header, msg->length, 0);
+        if (self->is_connected) {
+            rc = fbp_transport_send(self->api.transport, self->api.port_id,
+                                    FBP_TRANSPORT_SEQ_SINGLE, 0,
+                                    (uint8_t *) &msg->msg.header, msg->length, 0);
+        } else {
+            rc = 0;
+        }
         if (rc) {
             lock(self);
             fbp_list_add_head(&self->msg_pend, &msg->item);
             unlock(self);
             return rc;
+        } else {
+            lock(self);
+            fbp_list_add_head(&self->msg_free, &msg->item);
         }
     }
-    return 0;
 }
 
 FBP_API struct fbp_port_api_s * fbp_logp_factory(struct fbp_logp_config_s const * config) {

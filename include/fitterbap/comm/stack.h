@@ -68,6 +68,8 @@ struct fbp_stack_s {
  * @param ll_instance The lower-level communication implementation.
  * @param evm_api The event manager API.
  * @param pubsub The pubsub instance for this device.
+ * @param timesync The timesync instance, for clients that want to
+ *      be responsible for synchronizing time.  Otherwise, NULL.
  * @return The stack instance or NULL on error.
  */
 struct fbp_stack_s * fbp_stack_initialize(
@@ -76,7 +78,8 @@ struct fbp_stack_s * fbp_stack_initialize(
         const char * port0_topic_prefix,
         struct fbp_evm_api_s * evm_api,
         struct fbp_dl_ll_s const * ll_instance,
-        struct fbp_pubsub_s * pubsub
+        struct fbp_pubsub_s * pubsub,
+        struct fbp_ts_s * timesync
 );
 
 /**

@@ -24,7 +24,7 @@
 #include <inttypes.h>
 
 
-const static char META[] = "{\"type\":\"waveform\"}";
+static const char META[] = "{\"type\":\"waveform\"}";
 
 
 struct fbp_wavep_s {
@@ -77,7 +77,7 @@ static void on_recv(void *user_data,
             //uint32_t sample_id = FBP_BBUF_DECODE_U32_LE(msg);
             return;
         }
-        FBP_LOGI("port sz=%d", (int) msg_size);
+        FBP_LOGD1("port sz=%d", (int) msg_size);
         fbp_pubsub_publish(self->api.pubsub, self->data_topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
     } else {
         int msg_type = (int) ((port_data >> 4) & 0x0f);

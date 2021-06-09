@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/pubsub_port.h"
 #include "fitterbap/memory/bbuf.h"
 #include "fitterbap/cdef.h"
@@ -308,7 +308,7 @@ static void on_topic_list(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e s
         FBP_LOGW("invalid topic_list");
         return;
     }
-    FBP_LOGI("topic list");
+    FBP_LOGD1("topic list");
     fbp_pubsub_subscribe(self->pubsub, "", FBP_PUBSUB_SFLAG_NOPUB | FBP_PUBSUB_SFLAG_REQ,
                          (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
     uint8_t flags = port_data_to_flags(port_data);
@@ -321,7 +321,7 @@ static void on_topic_list(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e s
         }
         end_ch = *end;
         *end = 0;
-        FBP_LOGI("topic list subscribe: %s flags=0x%02x", topic, (unsigned int) flags);
+        FBP_LOGD1("topic list subscribe: %s flags=0x%02x", topic, (unsigned int) flags);
         fbp_pubsub_subscribe(self->pubsub, topic, flags,
                              (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
         if (end_ch) {
@@ -344,7 +344,7 @@ static void on_topic_add(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e se
         FBP_LOGW("invalid topic_add");
         return;
     }
-    FBP_LOGI("topic add %s", msg);
+    FBP_LOGD1("topic add %s", msg);
     uint8_t flags = port_data_to_flags(port_data);
     fbp_pubsub_subscribe(self->pubsub, (char *) msg, flags,
                            (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
@@ -361,7 +361,7 @@ static void on_topic_remove(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e
         FBP_LOGW("invalid topic_remove");
         return;
     }
-    FBP_LOGI("topic remove %s", msg);
+    FBP_LOGD1("topic remove %s", msg);
     fbp_pubsub_unsubscribe(self->pubsub, (char *) msg,
                            (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
 }
@@ -451,7 +451,7 @@ static void on_publish(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e seq,
             FBP_LOGW("unsupported type: %d", (int) type);
             return;
     }
-    FBP_LOGI("pubsub_port recv %s%s", topic,
+    FBP_LOGD2("pubsub_port recv %s%s", topic,
              (value.flags & FBP_PUBSUB_SFLAG_RETAIN) ? " | retain" : "");
     fbp_pubsub_publish(self->pubsub, topic, &value,
                        (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
@@ -541,7 +541,7 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
         return 0;
     } else if (topic[0] == '_') {
         if (0 == strcmp(self->feedback_topic, topic)) {
-            FBP_LOGI("fbp_pubsubp_on_update end topic");
+            FBP_LOGD1("fbp_pubsubp_on_update end topic");
             emit_event(self, EV_END_TOPIC);
             return 0;
         } else if (value->type != FBP_UNION_STR) {
@@ -569,7 +569,7 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
     }
 
     bool retain = (value->flags & FBP_UNION_FLAG_RETAIN) != 0;
-    FBP_LOGI("port publish %s%s", topic, retain ? " | retain" : "");
+    FBP_LOGD1("port publish %s%s", topic, retain ? " | retain" : "");
     uint8_t topic_len = 0;
     char * p = (char *) (self->msg + 3);
     while (*topic) {

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/port0.h"
+#include "fitterbap/comm/timesync.h"
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/cdef.h"
@@ -107,6 +109,7 @@ struct fbp_port0_s {
     fbp_transport_send_fn send_fn;
     uint8_t meta_port_id;
     uint8_t topic_prefix_length;
+    struct fbp_ts_s * timesync;
 
     int32_t timeout_event_id;
     int32_t tick_event_id;
@@ -212,7 +215,7 @@ static void echo_send(struct fbp_port0_s * self) {
         self->echo_buffer[0] = self->echo_tx_frame_id++;
         if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(ECHO),
                           (uint8_t *) self->echo_buffer, self->echo_length, 0)) {
-            FBP_LOGW("echo_send error");
+            FBP_LOGD1("echo_send error");
         }
     }
 }
@@ -226,12 +229,12 @@ static uint8_t on_echo_enable(void * user_data, const char * topic, const struct
     }
     self->echo_enable = value->value.u32 ? 1 : 0;
     if (self->echo_enable) {
-        FBP_LOGI("echo on");
+        FBP_LOGD1("echo on");
         self->echo_tx_frame_id = 0;
         self->echo_rx_frame_id = 0;
         echo_send(self);
     } else {
-        FBP_LOGI("echo off");
+        FBP_LOGD1("echo off");
     }
     return 0;
 }
@@ -248,7 +251,7 @@ static uint8_t on_echo_window(void * user_data, const char * topic, const struct
         FBP_LOGW("on_echo_window, bad value");
         return FBP_ERROR_PARAMETER_INVALID;
     }
-    FBP_LOGI("on_echo_window");
+    FBP_LOGD1("on_echo_window");
     self->echo_window = v;
     echo_send(self);
     return 0;
@@ -266,7 +269,7 @@ static uint8_t on_echo_length(void * user_data, const char * topic, const struct
         FBP_LOGW("on_echo_length, bad value");
         return FBP_ERROR_PARAMETER_INVALID;
     }
-    FBP_LOGI("on_echo_length");
+    FBP_LOGD1("on_echo_length");
     self->echo_length = v;
     echo_send(self);
     return 0;
@@ -326,7 +329,7 @@ static void op_echo_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_si
 
 static void op_echo_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
     if (!self->echo_enable) {
-        FBP_LOGI("echo_rsp but disabled");
+        FBP_LOGD1("echo_rsp but disabled");
         return;
     }
     if (msg_size != self->echo_length) {
@@ -344,8 +347,8 @@ static void op_echo_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_si
 }
 
 static int32_t timesync_req_send(struct fbp_port0_s * self) {
-    int64_t times[4] = {0, 0, 0, 0};
-    times[0] = fbp_time_utc();
+    int64_t times[5] = {0, 0, 0, 0, 0};
+    times[1] = fbp_time_counter().value;
     if (self->mode == FBP_PORT0_MODE_SERVER) {
         FBP_LOGW("timesync_req_send by server");
     }
@@ -354,13 +357,13 @@ static int32_t timesync_req_send(struct fbp_port0_s * self) {
 }
 
 static void op_timesync_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
-    int64_t times[4] = {0, 0, 0, 0};
+    int64_t times[5] = {0, 0, 0, 0, 0};
     if (msg_size < sizeof(times)) {
         return;
     }
-    memcpy(&times[0], msg, sizeof(int64_t));
-    times[1] = fbp_time_utc();
-    times[2] = times[1];
+    memcpy(times, msg, 2 * sizeof(int64_t));
+    times[2] = fbp_time_utc();
+    times[3] = times[2];
     if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(TIMESYNC),
                       (uint8_t *) times, sizeof(times), 0)) {
         FBP_LOGW("timestamp reply error");
@@ -370,13 +373,14 @@ static void op_timesync_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t ms
 }
 
 static void op_timesync_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
-    int64_t times[4];
-    if (msg_size < 8) {
+    int64_t times[5] = {0, 0, 0, 0, 0};
+    if (msg_size < sizeof(times)) {
+        FBP_LOGW("timesync_rsp too short");
         return;
     }
-    memcpy(&times[0], msg, sizeof(times[0]));
-
-    // todo handle time sync message
+    memcpy(times, msg, sizeof(times));  // copy to guarantee alignment
+    times[4] = fbp_time_counter().value;
+    fbp_ts_update(self->timesync, (uint64_t) times[1], times[2], times[3], (uint64_t) times[4]);
 
     if (self->mode == FBP_PORT0_MODE_CLIENT) {
         emit_event(self, EV_TIMESYNC_DONE);
@@ -519,7 +523,7 @@ void fbp_port0_on_recv_cbk(struct fbp_port0_s * self,
     uint8_t op = port_data & 0x07;
     dispatch_fn fn = NULL;
 
-    FBP_LOGD("port0: mode=%d, req=%d, op=%d", (int) self->mode, (int) req, (int) op);
+    FBP_LOGD2("port0: mode=%d, req=%d, op=%d", (int) self->mode, (int) req, (int) op);
 
     if (req) {
         switch (op) {
@@ -740,7 +744,8 @@ struct fbp_port0_s * fbp_port0_initialize(enum fbp_port0_mode_e mode,
         struct fbp_dl_s * dl,
         struct fbp_evm_api_s * evm,
         struct fbp_transport_s * transport, fbp_transport_send_fn send_fn,
-        struct fbp_pubsub_s * pubsub, const char * topic_prefix) {
+        struct fbp_pubsub_s * pubsub, const char * topic_prefix,
+        struct fbp_ts_s * timesync) {
     struct fbp_port0_s * p = fbp_alloc_clr(sizeof(struct fbp_port0_s));
     FBP_ASSERT_ALLOC(p);
 
@@ -764,6 +769,7 @@ struct fbp_port0_s * fbp_port0_initialize(enum fbp_port0_mode_e mode,
     p->echo_enable = 0;
     p->echo_window = 8;
     p->echo_length = FBP_FRAMER_PAYLOAD_MAX_SIZE;
+    p->timesync = timesync;
 
     pubsub_create(p, STATE_TOPIC, STATE_META, &fbp_union_u32_r(0), NULL, NULL);
     pubsub_create(p, ECHO_ENABLE_META_TOPIC, ECHO_ENABLE_META, &fbp_union_u32_r(p->echo_enable), on_echo_enable, p);

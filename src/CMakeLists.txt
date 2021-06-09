@@ -39,11 +39,13 @@ set(SOURCES
         comm/port0.c
         comm/pubsub_port.c
         comm/stack.c
+        comm/timesync.c
         comm/transport.c
         memory/block.c
         memory/buffer.c
         memory/object_pool.c
         memory/pool.c
+        ../third-party/tinyprintf/tinyprintf.c  # required by comm/log_port.c
         ${PLATFORM_SRC}
 )
 

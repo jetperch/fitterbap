@@ -77,10 +77,15 @@ enum fbp_port0_op_e {
     /**
      * @brief Synchronize clocks.
      *
-     * The payload contains 3 x 64-bit times:
-     * 0: source transmit time, populated by req, repeated by rsp
-     * 1: target receive time, ignored in req, populated by rsp
-     * 2: target transmit time, ignored in req, populated by rsp
+     * The payload contains 5 x 64-bit values:
+     * 0: reserved for future use, set to 0
+     * 1: source transmit time counter u64, populated by req, repeated by rsp
+     * 2: target receive time i64, ignored in req, populated by rsp
+     * 3: target transmit time i64, ignored in req, populated by rsp
+     * 4: reserved for source received time u64, set to 0
+     *
+     * In the case that the server does not yet know the UTC time,
+     * it should reply with 0.
      */
     FBP_PORT0_OP_TIMESYNC = 3,
 
@@ -172,6 +177,9 @@ struct fbp_port0_s;
 // The opaque PubSub instance, from "pubsub.h"
 struct fbp_pubsub_s;
 
+// The opaque timesync instance from "timesync.h"
+struct fbp_ts_s;
+
 extern const char FBP_PORT0_META[];
 
 /**
@@ -185,6 +193,8 @@ extern const char FBP_PORT0_META[];
  *      fbp_transport_send() except during unit testing.
  * @param pubsub The pubsub instance for event updates.
  * @param topic_prefix The prefix to use for pubsub.
+ * @param timesync The timesync instance, for clients that want to
+ *      be responsible for synchronizing time.  Otherwise, NULL.
  * @return The new instance or NULL on error.
  */
 FBP_API struct fbp_port0_s * fbp_port0_initialize(enum fbp_port0_mode_e mode,
@@ -193,7 +203,8 @@ FBP_API struct fbp_port0_s * fbp_port0_initialize(enum fbp_port0_mode_e mode,
         struct fbp_transport_s * transport,
         fbp_transport_send_fn send_fn,
         struct fbp_pubsub_s * pubsub,
-        const char * topic_prefix);
+        const char * topic_prefix,
+        struct fbp_ts_s * timesync);
 
 /**
  * @brief Finalize and deallocate the instance.

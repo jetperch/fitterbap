@@ -170,7 +170,7 @@ int main(int argc, char * argv[]) {
             .send_available = (fbp_dl_ll_send_available_fn) fbp_uartt_send_available,
     };
 
-    h_.stack = fbp_stack_initialize(&dl_config, FBP_PORT0_MODE_SERVER, "h/c0/", &evm_api, &ll, h_.pubsub);
+    h_.stack = fbp_stack_initialize(&dl_config, FBP_PORT0_MODE_SERVER, "h/c0/", &evm_api, &ll, h_.pubsub, NULL);
     if (!h_.stack) {
         FBP_LOGE("stack_initialize failed");
         return 1;

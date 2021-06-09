@@ -39,6 +39,18 @@ target_link_libraries(port0_test cmocka)
 add_test(port0_test ${CMAKE_CURRENT_BINARY_DIR}/port0_test)
 
 
+# timesync_test special build to break dependencies
+SET_FILENAME("timesync_test.c")
+add_executable(timesync_test timesync_test.c
+        ../../src/comm/timesync.c
+        ../../src/platform.c
+        ../../src/log.c
+        $<TARGET_OBJECTS:test_objlib>)
+add_dependencies(timesync_test test_objlib cmocka)
+target_link_libraries(timesync_test cmocka)
+add_test(timesync_test ${CMAKE_CURRENT_BINARY_DIR}/timesync_test)
+
+
 # pubsub_port_test special build to break dependencies
 SET_FILENAME("pubsub_port_test.c")
 add_executable(pubsub_port_test

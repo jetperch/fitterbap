@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/host/uart_thread.h"
 #include "fitterbap/host/uart.h"
 #include "fitterbap/event_manager.h"

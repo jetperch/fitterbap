@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/fsm.h"
 #include "fitterbap/dbc.h"
 #include <inttypes.h>
@@ -113,7 +114,7 @@ static void transition(struct fbp_fsm_s * self, fbp_fsm_state_t next, fbp_fsm_ev
         enter_handler = self->states[next].on_enter;
     }
 
-    FBP_LOGI("%s %s --> %s on %s", self->name,
+    FBP_LOGD1("%s %s --> %s on %s", self->name,
               state_name_(self, self->state),
               state_name_(self, next),
               event_name_(self, event));
@@ -134,7 +135,7 @@ static void handle_event(struct fbp_fsm_s * self,
         struct fbp_fsm_transition_s const *t = self->transitions + idx;
         if ((t->current == self->state) || (t->current == FBP_STATE_ANY)) {
             if ((t->event == event) || (t->event == FBP_EVENT_ANY)) {
-                FBP_LOGI("%s.%s transition %" PRId32 " found: %s --> %s on %s",
+                FBP_LOGD2("%s.%s transition %" PRId32 " found: %s --> %s on %s",
                           self->name, state_name_(self, self->state), idx,
                           state_name_(self, t->current),
                           state_name_(self, t->next),
@@ -159,7 +160,7 @@ static void handle_event(struct fbp_fsm_s * self,
             }
         }
     }
-    FBP_LOGI("%s transition not found: state=%s, event=%s",
+    FBP_LOGD1("%s transition not found: state=%s, event=%s",
               self->name,
               state_name_(self, self->state),
               event_name_(self, event));

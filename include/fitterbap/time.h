@@ -150,7 +150,7 @@ FBP_CPP_GUARD_START
  *      52 bits of precision, so the result will be truncated for very
  *      small deltas.
  */
-#define FBP_TIME_TO_F64(x) (((double) (x)) / ((double) FBP_TIME_SECOND))
+#define FBP_TIME_TO_F64(x) (((double) (x)) * (1.0 / ((double) FBP_TIME_SECOND)))
 
 /**
  * @brief Convert the double precision time to 64-bit fixed point time.
@@ -172,7 +172,7 @@ static inline int64_t FBP_F64_TO_TIME(double x) {
  * @return The time as a float p in seconds.  Note that IEEE 747 singles only
  *      have 23 bits of precision, so the result will likely be truncated.
  */
-#define FBP_TIME_TO_F32(x) (((float) (x)) / ((float) FBP_TIME_SECOND))
+#define FBP_TIME_TO_F32(x) (((float) (x)) * (1.0f / ((float) FBP_TIME_SECOND)))
 
 /**
  * @brief Convert the single precision float time to 64-bit fixed point time.
@@ -345,8 +345,9 @@ struct fbp_time_counter_s {
  *
  * The platform implementation may select an appropriate source and
  * frequency.  The FBP library assumes a nominal frequency of
- * at least 1000 Hz, but we frequencies in the 1 MHz to 100 MHz
- * range to enable profiling.  The frequency should not exceed 10 GHz
+ * at least 1000 Hz, but we recommend a frequency of at least 1 MHz
+ * to enable profiling and high accuracy time synchronization
+ * using the comm stack.  The frequency should not exceed 10 GHz
  * to prevent rollover.
  *
  * The counter must be monotonic.  If the underlying hardware is less
@@ -354,7 +355,7 @@ struct fbp_time_counter_s {
  * the hardware value to 64-bit.
  *
  * The FBP authors recommend this counter starts at 0 when the
- * system powers up.
+ * system powers up, which also helps prevent rollover.
  */
 FBP_API struct fbp_time_counter_s fbp_time_counter();
 

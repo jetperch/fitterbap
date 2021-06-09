@@ -15,7 +15,7 @@
  */
 
 
-#define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/framer.h"
 #include "fitterbap/config.h"
 #include "fitterbap/ec.h"

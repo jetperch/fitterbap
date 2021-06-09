@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/host/comm.h"
 #include "fitterbap/host/uart_thread.h"
 #include "fitterbap/comm/data_link.h"
@@ -219,7 +220,8 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
         goto on_error;
     }
 
-    self->stack = fbp_stack_initialize(config, FBP_PORT0_MODE_SERVER, PORT0_PREFIX, &self->evm_api, &ll, self->pubsub);
+    self->stack = fbp_stack_initialize(config, FBP_PORT0_MODE_SERVER, PORT0_PREFIX,
+                                       &self->evm_api, &ll, self->pubsub, NULL);
     if (!self->stack) {
         goto on_error;
     }
@@ -271,7 +273,7 @@ void fbp_comm_finalize(struct fbp_comm_s * self) {
 
 int32_t fbp_comm_publish(struct fbp_comm_s * self,
                           const char * topic, const struct fbp_union_s * value) {
-    FBP_LOGI("publish(topic=%s, value.type=%d, value.size=%d)",
+    FBP_LOGD1("publish(topic=%s, value.type=%d, value.size=%d)",
               topic, (int) value->type, (int) value->size);
     return fbp_pubsub_publish(self->pubsub, topic, value, self->subscriber_fn, self->subscriber_user_data);
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/pubsub.h"
 #include "fitterbap/collections/ring_buffer_msg.h"
 #include "fitterbap/ec.h"

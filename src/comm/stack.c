@@ -27,7 +27,8 @@ struct fbp_stack_s * fbp_stack_initialize(
         const char * port0_topic_prefix,
         struct fbp_evm_api_s * evm_api,
         struct fbp_dl_ll_s const * ll_instance,
-        struct fbp_pubsub_s * pubsub)  {
+        struct fbp_pubsub_s * pubsub,
+        struct fbp_ts_s * timesync)  {
 
     struct fbp_stack_s * self = fbp_alloc_clr(sizeof(struct fbp_stack_s));
     self->pubsub = pubsub;
@@ -53,7 +54,7 @@ struct fbp_stack_s * fbp_stack_initialize(
     fbp_dl_register_upper_layer(self->dl, &dl_api);
 
     self->port0 = fbp_port0_initialize(port0_mode, self->dl, evm_api, self->transport, fbp_transport_send,
-                                        pubsub, port0_topic_prefix);
+                                        pubsub, port0_topic_prefix, timesync);
     if (!self->port0) {
         fbp_stack_finalize(self);
         return NULL;

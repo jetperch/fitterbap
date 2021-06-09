@@ -27,7 +27,7 @@
  *   - flush frame if not completed with a timeout duration.
  */
 
-#define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/collections/ring_buffer_msg.h"
 #include "fitterbap/collections/ring_buffer_u64.h"
