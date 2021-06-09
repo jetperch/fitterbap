@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 from queue import Queue, Empty
 
 

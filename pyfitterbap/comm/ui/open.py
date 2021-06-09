@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import serial.tools.list_ports
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 
 BAUDRATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600, 1000000, 2000000, 3000000, 5000000]

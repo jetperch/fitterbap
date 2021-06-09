@@ -26,6 +26,7 @@
 #include "fitterbap/cmacro_inc.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/comm/data_link.h"
+#include "fitterbap/comm/log_port.h"
 #include <stdint.h>
 
 /**
@@ -98,13 +99,23 @@ FBP_API int32_t fbp_comm_query(
 /**
  * @brief Get the status for the data link.
  *
- * @param self The data link instance.
+ * @param self The communications instance.
  * @param status The status instance to populate.
  * @return 0 or error code.
  */
 FBP_API int32_t fbp_comm_status_get(
         struct fbp_comm_s * self,
         struct fbp_dl_status_s * status);
+
+/**
+ * @brief Register a log message receive callback.
+ *
+ * @param self The communications instance.
+ * @param cbk_fn The function to call on received messages.
+ *      Provide NULL to unregister.
+ * @param cbk_user_data The arbitrary user data for cbk_fn.
+ */
+FBP_API void fbp_comm_log_recv_register(struct fbp_comm_s * self, fbp_logp_on_recv cbk_fn, void * cbk_user_data);
 
 FBP_CPP_GUARD_END
 

@@ -13,14 +13,15 @@
 # limitations under the License.
 
 
-from pyfitterbap.comm.comm import Comm
+from pyfitterbap.comm.comm import Comm, LOG_TOPIC
 from .resync import Resync
 from .open import OpenDialog
 from .device_widget import DeviceWidget
+from .log_widget import LogWidget
 from .waveform import WaveformWidget
 from .vertical_scroll_area import VerticalScrollArea
 from .expanding_widget import ExpandingWidget
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 from pyfitterbap import __version__, __url__
 from pyfitterbap.pubsub import PubSub
 import ctypes
@@ -73,7 +74,7 @@ def menu_setup(d, parent=None):
             w = menu_setup(value, wroot)
             w['__root__'] = wroot
         else:
-            w = QtWidgets.QAction(parent)
+            w = QtGui.QAction(parent)
             w.setText(name)
             if callable(value):
                 w.triggered.connect(value)
@@ -145,7 +146,7 @@ class Device(QtCore.QObject):
         self.close()
         try:
             self.comm = Comm(self._dev, self._on_device_publish, baudrate=self.baudrate)
-            self.widget = ExpandingWidget(self._parent, 'Device')
+            self.widget = ExpandingWidget(self._parent, str(self))
             self._device_widget = DeviceWidget(self.widget, self)
             self.widget.setWidget(self._device_widget)
         except Exception:
@@ -183,12 +184,12 @@ class DevicesWidget(QtWidgets.QWidget):
                                              QtWidgets.QSizePolicy.Expanding)
         self._layout.addItem(self._spacer)
 
-    def add_device(self, device):
+    def add_device(self, device: Device):
         self._layout.insertWidget(self._index, device.widget)
         self._index += 1
         self._layout.update()
 
-    def remove_device(self, device):
+    def remove_device(self, device: Device):
         self._layout.removeWidget(device.widget)
         self._index -= 1
 
@@ -203,33 +204,36 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle('FBP Comm')
         self.resize(640, 480)
 
-        self._central_widget = QtWidgets.QWidget(self)
+        self._central_widget = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         self._central_widget.setObjectName('central')
         self._central_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                                            QtWidgets.QSizePolicy.Expanding)
         self.setCentralWidget(self._central_widget)
 
-        self._central_layout = QtWidgets.QHBoxLayout(self._central_widget)
-        self._central_layout.setSpacing(6)
-        self._central_layout.setContentsMargins(11, 11, 11, 11)
-        self._central_layout.setObjectName('central_layout')
+        self._hwidget = QtWidgets.QWidget(self._central_widget)
+        self._central_widget.addWidget(self._hwidget)
+        self._central_widget.setStretchFactor(0, 3)
 
-        self._devices_scroll = VerticalScrollArea(self._central_widget)
-        self._central_layout.addWidget(self._devices_scroll)
+        self._hlayout = QtWidgets.QHBoxLayout(self._hwidget)
+        self._hlayout.setSpacing(6)
+        self._hlayout.setContentsMargins(11, 11, 11, 11)
+        self._hlayout.setObjectName('central_layout')
+
+        self._devices_scroll = VerticalScrollArea(self._hwidget)
+        self._hlayout.addWidget(self._devices_scroll)
 
         self._devices_widget = DevicesWidget(self._devices_scroll)
         self._devices_scroll.setWidget(self._devices_widget)
 
-        #self._horizontalSpacer = QtWidgets.QSpacerItem(40, 20,
-        #                                               QtWidgets.QSizePolicy.Expanding,
-        #                                               QtWidgets.QSizePolicy.Minimum)
-        #self._central_layout.addItem(self._horizontalSpacer)
-
-        self._waveform = WaveformWidget(self._central_widget, self._pubsub)
+        self._waveform = WaveformWidget(self._hwidget, self._pubsub)
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         size_policy.setHorizontalStretch(1)
         self._waveform.setSizePolicy(size_policy)
-        self._central_layout.addWidget(self._waveform)
+        self._hlayout.addWidget(self._waveform)
+
+        self._log_widget = LogWidget(self._central_widget)
+        self._central_widget.addWidget(self._log_widget)
+        self._central_widget.setStretchFactor(1, 1)
 
         # Status bar
         self._status_bar = QtWidgets.QStatusBar(self)
@@ -271,6 +275,7 @@ class MainWindow(QtWidgets.QMainWindow):
         log.info('_device_open')
         try:
             device = Device(self, self._pubsub, dev, baudrate)
+            device.subscribe(LOG_TOPIC, self._log_widget.on_publish, skip_retained=True)
             device.open()
             self._devices_widget.add_device(device)
             self._devices[dev] = device
@@ -283,6 +288,7 @@ class MainWindow(QtWidgets.QMainWindow):
             device = self._devices.pop(dev)
             self._devices_widget.remove_device(device)
             try:
+                device.unsubscribe(LOG_TOPIC, self._log_widget.on_publish)
                 device.close()
             except Exception:
                 log.exception('Could not close device')

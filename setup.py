@@ -38,6 +38,7 @@ MYPATH = os.path.dirname(os.path.abspath(__file__))
 VERSION_PATH = os.path.join(MYPATH, 'pyfitterbap', 'version.py')
 C_INC_PATH = os.path.join(MYPATH, 'include')
 C_INC2_PATH = os.path.join(MYPATH, 'pyfitterbap', 'include')
+C_INC3_PATH = os.path.join(MYPATH, 'third-party', 'tinyprintf')
 
 
 try:
@@ -52,7 +53,7 @@ with open(VERSION_PATH, 'r', encoding='utf-8') as f:
     exec(f.read(), about)
 
 
-C_INCS = [C_INC_PATH, C_INC2_PATH, np.get_include()]
+C_INCS = [C_INC_PATH, C_INC2_PATH, C_INC3_PATH, np.get_include()]
 ext = '.pyx' if USE_CYTHON else '.c'
 extensions = [
     setuptools.Extension('pyfitterbap.comm.comm',
@@ -68,6 +69,7 @@ extensions = [
             'src/collections/ring_buffer_msg.c',
             'src/comm/data_link.c',
             'src/comm/framer.c',
+            'src/comm/log_port.c',
             'src/comm/port0.c',
             'src/comm/pubsub_port.c',
             'src/comm/stack.c',
@@ -79,6 +81,7 @@ extensions = [
             'src/log.c',
             'src/pubsub.c',
             'src/union.c',
+            'third-party/tinyprintf/tinyprintf.c'
         ],
         include_dirs=C_INCS,
     ),
@@ -206,7 +209,7 @@ setuptools.setup(
         'psutil>=1.12',
         'pyqtgraph',
         'pyserial',
-        'PySide2>=5.15.1',
+        'PySide6>=6.1.0',
         'python-dateutil>=2.7.3',
         'pyqtgraph>=0.12',
     ] + PLATFORM_INSTALL_REQUIRES,

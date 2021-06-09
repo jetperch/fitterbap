@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 from .expanding_widget import ExpandingWidget
 from pyfitterbap.comm.comm import Port0Events
 import logging

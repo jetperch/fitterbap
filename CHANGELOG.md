@@ -27,6 +27,10 @@ This file contains the list of changes made to the Fitterbap library.
 *   Fixed deadlock between GIL and native mutex.
 *   Added log message port to comm stack and adjusted default log verbosity.
 *   Added timesync.
+*   Integrated logp changes into host, python, & UI.
+    *   Connected logp messages to python host
+    *   Add logp display widget to comm_ui.
+    *   Migrated from PySide2 to PySide6.
 
 
 ## 0.3.2

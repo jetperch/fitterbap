@@ -204,7 +204,7 @@ static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
                     self->state = ST_SOF2;
                 } else {
                     if (self->is_sync) {
-                        FBP_LOGW("Expected SOF1 got 0x%02x", self->buf[0]);
+                        FBP_LOGD1("Expected SOF1 got 0x%02x", self->buf[0]);
                     }
                     handle_framing_error_discard(self);
                 }
@@ -220,7 +220,7 @@ static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
                     self->buf_offset = 1;
                     ++self->status.ignored_bytes;
                 } else {
-                    FBP_LOGW("Expected SOF2 got 0x%02x", self->buf[1]);
+                    FBP_LOGD1("Expected SOF2 got 0x%02x", self->buf[1]);
                     handle_framing_error_discard(self);
                 }
                 break;
@@ -271,7 +271,7 @@ static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
                 }
                 if (self->buf_offset >= self->length) {
                     if (!validate_crc(self->buf)) {
-                        FBP_LOGI("crc invalid");
+                        FBP_LOGD1("crc invalid");
                         ++self->status.resync;
                         reprocess_buffer(self);
                         break;

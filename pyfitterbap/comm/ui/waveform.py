@@ -14,7 +14,7 @@
 
 
 import pyqtgraph as pg
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 import logging
 import numpy as np
 

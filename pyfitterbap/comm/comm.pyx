@@ -25,9 +25,11 @@ import logging
 FBP_TIME_Q = 30
 FBP_TIME_SECOND = (1 << FBP_TIME_Q)
 FBP_TIME_MILLISECOND = ((FBP_TIME_SECOND + 500) // 1000)
+FBP_TIME_EPOCH_UNIX_OFFSET_SECONDS = 1514764800
 
 log = logging.getLogger(__name__)
 TX_TIMEOUT_DEFAULT = 16 * FBP_TIME_MILLISECOND
+LOG_TOPIC = 'h/log/msg'
 
 
 cdef _value_pack(fbp_union_s * value, data, retain=None):
@@ -151,8 +153,9 @@ cdef class Comm:
 
     cdef fbp_comm_s * _comm
     cdef object _subscriber
+    cdef object _device
 
-    def __init__(self, device, subscriber,
+    def __init__(self, device: str, subscriber,
             baudrate=None,
             tx_link_size=None,
             tx_window_size=None,
@@ -160,8 +163,9 @@ cdef class Comm:
             tx_timeout=None):
 
         cdef fbp_dl_config_s config
-        log.info('Comm.__init__ start')
+        log.debug('Comm.__init__ start')
         self._subscriber = subscriber
+        self._device = device
 
         baudrate = 3000000 if baudrate is None else int(baudrate)
         config.tx_link_size = 256 if tx_link_size is None else int(tx_link_size)
@@ -173,6 +177,7 @@ cdef class Comm:
         self._comm = fbp_comm_initialize(&config, device_str, baudrate, Comm._subscriber_cbk, <void *> self)
         if not self._comm:
             raise RuntimeError('Could not allocate instance')
+        fbp_comm_log_recv_register(self._comm, Comm._on_logp_recv, <void *> self)
 
     @staticmethod
     cdef uint8_t _subscriber_cbk(void * user_data, const char * topic, const fbp_union_s * value) with gil:
@@ -183,6 +188,24 @@ cdef class Comm:
             self._subscriber(topic_str, v, retain, self.publish)
         except Exception:
             log.exception(f'_subscriber_cbk({topic})')
+
+    @staticmethod
+    cdef void _on_logp_recv(void * user_data, const fbp_logp_record_s * record) with gil:
+        cdef Comm self = <object> user_data
+        msg = {
+            'timestamp': (record[0].timestamp / FBP_TIME_SECOND) + FBP_TIME_EPOCH_UNIX_OFFSET_SECONDS,
+            'level': record[0].level,
+            'device': self._device,
+            'origin_prefix': record[0].origin_prefix,
+            'origin_thread': record[0].origin_thread,
+            'filename': record[0].filename.decode('utf-8'),
+            'line': record[0].line,
+            'message': record[0].message.decode('utf-8'),
+        }
+        try:
+            self._subscriber(LOG_TOPIC, msg, 0, self.publish)
+        except Exception:
+            log.exception(f'_subscriber_cbk({LOG_TOPIC})')
 
     def close(self):
         fbp_comm_finalize(self._comm)

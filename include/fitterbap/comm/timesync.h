@@ -76,8 +76,8 @@ static inline uint64_t fbp_ts_counter() {
  *      time is not yet known.
  * @see fbp_time_utc
  *
- * When using this module to provide time, edit your fbp/config.h file
- * to define FBP_TS_PROVIDE_UTC.
+ * When using this module to provide time, define:
+ * int64_t fbp_time_utc() {return fbp_ts_time(NULL);}
  *
  * This function is thread-safe.
  */

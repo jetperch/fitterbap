@@ -359,7 +359,7 @@ static bool is_reset(struct fbp_dl_s * self) {
 }
 
 static void reset_state(struct fbp_dl_s * self) {
-    FBP_LOGI("reset_state");
+    FBP_LOGD1("reset_state");
     if (self->state != ST_DISCONNECTED) {
         event_emit(self, FBP_DL_EV_DISCONNECTED);
     }
@@ -388,7 +388,7 @@ static void send_reset_request(struct fbp_dl_s * self) {
 }
 
 static void tx_reset(struct fbp_dl_s * self) {
-    FBP_LOGI("tx_reset");
+    FBP_LOGD1("tx_reset");
     reset_state(self);
     send_reset_request(self);
 }
@@ -408,10 +408,10 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
     uint16_t window_end = (self->rx_next_frame_id + self->rx_frame_count) & FBP_FRAMER_FRAME_ID_MAX;
 
     if (frame_id != (frame_id & FBP_FRAMER_FRAME_ID_MAX)) {
-        FBP_LOGE("on_recv_data(%d) invalid frame_id", (int) frame_id);
+        FBP_LOGW("on_recv_data(%d) invalid frame_id", (int) frame_id);
     } else if ((0 == msg_size) || (msg_size > FBP_FRAMER_PAYLOAD_MAX_SIZE)) {
         // should never happen, but check to be safe
-        FBP_LOGE("on_recv_data(%d) invalid msg_size %d", (int) frame_id, (int) msg_size);
+        FBP_LOGW("on_recv_data(%d) invalid msg_size %d", (int) frame_id, (int) msg_size);
         send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
         return;
     } else if (self->rx_next_frame_id == frame_id) {
@@ -444,7 +444,7 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
         FBP_LOGD3("on_recv_data(%d) old frame next=%d", (int) frame_id, (int) self->rx_next_frame_id);
         send_link(self, FBP_FRAMER_FT_ACK_ALL, (self->rx_next_frame_id - 1) & FBP_FRAMER_FRAME_ID_MAX);
     } else if (fbp_framer_frame_id_subtract(window_end, frame_id) <= 0) {
-        FBP_LOGI("on_recv_data(%d) frame too far into the future: next=%d, end=%d",
+        FBP_LOGD1("on_recv_data(%d) frame too far into the future: next=%d, end=%d",
                   (int) frame_id, (int) self->rx_next_frame_id, (int) window_end);
         send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
     } else {
@@ -482,12 +482,12 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
 static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_id, const char * src) {
     int32_t frame_delta = fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id);
     if (frame_delta < 0) {
-        FBP_LOGI("%s : in the past : delta=%d, recv=%d, last=%d, next=%d",
+        FBP_LOGD1("%s : in the past : delta=%d, recv=%d, last=%d, next=%d",
                  src, (int) frame_delta, (int) frame_id,
                  (int) self->tx_frame_last_id, (int) self->tx_frame_next_id);
         return NULL;
     } else if (frame_delta > self->tx_frame_count) {
-        FBP_LOGI("%s : in the future : delta=%d, recv=%d, last=%d, next=%d",
+        FBP_LOGD1("%s : in the future : delta=%d, recv=%d, last=%d, next=%d",
                  src, (int) frame_delta, (int) frame_id,
                  (int) self->tx_frame_last_id, (int) self->tx_frame_next_id);
         return NULL;
@@ -495,7 +495,7 @@ static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_i
     uint16_t frame_id_end = (self->tx_frame_next_id - 1) & FBP_FRAMER_FRAME_ID_MAX;
     frame_delta = fbp_framer_frame_id_subtract(frame_id, frame_id_end);
     if (frame_delta > 0) {
-        FBP_LOGI("%s : out of window : delta=%d, recv=%d, last=%d, next=%d",
+        FBP_LOGD1("%s : out of window : delta=%d, recv=%d, last=%d, next=%d",
                  src, (int) frame_delta, (int) frame_id,
                  (int) self->tx_frame_last_id, (int) self->tx_frame_next_id);
         return NULL;
@@ -522,13 +522,13 @@ static void handle_ack_all(struct fbp_dl_s * self, uint16_t frame_id) {
     if (frame_delta < 0) {
         return;  // frame_id is from the past, ignore
     } else if (frame_delta > self->tx_frame_count) {
-        FBP_LOGI("ack_all too far into the future: %d", (int) frame_delta);
+        FBP_LOGD1("ack_all too far into the future: %d", (int) frame_delta);
         return;
     }
     uint16_t frame_id_end = (self->tx_frame_next_id - 1) & FBP_FRAMER_FRAME_ID_MAX;
     frame_delta = fbp_framer_frame_id_subtract(frame_id, frame_id_end);
     if (frame_delta > 0) {
-        FBP_LOGI("ack_all out of window range: %d", (int) frame_delta);
+        FBP_LOGD1("ack_all out of window range: %d", (int) frame_delta);
         frame_id = frame_id_end; // only process what we have
     }
 
@@ -547,7 +547,7 @@ static void handle_ack_one(struct fbp_dl_s * self, uint16_t frame_id) {
 static void handle_nack_frame_id(struct fbp_dl_s * self, uint16_t frame_id) {
     struct tx_frame_s * f = tx_frame_get(self, frame_id, "nack_frame_id");
     if (f && (f->state != TX_FRAME_ST_IDLE)) {
-        FBP_LOGD1("handle_nack_frame_id(%d)", (int) frame_id);
+        FBP_LOGD2("handle_nack_frame_id(%d)", (int) frame_id);
         f->state = TX_FRAME_ST_SEND;
     }
 }
@@ -555,13 +555,13 @@ static void handle_nack_frame_id(struct fbp_dl_s * self, uint16_t frame_id) {
 static void handle_nack_framing_error(struct fbp_dl_s * self, uint16_t frame_id) {
     struct tx_frame_s * f = tx_frame_get(self, frame_id, "nack_framing");
     if (f && (f->state != TX_FRAME_ST_IDLE)) {
-        FBP_LOGD1("handle_nack_framing_error(%d)", (int) frame_id);
+        FBP_LOGD2("handle_nack_framing_error(%d)", (int) frame_id);
         f->state = TX_FRAME_ST_SEND;
     }
 }
 
 static void handle_reset(struct fbp_dl_s * self, uint16_t frame_id) {
-    FBP_LOGD1("received reset %d from remote host", (int) frame_id);
+    FBP_LOGD2("received reset %d from remote host", (int) frame_id);
 
     switch (frame_id) {
         case 0:  // reset request
@@ -650,7 +650,7 @@ static int64_t tx_timeout(struct fbp_dl_s * self, int64_t now) {
         if (f->state == TX_FRAME_ST_SENT) {
             int64_t next = f->last_send_time + self->tx_timeout;
             if (next <= now) {
-                FBP_LOGD1("tx timeout on %d", (int) frame_id);
+                FBP_LOGD3("tx timeout on %d", (int) frame_id);
                 f->state = TX_FRAME_ST_SEND;
                 next_event = now;
             } else {
@@ -781,7 +781,6 @@ struct fbp_dl_s * fbp_dl_initialize(
         FBP_LOGE("alloc failed");
         return 0;
     }
-    FBP_LOGI("initialize");
 
     uint8_t * mem = (uint8_t *) self;
     self->tx_frame_count = 1;  // negotiate to larger sizes
@@ -811,14 +810,14 @@ void fbp_dl_register_upper_layer(struct fbp_dl_s * self, struct fbp_dl_api_s con
 
 void fbp_dl_reset_tx_from_event(struct fbp_dl_s * self) {
     if (self->state == ST_DISCONNECTED) {
-        FBP_LOGI("fbp_dl_reset_tx_from_event when already disconnected");
+        FBP_LOGD1("fbp_dl_reset_tx_from_event when already disconnected");
     } else {
         tx_reset(self);
     }
 }
 
 int32_t fbp_dl_finalize(struct fbp_dl_s * self) {
-    FBP_LOGI("finalize");
+    FBP_LOGD1("fbp_dl_finalize");
     if (self) {
         fbp_os_mutex_t mutex = self->mutex;
         lock(self);

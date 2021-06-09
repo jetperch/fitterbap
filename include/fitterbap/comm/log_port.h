@@ -143,7 +143,9 @@ struct fbp_logp_config_s {
      * @brief The maximum number of allowed message buffers.
      *
      * If this instance runs out of message buffers, it will drop
-     * log messages until the queue empties.
+     * log messages until the queue empties.  This value is only
+     * for fbp_logp_publish() and fbp_logp_publish_record(),
+     * not for messages received over the comm link.
      */
     uint32_t msg_buffers_max;
 

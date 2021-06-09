@@ -119,6 +119,19 @@ cdef extern from "fitterbap/comm/data_link.h":
                         uint8_t *msg, uint32_t msg_size) nogil
 
 
+cdef extern from "fitterbap/comm/log_port.h":
+    struct fbp_logp_record_s:
+        uint64_t timestamp
+        uint8_t level
+        uint8_t origin_prefix
+        uint8_t origin_thread
+        uint32_t line
+        char * filename
+        char * message
+
+    ctypedef void (*fbp_logp_on_recv)(void * user_data, const fbp_logp_record_s * record)
+
+
 cdef extern from "fitterbap/host/comm.h":
     struct fbp_comm_s
     fbp_comm_s * fbp_comm_initialize(const fbp_dl_config_s * config,
@@ -131,3 +144,4 @@ cdef extern from "fitterbap/host/comm.h":
                              const char * topic, const fbp_union_s * value) nogil
     int32_t fbp_comm_query(fbp_comm_s * self, const char * topic, fbp_union_s * value) nogil
     int32_t fbp_comm_status_get(fbp_comm_s * self, fbp_dl_status_s * status) nogil
+    void fbp_comm_log_recv_register(fbp_comm_s * self, fbp_logp_on_recv cbk_fn, void * cbk_user_data)
