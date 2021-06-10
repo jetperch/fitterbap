@@ -108,14 +108,16 @@ FBP_API int32_t fbp_comm_status_get(
         struct fbp_dl_status_s * status);
 
 /**
- * @brief Register a log message receive callback.
+ * @brief Forward remote log messages to the local handler.
  *
  * @param self The communications instance.
- * @param cbk_fn The function to call on received messages.
- *      Provide NULL to unregister.
- * @param cbk_user_data The arbitrary user data for cbk_fn.
+ * @param fn The function to call for each received comm log message,
+ *      usually fbp_logh_publish_formatted.
+ * @param user_data The arbitrary data for fn, usually the logh instance.
+ * @see fbp_logh_publish_formatted()
  */
-FBP_API void fbp_comm_log_recv_register(struct fbp_comm_s * self, fbp_logp_on_recv cbk_fn, void * cbk_user_data);
+FBP_API void fbp_comm_log_recv_register(struct fbp_comm_s * self, fbp_logp_publish_formatted fn, void * user_data);
+
 
 FBP_CPP_GUARD_END
 

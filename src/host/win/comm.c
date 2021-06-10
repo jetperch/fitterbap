@@ -32,7 +32,7 @@
 // On a host computer, make plenty big
 #define PUBSUB_BUFFER_SIZE (2000000)
 #define PUBSUB_PREFIX "h/"
-#define PORT0_PREFIX PUBSUB_PREFIX "c/"
+#define STACK_PREFIX PUBSUB_PREFIX "c/"
 
 
 struct fbp_comm_s {
@@ -44,8 +44,6 @@ struct fbp_comm_s {
     HANDLE pubsub_signal_event;
     int pubsub_quit;
     HANDLE pubsub_thread;
-
-    struct fbp_port_api_s * log_api;
 
     struct fbp_evm_api_s evm_api;
     fbp_pubsub_subscribe_fn subscriber_fn;
@@ -86,7 +84,7 @@ static void on_port_recv_default(void *user_data,
     }
 
     // Construct topic string
-    char * src = PORT0_PREFIX;
+    char * src = STACK_PREFIX;
     char * t = topic;
     while (*src) {
         *t++ = *src++;
@@ -222,26 +220,12 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
         goto on_error;
     }
 
-    self->stack = fbp_stack_initialize(config, FBP_PORT0_MODE_SERVER, PORT0_PREFIX,
+    self->stack = fbp_stack_initialize(config, FBP_PORT0_MODE_SERVER, STACK_PREFIX,
                                        &self->evm_api, &ll, self->pubsub, NULL);
     if (!self->stack) {
         goto on_error;
     }
     fbp_transport_port_register_default(self->stack->transport, NULL, on_port_recv_default, self);
-
-    struct fbp_logp_config_s logp_config;
-    memset(&logp_config, 0, sizeof(logp_config));
-    self->log_api = fbp_logp_factory(&logp_config);
-    self->log_api->port_id = 2;
-    self->log_api->topic_prefix = PUBSUB_PREFIX;
-    self->log_api->transport = self->stack->transport;
-    if (fbp_transport_port_register(self->stack->transport, self->log_api->port_id,
-                                    self->log_api->meta,
-                                    self->log_api->on_event,
-                                    self->log_api->on_recv,
-                                    self->log_api)) {
-        goto on_error;
-    }
 
     if (fbp_uartt_start(self->uart)) {
         goto on_error;
@@ -263,10 +247,6 @@ void fbp_comm_finalize(struct fbp_comm_s * self) {
     if (self) {
         fbp_uartt_stop(self->uart);
         pubsub_task_stop(self);
-        if (self->log_api) {
-            self->log_api->finalize(self->log_api);
-            self->log_api = NULL;
-        }
         if (self->stack) {
             fbp_stack_finalize(self->stack);
             self->stack = NULL;
@@ -308,6 +288,6 @@ int32_t fbp_comm_status_get(
     return fbp_dl_status_get(self->stack->dl, status);
 }
 
-FBP_API void fbp_comm_log_recv_register(struct fbp_comm_s * self, fbp_logp_on_recv cbk_fn, void * cbk_user_data) {
-    fbp_logp_recv_register(self->log_api, cbk_fn, cbk_user_data);
+void fbp_comm_log_recv_register(struct fbp_comm_s * self, fbp_logp_publish_formatted fn, void * user_data) {
+    fbp_logp_handler_register(self->stack->logp, fn, user_data);
 }

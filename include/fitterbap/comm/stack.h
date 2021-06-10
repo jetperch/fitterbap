@@ -29,6 +29,7 @@
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/comm/port0.h"
+#include "fitterbap/comm/log_port.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/comm/pubsub_port.h"
 
@@ -57,6 +58,7 @@ struct fbp_stack_s {
     struct fbp_port0_s * port0;
     struct fbp_pubsub_s * pubsub;
     struct fbp_pubsubp_s * pubsub_port;
+    struct fbp_port_api_s * logp;
 };
 
 /**
@@ -64,7 +66,8 @@ struct fbp_stack_s {
  *
  * @param config The data-link layer configuration.
  * @param port0_mode The communication link mode: host or client.
- * @param port0_topic_prefix The prefix for port0 updates.
+ * @param topic_prefix The prefix for this stack.  Each port will be
+ *      use a {topic_prefix}/{port_id} prefix.
  * @param ll_instance The lower-level communication implementation.
  * @param evm_api The event manager API.
  * @param pubsub The pubsub instance for this device.
@@ -75,7 +78,7 @@ struct fbp_stack_s {
 struct fbp_stack_s * fbp_stack_initialize(
         struct fbp_dl_config_s const * config,
         enum fbp_port0_mode_e port0_mode,
-        const char * port0_topic_prefix,
+        const char * topic_prefix,
         struct fbp_evm_api_s * evm_api,
         struct fbp_dl_ll_s const * ll_instance,
         struct fbp_pubsub_s * pubsub,

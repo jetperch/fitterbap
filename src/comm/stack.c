@@ -18,18 +18,23 @@
 #include "fitterbap/platform.h"
 #include "fitterbap/ec.h"
 #include "fitterbap/log.h"
+#include "fitterbap/topic.h"
 #include <inttypes.h>
 
 
 struct fbp_stack_s * fbp_stack_initialize(
         struct fbp_dl_config_s const * config,
         enum fbp_port0_mode_e port0_mode,
-        const char * port0_topic_prefix,
+        const char * topic_prefix,
         struct fbp_evm_api_s * evm_api,
         struct fbp_dl_ll_s const * ll_instance,
         struct fbp_pubsub_s * pubsub,
         struct fbp_ts_s * timesync)  {
 
+    struct fbp_port_config_s port_config;
+    memset(&port_config, 0, sizeof(port_config));
+    fbp_topic_set(&port_config.topic_prefix, topic_prefix);
+    uint8_t topic_prefix_len = port_config.topic_prefix.length;
     struct fbp_stack_s * self = fbp_alloc_clr(sizeof(struct fbp_stack_s));
     self->pubsub = pubsub;
     self->evm_api = *evm_api;
@@ -54,7 +59,7 @@ struct fbp_stack_s * fbp_stack_initialize(
     fbp_dl_register_upper_layer(self->dl, &dl_api);
 
     self->port0 = fbp_port0_initialize(port0_mode, self->dl, evm_api, self->transport, fbp_transport_send,
-                                        pubsub, port0_topic_prefix, timesync);
+                                        pubsub, port_config.topic_prefix.topic, timesync);
     if (!self->port0) {
         fbp_stack_finalize(self);
         return NULL;
@@ -86,6 +91,17 @@ struct fbp_stack_s * fbp_stack_initialize(
         return NULL;
     }
 
+    fbp_topic_append(&port_config.topic_prefix, "2");
+    port_config.pubsub = pubsub;
+    port_config.transport = self->transport;
+    port_config.port_id = 2;
+    port_config.evm = *evm_api;
+    self->logp = fbp_logp_factory();
+    if (fbp_port_register(self->logp, &port_config)) {
+        fbp_stack_finalize(self);
+        return NULL;
+    }
+
     return self;
 }
 
@@ -106,6 +122,10 @@ int32_t fbp_stack_finalize(struct fbp_stack_s * self) {
         if (self->pubsub_port) {
             fbp_pubsubp_finalize(self->pubsub_port);
             self->pubsub_port = NULL;
+        }
+        if (self->logp) {
+            self->logp->finalize(self->logp);
+            self->logp = NULL;
         }
         fbp_free(self);
     }

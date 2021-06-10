@@ -192,7 +192,7 @@ extern const char FBP_PORT0_META[];
  * @param send_fn The function to call to send data, which should be
  *      fbp_transport_send() except during unit testing.
  * @param pubsub The pubsub instance for event updates.
- * @param topic_prefix The prefix to use for pubsub.
+ * @param topic_prefix The prefix to use for pubsub for the stack.
  * @param timesync The timesync instance, for clients that want to
  *      be responsible for synchronizing time.  Otherwise, NULL.
  * @return The new instance or NULL on error.

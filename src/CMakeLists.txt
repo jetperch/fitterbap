@@ -28,14 +28,17 @@ set(SOURCES
         fsm.c
         lfsr.c
         log.c
+        logh.c
         pattern_32a.c
         platform.c
         pubsub.c
+        topic.c
         union.c
         collections/ring_buffer_msg.c
         comm/data_link.c
         comm/framer.c
         comm/log_port.c
+        comm/port.c
         comm/port0.c
         comm/pubsub_port.c
         comm/stack.c

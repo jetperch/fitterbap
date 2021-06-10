@@ -70,6 +70,7 @@ extensions = [
             'src/comm/data_link.c',
             'src/comm/framer.c',
             'src/comm/log_port.c',
+            'src/comm/port.c',
             'src/comm/port0.c',
             'src/comm/pubsub_port.c',
             'src/comm/stack.c',
@@ -79,7 +80,9 @@ extensions = [
             'src/cstr.c',
             'src/fsm.c',
             'src/log.c',
+            'src/logh.c',
             'src/pubsub.c',
+            'src/topic.c',
             'src/union.c',
             'third-party/tinyprintf/tinyprintf.c'
         ],

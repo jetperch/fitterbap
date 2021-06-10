@@ -29,6 +29,7 @@
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/pubsub.h"
+#include "fitterbap/topic.h"
 
 /**
  * @ingroup fbp_comm
@@ -41,8 +42,45 @@
 
 FBP_CPP_GUARD_START
 
-// forward declaration
-struct fbp_port_api_s;
+
+/**
+ * @brief The port configuration information provided to initialize.
+ */
+struct fbp_port_config_s {
+    /**
+     * @brief The transport instance for sending data.
+     */
+    struct fbp_transport_s * transport;
+
+    /**
+     * @brief The port's port_id for sending data.
+     */
+    uint8_t port_id;
+
+    /**
+     * @brief The PubSub instance.
+     *
+     * Ports must use PubSub to communicate with the rest of the system for
+     * command and control.  Ports may optionally provide a direct
+     * interface for streaming data for higher performance.
+     */
+    struct fbp_pubsub_s * pubsub;
+
+    /**
+     * @brief The topic prefix for PubSub messages.
+     *
+     * The topic prefix ending with '/', that this
+     * port should use for all topics that it publishes to pubsub.
+     */
+    struct fbp_topic_s topic_prefix;
+
+    /**
+     * @brief The event manager for this port.
+     *
+     * Ports can use the event manager to schedule callback events.
+     */
+    struct fbp_evm_api_s evm;
+};
 
 /**
  * @brief The port API, used by the transport layer to interact
@@ -73,9 +111,12 @@ struct fbp_port_api_s {
      * @brief The function called to initialize the port instance.
      *
      * @param self The port instance.
+     * @param config The port configuration.  This caller retains ownership
+     *      and the structure is only valid for the duration of the call.
+     *      The port instance must copy any data it needs.
      * @return 0 or error code.
      */
-    int32_t (*initialize)(struct fbp_port_api_s * self);
+    int32_t (*initialize)(struct fbp_port_api_s * self, const struct fbp_port_config_s * config);
 
     /**
      * @brief The function called to finalized the port instance.
@@ -94,41 +135,17 @@ struct fbp_port_api_s {
      * @brief The function called when transport receives data for this port.
      */
     fbp_transport_recv_fn on_recv;
-
-    /**
-     * @brief The PubSub instance.
-     *
-     * Ports must use PubSub to communicate with the rest of the system for
-     * command and control.  Ports may optionally provide a direct
-     * interface for streaming data for higher performance.
-     */
-    struct fbp_pubsub_s * pubsub;
-
-    /**
-     * @brief The topic prefix for PubSub messages.
-     *
-     * The topic prefix, empty or ending with '/', that this
-     * port should use for all topics that it publishes to pubsub.
-     */
-    const char * topic_prefix;
-
-    /**
-     * @brief The transport instance for sending data.
-     */
-    struct fbp_transport_s * transport;
-
-    /**
-     * @brief The port's port_id for sending data.
-     */
-    uint8_t port_id;
-
-    /**
-     * @brief The event manager for this port.
-     *
-     * Ports use the event manager to schedule callback events.
-     */
-    struct fbp_evm_api_s * evm;
 };
+
+/**
+ * @brief Convenience function to register a port.
+ *
+ * @param self The port api instance.
+ * @param config The populated port configuration.
+ * @return 0 or error code.
+ */
+int32_t fbp_port_register(struct fbp_port_api_s * self, const struct fbp_port_config_s * config);
+
 
 FBP_CPP_GUARD_END
 

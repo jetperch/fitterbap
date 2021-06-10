@@ -175,7 +175,7 @@ static int32_t send_inner(struct fbp_dl_s * self,
     if (fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id) >= self->tx_frame_count) {
         unlock(self);
         FBP_LOGD1("fbp_dl_send(0x%02" PRIx16 ") too many frames outstanding", metadata);
-        return FBP_ERROR_NOT_ENOUGH_MEMORY;
+        return FBP_ERROR_FULL;
     }
 
     if (!fbp_framer_validate_data(frame_id, metadata, msg_size)) {
@@ -218,13 +218,13 @@ int32_t fbp_dl_send(struct fbp_dl_s * self,
         rc = send_inner(self, metadata, msg, msg_size);
         if (rc == FBP_SUCCESS) {
             return 0;
-        } else if (rc == FBP_ERROR_NOT_ENOUGH_MEMORY) {
+        } else if (rc == FBP_ERROR_FULL) {
             uint32_t t_now = (uint32_t) fbp_time_rel_ms();
             if ((t_now - t_start) > timeout_ms) {
                 return FBP_ERROR_TIMED_OUT;
             }
             if (self->process_task_id == fbp_os_current_task_id()) {
-                return FBP_ERROR_NOT_ENOUGH_MEMORY;
+                return FBP_ERROR_FULL;
             }
             fbp_os_sleep(FBP_TIME_MILLISECOND);
         } else {

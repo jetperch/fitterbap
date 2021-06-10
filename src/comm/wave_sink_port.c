@@ -21,6 +21,7 @@
 #include "fitterbap/ec.h"
 #include "fitterbap/log.h"
 #include "fitterbap/platform.h"
+#include "fitterbap/topic.h"
 #include <inttypes.h>
 
 
@@ -29,15 +30,17 @@ static const char META[] = "{\"type\":\"waveform\"}";
 
 struct fbp_wavep_s {
     struct fbp_port_api_s api;
-    char data_topic[FBP_PUBSUB_TOPIC_LENGTH_MAX];
+    struct fbp_topic_s data_topic;
+    struct fbp_pubsub_s * pubsub;
+    uint8_t port_id;
 };
 
-static int32_t initialize(struct fbp_port_api_s * api) {
+static int32_t initialize(struct fbp_port_api_s * api, const struct fbp_port_config_s * config) {
     struct fbp_wavep_s * self = (struct fbp_wavep_s *) api;
-    if (fbp_cstr_join(self->data_topic, self->api.topic_prefix, "data", sizeof(self->data_topic))) {
-        FBP_LOGE("could not construct data topic");
-        return FBP_ERROR_PARAMETER_INVALID;
-    }
+    self->pubsub = config->pubsub;
+    self->port_id = config->port_id;
+    fbp_topic_set(&self->data_topic, config->topic_prefix.topic);
+    fbp_topic_append(&self->data_topic, "data");
     return 0;
 }
 
@@ -59,8 +62,8 @@ static void on_recv(void *user_data,
                     uint8_t port_data,
                     uint8_t *msg, uint32_t msg_size) {
     struct fbp_wavep_s *self = (struct fbp_wavep_s *) user_data;
-    if (port_id != self->api.port_id) {
-        FBP_LOGW("port_id mismatch: %d != %d", (int) port_id, (int) self->api.port_id);
+    if (port_id != self->port_id) {
+        FBP_LOGW("port_id mismatch: %d != %d", (int) port_id, (int) self->port_id);
         return;
     }
     if (seq != FBP_TRANSPORT_SEQ_SINGLE) {
@@ -78,7 +81,7 @@ static void on_recv(void *user_data,
             return;
         }
         FBP_LOGD1("port sz=%d", (int) msg_size);
-        fbp_pubsub_publish(self->api.pubsub, self->data_topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
+        fbp_pubsub_publish(self->pubsub, self->data_topic.topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
     } else {
         int msg_type = (int) ((port_data >> 4) & 0x0f);
         switch (msg_type) {

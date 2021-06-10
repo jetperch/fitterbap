@@ -56,10 +56,12 @@ add_test(event_manager_test ${CMAKE_CURRENT_BINARY_DIR}/event_manager_test)
 ADD_CMOCKA_TEST(fsm_test)
 ADD_CMOCKA_TEST(lfsr_test)
 ADD_CMOCKA_TEST(log_test)
+ADD_CMOCKA_TEST(logh_test)
 ADD_CMOCKA_TEST(pattern_32a_test)
 ADD_CMOCKA_TEST(platform_test)
 ADD_CMOCKA_TEST(pubsub_test)
 ADD_CMOCKA_TEST(time_test)
+ADD_CMOCKA_TEST(topic_test)
 ADD_CMOCKA_TEST(union_test)
 
 # test static assert compile failures

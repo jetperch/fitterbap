@@ -38,9 +38,14 @@ cdef _value_pack(fbp_union_s * value, data, retain=None):
         value[0].type = FBP_UNION_NULL
         value[0].size = 0
     elif isinstance(data, int):
-        value[0].type = FBP_UNION_U32
-        value[0].value.u32 = data
-        value[0].size = 4
+        if data < 0:
+            value[0].type = FBP_UNION_I32
+            value[0].value.i32 = <int32_t> data
+            value[0].size = 4
+        else:
+            value[0].type = FBP_UNION_U32
+            value[0].value.u32 = <uint32_t> data
+            value[0].size = 4
     elif isinstance(data, str):
         s = data.encode('utf-8')
         value[0].type = FBP_UNION_STR
@@ -190,22 +195,24 @@ cdef class Comm:
             log.exception(f'_subscriber_cbk({topic})')
 
     @staticmethod
-    cdef void _on_logp_recv(void * user_data, const fbp_logp_record_s * record) with gil:
+    cdef int32_t _on_logp_recv(void * user_data, const fbp_logh_header_s * header,
+            const char * filename, const char * message) with gil:
         cdef Comm self = <object> user_data
         msg = {
-            'timestamp': (record[0].timestamp / FBP_TIME_SECOND) + FBP_TIME_EPOCH_UNIX_OFFSET_SECONDS,
-            'level': record[0].level,
+            'timestamp': (header[0].timestamp / FBP_TIME_SECOND) + FBP_TIME_EPOCH_UNIX_OFFSET_SECONDS,
+            'level': header[0].level,
             'device': self._device,
-            'origin_prefix': record[0].origin_prefix,
-            'origin_thread': record[0].origin_thread,
-            'filename': record[0].filename.decode('utf-8'),
-            'line': record[0].line,
-            'message': record[0].message.decode('utf-8'),
+            'origin_prefix': header[0].origin_prefix,
+            'origin_thread': header[0].origin_thread,
+            'filename': filename.decode('utf-8'),
+            'line': header[0].line,
+            'message': message.decode('utf-8'),
         }
         try:
             self._subscriber(LOG_TOPIC, msg, 0, self.publish)
         except Exception:
             log.exception(f'_subscriber_cbk({LOG_TOPIC})')
+        return 0
 
     def close(self):
         fbp_comm_finalize(self._comm)

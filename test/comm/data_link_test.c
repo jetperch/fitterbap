@@ -333,7 +333,7 @@ static void test_send_two_before_tx_window_set(void ** state) {
     recv_eof(self);
 
     send_and_expect(self, 1, 11, PAYLOAD1, sizeof(PAYLOAD1));
-    assert_int_equal(FBP_ERROR_NOT_ENOUGH_MEMORY, fbp_dl_send(self->dl, 12, PAYLOAD2, sizeof(PAYLOAD2), 0));
+    assert_int_equal(FBP_ERROR_FULL, fbp_dl_send(self->dl, 12, PAYLOAD2, sizeof(PAYLOAD2), 0));
     fbp_dl_tx_window_set(self->dl, 16);
     send_and_expect(self, 2, 13, PAYLOAD2, sizeof(PAYLOAD2));
     process_n(self, 2);

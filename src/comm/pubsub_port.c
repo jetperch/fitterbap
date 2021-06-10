@@ -536,6 +536,7 @@ int32_t send_topic_list(struct fbp_pubsubp_s * self) {
 
 uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
                               const char * topic, const struct fbp_union_s * value) {
+    const char * topic_orig = topic;
     uint8_t port_data = 0;
     if (!self->transport) {
         return 0;
@@ -602,7 +603,7 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
             const char * s = value->value.str;
             while (*s) {
                 if (payload_sz >= (payload_sz_max - 1)) {
-                    FBP_LOGW("payload full");
+                    FBP_LOGW("payload full: %s", topic_orig);
                     return FBP_ERROR_PARAMETER_INVALID;
                 }
                 *p++ = *s++;
@@ -614,7 +615,7 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
         }
         case FBP_UNION_BIN: {
             if (payload_sz_max < value->size) {
-                FBP_LOGW("payload full");
+                FBP_LOGW("payload full: %s", topic_orig);
                 return FBP_ERROR_PARAMETER_INVALID;
             }
             const uint8_t * s = value->value.bin;

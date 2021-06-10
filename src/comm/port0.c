@@ -292,6 +292,11 @@ void fbp_port0_on_event_cbk(struct fbp_port0_s * self, enum fbp_dl_event_e event
         case FBP_DL_EV_CONNECTED:
             emit_event(self, EV_TX_CONNECT);
             break;
+        case FBP_DL_EV_TRANSPORT_CONNECTED:
+            break;
+        case FBP_DL_EV_APP_CONNECTED:
+            FBP_LOGN("%s connected", self->topic_prefix);
+            break;
         default:
             break;
     }
@@ -463,15 +468,15 @@ static void op_negotiate_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t m
     uint32_t req[4];  // version, status, down_window_size, up_window_size
     uint32_t rsp[4] = {FBP_DL_VERSION, 0, 0, 0};
     if (self->mode != FBP_PORT0_MODE_CLIENT) {
-        FBP_LOGE("op_negotiate_rsp, but not client");
+        FBP_LOGE("op_negotiate_rsp, but not client on %s", self->topic_prefix);
         rsp[1] = FBP_ERROR_NOT_SUPPORTED;
     } else if (msg_size < sizeof(req)) {
-        FBP_LOGE("incompatible negotiate packet");
+        FBP_LOGE("incompatible negotiate packet on %s", self->topic_prefix);
         rsp[1] = FBP_ERROR_PARAMETER_INVALID;
     } else {
         memcpy(req, msg, sizeof(req));
         if (FBP_DL_VERSION_MAJOR != (req[0] >> 24)) {
-            FBP_LOGE("potentially incompatible negotiate version");
+            FBP_LOGE("potentially incompatible negotiate version on %s", self->topic_prefix);
             rsp[1] = 0; // could issue warning
         }
         rsp[2] = min_u32(fbp_dl_rx_window_get(self->dl), req[2]);
@@ -480,7 +485,7 @@ static void op_negotiate_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t m
     }
     if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(NEGOTIATE),
                       (uint8_t *) rsp, sizeof(rsp), 0)) {
-        FBP_LOGW("negotiate_req send failed");
+        FBP_LOGW("negotiate_req send failed on %s", self->topic_prefix);
     }
     emit_event(self, EV_NEGOTIATE_DONE);
 }
@@ -488,15 +493,15 @@ static void op_negotiate_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t m
 static void op_negotiate_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
     uint32_t rsp[4];  // version, status, rsv, window_size;
     if (self->mode != FBP_PORT0_MODE_SERVER) {
-        FBP_LOGE("op_negotiate_rsp, but not server");
+        FBP_LOGE("op_negotiate_rsp, but not server on %s", self->topic_prefix);
         // fatal error: await timeout
     } else if (msg_size < sizeof(rsp)) {
-        FBP_LOGE("incompatible negotiate packet");
+        FBP_LOGE("incompatible negotiate packeton %s", self->topic_prefix);
         // fatal error: await timeout
     } else {
         memcpy(rsp, msg, sizeof(rsp));
         if (FBP_DL_VERSION_MAJOR != (rsp[0] >> 24)) {
-            FBP_LOGE("incompatible negotiate version");
+            FBP_LOGE("incompatible negotiate version on %s", self->topic_prefix);
             // fatal error: await timeout.
         } else {
             rsp[2] = min_u32(fbp_dl_tx_window_max_get(self->dl), rsp[2]);
@@ -554,8 +559,8 @@ void fbp_port0_on_recv_cbk(struct fbp_port0_s * self,
     }
 }
 
-static void pubsub_create(struct fbp_port0_s * self, const char * subtopic, const char * meta,
-        const struct fbp_union_s * value, fbp_pubsub_subscribe_fn src_fn, void * src_user_data) {
+static void topic_create(struct fbp_port0_s * self, const char * subtopic, const char * meta,
+                         const struct fbp_union_s * value, fbp_pubsub_subscribe_fn src_fn, void * src_user_data) {
     topic_append(self, subtopic);
     fbp_pubsub_meta(self->pubsub, self->topic_prefix, meta);
     if (src_fn) {
@@ -771,10 +776,10 @@ struct fbp_port0_s * fbp_port0_initialize(enum fbp_port0_mode_e mode,
     p->echo_length = FBP_FRAMER_PAYLOAD_MAX_SIZE;
     p->timesync = timesync;
 
-    pubsub_create(p, STATE_TOPIC, STATE_META, &fbp_union_u32_r(0), NULL, NULL);
-    pubsub_create(p, ECHO_ENABLE_META_TOPIC, ECHO_ENABLE_META, &fbp_union_u32_r(p->echo_enable), on_echo_enable, p);
-    pubsub_create(p, ECHO_OUTSTANDING_META_TOPIC, ECHO_WINDOW_META, &fbp_union_u32_r(p->echo_window), on_echo_window, p);
-    pubsub_create(p, ECHO_LENGTH_META_TOPIC, ECHO_LENGTH_META, &fbp_union_u32_r(p->echo_length), on_echo_length, p);
+    topic_create(p, STATE_TOPIC, STATE_META, &fbp_union_u32_r(0), NULL, NULL);
+    topic_create(p, ECHO_ENABLE_META_TOPIC, ECHO_ENABLE_META, &fbp_union_u32_r(p->echo_enable), on_echo_enable, p);
+    topic_create(p, ECHO_OUTSTANDING_META_TOPIC, ECHO_WINDOW_META, &fbp_union_u32_r(p->echo_window), on_echo_window, p);
+    topic_create(p, ECHO_LENGTH_META_TOPIC, ECHO_LENGTH_META, &fbp_union_u32_r(p->echo_length), on_echo_length, p);
 
     fbp_fsm_reset(&p->fsm);
     return p;
