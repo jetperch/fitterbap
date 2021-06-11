@@ -22,6 +22,7 @@
 #include "fitterbap/fsm.h"
 #include "fitterbap/log.h"
 #include "fitterbap/cstr.h"
+#include "fitterbap/topic_list.h"
 #include "fitterbap/os/task.h"
 
 
@@ -67,6 +68,7 @@ struct fbp_pubsubp_s {
 
     uint8_t msg[FBP_FRAMER_PAYLOAD_MAX_SIZE];
     char feedback_topic[FBP_PUBSUB_TOPIC_LENGTH_MAX];
+    struct fbp_topic_list_s topic_list;  // only needed by server
 };
 
 const char FBP_PUBSUBP_META[] = "{\"type\":\"pubsub\", \"name\":\"pubsub\"}";
@@ -298,6 +300,33 @@ static uint8_t port_data_to_flags(uint8_t port_data) {
     return flags;
 }
 
+static void child_topic_add(struct fbp_pubsubp_s *self, const char * topic, uint8_t flags) {
+    FBP_LOGI("child_topic_add: %s flags=0x%02x", topic, (unsigned int) flags);
+    fbp_pubsub_subscribe(self->pubsub, topic, flags,
+                         (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    fbp_pubsub_publish(self->pubsub, FBP_PUBSUB_TOPIC_ADD, &fbp_union_str(topic),
+                       (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+}
+
+static void child_topic_remove(struct fbp_pubsubp_s *self, const char * topic) {
+    FBP_LOGI("child_topic_remove: %s", topic);
+    fbp_pubsub_unsubscribe(self->pubsub, topic,
+                         (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    fbp_pubsub_publish(self->pubsub, FBP_PUBSUB_TOPIC_REMOVE, &fbp_union_str(topic),
+                       (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+}
+
+struct topic_list_cbk_s {
+    struct fbp_pubsubp_s *self;
+    uint8_t flags;
+};
+
+static int32_t topic_list_cbk(void * user_data, const char * topic) {
+    struct topic_list_cbk_s * cbk = (struct topic_list_cbk_s *) user_data;
+    child_topic_add(cbk->self, topic, cbk->flags);
+    return 0;
+}
+
 static void on_topic_list(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e seq,
                                  uint8_t port_data,
                                  uint8_t *msg, uint32_t msg_size) {
@@ -307,30 +336,20 @@ static void on_topic_list(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e s
     } else if ((seq != FBP_TRANSPORT_SEQ_SINGLE)  || !msg_size || msg[msg_size - 1]) {
         FBP_LOGW("invalid topic_list");
         return;
+    } else if (msg_size > FBP_TOPIC_LIST_LENGTH_MAX) {
+        FBP_LOGW("topic list too long");
+        return;
     }
-    FBP_LOGD1("topic list");
+
+    FBP_LOGI("topic list: %s", (char *) msg);
+    memcpy(self->topic_list.topic_list, msg, msg_size);
     fbp_pubsub_subscribe(self->pubsub, "", FBP_PUBSUB_SFLAG_NOPUB | FBP_PUBSUB_SFLAG_REQ,
                          (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
-    uint8_t flags = port_data_to_flags(port_data);
-    char * topic = (char *) msg;
-    char * end = topic;
-    char end_ch;
-    while (*topic) {
-        while (*end && *end != FBP_PUBSUB_UNIT_SEP_CHR) {
-            ++end;
-        }
-        end_ch = *end;
-        *end = 0;
-        FBP_LOGD1("topic list subscribe: %s flags=0x%02x", topic, (unsigned int) flags);
-        fbp_pubsub_subscribe(self->pubsub, topic, flags,
-                             (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
-        if (end_ch) {
-            topic = end + 1;
-        } else {
-            topic = end;
-        }
-        end = topic;
-    }
+    struct topic_list_cbk_s cbk = {
+        .self = self,
+        .flags = port_data_to_flags(port_data)
+    };
+    fbp_topic_list_iterate(&self->topic_list, topic_list_cbk, &cbk);
     emit_event(self, EV_RECV);
 }
 
@@ -344,10 +363,8 @@ static void on_topic_add(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e se
         FBP_LOGW("invalid topic_add");
         return;
     }
-    FBP_LOGD1("topic add %s", msg);
     uint8_t flags = port_data_to_flags(port_data);
-    fbp_pubsub_subscribe(self->pubsub, (char *) msg, flags,
-                           (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    child_topic_add(self, (char *) msg, flags);
 }
 
 static void on_topic_remove(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e seq,
@@ -361,9 +378,7 @@ static void on_topic_remove(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e
         FBP_LOGW("invalid topic_remove");
         return;
     }
-    FBP_LOGD1("topic remove %s", msg);
-    fbp_pubsub_unsubscribe(self->pubsub, (char *) msg,
-                           (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    child_topic_remove(self, (char *) msg);
 }
 
 static void on_publish(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e seq,
@@ -671,6 +686,12 @@ static fbp_fsm_state_t on_enter_disconnected(struct fbp_fsm_s * fsm, fbp_fsm_eve
     ON_ENTER(fsm);
     timeout_clear(self);
     unsubscribe(self);
+    if ((self->mode == FBP_PUBSUBP_MODE_DOWNSTREAM) && (self->topic_list.topic_list[0])) {
+        fbp_pubsub_publish(self->pubsub, FBP_PUBSUB_CONN_REMOVE,
+                           &fbp_union_str(self->topic_list.topic_list),
+                           (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+        fbp_topic_list_clear(&self->topic_list);
+    }
     return FBP_STATE_ANY;
 }
 
@@ -754,6 +775,11 @@ static fbp_fsm_state_t on_enter_connected(struct fbp_fsm_s * fsm, fbp_fsm_event_
     ON_ENTER(fsm);
     timeout_clear(self);
     fbp_transport_event_inject(self->transport, FBP_DL_EV_APP_CONNECTED);
+    if ((self->mode == FBP_PUBSUBP_MODE_DOWNSTREAM) && (self->topic_list.topic_list[0])) {
+        fbp_pubsub_publish(self->pubsub, FBP_PUBSUB_CONN_ADD,
+                           &fbp_union_str(self->topic_list.topic_list),
+                           (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
+    }
     return FBP_STATE_ANY;
 }
 
@@ -855,6 +881,7 @@ struct fbp_pubsubp_s * fbp_pubsubp_initialize(
     self->pubsub = pubsub;
     self->evm = *evm;
     construct_feedback_topic(self);
+    fbp_topic_list_clear(&self->topic_list);
 
     self->fsm.name = is_client ? "pubsubp_client" : "pubsubp_server";
     self->fsm.state = ST_DISCONNECTED;

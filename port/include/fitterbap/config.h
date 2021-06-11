@@ -36,6 +36,9 @@
 /* Set global log level */
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_ALL
 
+/* Set the initial comm log port level for forwarding/receiving log messages. */
+// #define FBP_LOGP_LEVEL FBP_LOG_LEVEL_WARNING
+
 /* Optionally Override the log format */
 #if 0
 #define FBP_LOG_PRINTF(level, format, ...) \

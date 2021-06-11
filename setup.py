@@ -83,6 +83,7 @@ extensions = [
             'src/logh.c',
             'src/pubsub.c',
             'src/topic.c',
+            'src/topic_list.c',
             'src/union.c',
             'third-party/tinyprintf/tinyprintf.c'
         ],

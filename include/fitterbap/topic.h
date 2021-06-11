@@ -51,11 +51,11 @@ struct fbp_topic_s {
 #define FBP_TOPIC_INIT ((struct fbp_topic_s) {.topic={0}, .length=0})
 
 /**
- * @brief Reset a topic structure instance to zero length.
+ * @brief Clear a topic structure instance to reset it to zero length.
  *
  * @param topic[inout] The topic structure, which is modified in place.
  */
-static inline void fbp_topic_reset(struct fbp_topic_s * topic) {
+static inline void fbp_topic_clear(struct fbp_topic_s * topic) {
     topic->topic[0] = 0;
     topic->length = 0;
 }

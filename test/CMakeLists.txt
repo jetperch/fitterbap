@@ -62,6 +62,7 @@ ADD_CMOCKA_TEST(platform_test)
 ADD_CMOCKA_TEST(pubsub_test)
 ADD_CMOCKA_TEST(time_test)
 ADD_CMOCKA_TEST(topic_test)
+ADD_CMOCKA_TEST(topic_list_test)
 ADD_CMOCKA_TEST(union_test)
 
 # test static assert compile failures

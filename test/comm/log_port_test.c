@@ -101,8 +101,9 @@ static struct fbp_port_api_s * initialize() {
     };
     expect_meta("a/2/level");
     expect_subscribe("a/2/level", 0);
-    expect_publish_u8("a/2/level", FBP_LOG_LEVEL_NOTICE);
+    expect_publish_u8("a/2/level", FBP_LOGP_LEVEL);
     assert_int_equal(0, api->initialize(api, &config));
+
     return api;
 }
 
@@ -121,10 +122,10 @@ static void test_initialize(void ** state) {
 
 static void test_publish_one(void ** state) {
     SETUP();
-    assert_int_equal(FBP_ERROR_UNAVAILABLE, fbp_logp_recv(api, &HEADER(NOTICE, 'a', 0, 10, 0), "file.c", "hello"));
+    assert_int_equal(FBP_ERROR_UNAVAILABLE, fbp_logp_recv(api, &HEADER(CRITICAL, 'a', 0, 10, 0), "file.c", "hello"));
     api->on_event(api, FBP_DL_EV_APP_CONNECTED);
-    expect_msg(&HEADER(NOTICE, 'a', 0, 10, 0), "file.c", "hello");
-    assert_int_equal(0, fbp_logp_recv(api, &HEADER(NOTICE, 'a', 0, 10, 0), "file.c", "hello"));
+    expect_msg(&HEADER(CRITICAL, 'a', 0, 10, 0), "file.c", "hello");
+    assert_int_equal(0, fbp_logp_recv(api, &HEADER(CRITICAL, 'a', 0, 10, 0), "file.c", "hello"));
     TEARDOWN();
 }
 
@@ -140,8 +141,8 @@ static void test_receive(void ** state) {
     fbp_logp_handler_register(api, on_recv, api);
     api->on_event(api, FBP_DL_EV_APP_CONNECTED);
     uint8_t buf[MSG_SZ];
-    uint32_t length = msg_format(buf, &HEADER(NOTICE, 'a', 0, 10, 42), "file.c", "hi?");
-    expect_recv(&HEADER(NOTICE, 'a', 0, 10, 42), "file.c", "hi?");
+    uint32_t length = msg_format(buf, &HEADER(CRITICAL, 'a', 0, 10, 42), "file.c", "hi?");
+    expect_recv(&HEADER(CRITICAL, 'a', 0, 10, 42), "file.c", "hi?");
     api->on_recv(api, 2, FBP_TRANSPORT_SEQ_SINGLE, 0, (uint8_t *) &buf, length);
 
     length = msg_format(buf, &HEADER(DEBUG3, 'a', 0, 10, 42), "file.c", "hi?");

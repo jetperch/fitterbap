@@ -33,6 +33,7 @@ set(SOURCES
         platform.c
         pubsub.c
         topic.c
+        topic_list.c
         union.c
         collections/ring_buffer_msg.c
         comm/data_link.c

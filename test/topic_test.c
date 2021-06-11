@@ -47,10 +47,10 @@ static void test_append(void **state) {
     expect_assert_failure(fbp_topic_append(&t, "too_much"));
 }
 
-static void test_reset(void **state) {
+static void test_clear(void **state) {
     SETUP();
     fbp_topic_append(&t, "hello");
-    fbp_topic_reset(&t);
+    fbp_topic_clear(&t);
     assert_topic("", &t);
 }
 
@@ -94,7 +94,7 @@ static void test_append_char(void **state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_append),
-            cmocka_unit_test(test_reset),
+            cmocka_unit_test(test_clear),
             cmocka_unit_test(test_truncate),
             cmocka_unit_test(test_set),
             cmocka_unit_test(test_append_char),

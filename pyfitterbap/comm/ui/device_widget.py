@@ -416,9 +416,7 @@ class PubSubWidget(QtWidgets.QWidget):
         self._layout.setSpacing(SPACING)
         self._layout.setContentsMargins(*MARGINS)
         self._layout.setObjectName('pubsub_widget_layout')
-        self._values = {}
-
-        self._items = {}
+        self._values: dict[str, Value] = {}
         device.subscribe('', self._on_update, forward=True)
 
     def clear(self):
@@ -427,7 +425,7 @@ class PubSubWidget(QtWidgets.QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)
-        self._items.clear()
+        self._values.clear()
 
     def publish(self, topic, value, retain=True):
         device = self._device()
@@ -443,21 +441,40 @@ class PubSubWidget(QtWidgets.QWidget):
 
     def _on_update(self, topic, value, retain=None):
         # print(f'{topic} : {value}')
-        if topic == 'h/c/0/ev' and value == Port0Events.APP_CONNECTED and not len(self._items):
-            device = self._device()
-            if device is not None:
-                log.info('request device metadata')
-                device.publish('$', None)
+        if topic == './conn/add':
+            self._on_conn_add(value)
+        elif topic == './conn/remove':
+            self._on_conn_remove(value)
         elif topic.endswith('$') and topic != '$' and not topic.endswith('/$'):
             self._on_meta(topic[:-1], value)
         v = self._values.get(topic)
         if v is not None:
             v.value = value
 
+    def _on_conn_add(self, topic_list):
+        for topic in topic_list.split('\x1f'):
+            if topic.endswith('/'):
+                topic = topic[:-1]
+            device = self._device()
+            if device is not None:
+                t = f'{topic}/$'
+                log.info(f'request device metadata: {t}')
+                device.publish(t, None)
+
+    def _on_conn_remove(self, topic_list):
+        for topic in topic_list.split('\x1f'):
+            if topic.endswith('/'):
+                topic = topic[:-1]
+            topic = f'{topic}/'
+            for value_str, value in self._values.items():
+                if value_str.startswith(topic):
+                    value.setVisible(False)
+
     def _on_meta(self, topic, meta):
         if meta is None:
             return
         if topic in self._values:
+            self._values[topic].setVisible(True)
             return
         value = Value(self, topic, meta)
         if value.label is not None:

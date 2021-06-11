@@ -32,6 +32,7 @@ add_executable(port0_test port0_test.c
         ../../src/pubsub.c
         ../../src/platform.c
         ../../src/union.c
+        ../../src/topic_list.c
         ../../src/log.c
         $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(port0_test test_objlib cmocka)
@@ -61,6 +62,7 @@ add_executable(pubsub_port_test
         ../../src/fsm.c
         ../../src/platform.c
         ../../src/log.c
+        ../../src/topic_list.c
         $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(pubsub_port_test test_objlib cmocka)
 target_link_libraries(pubsub_port_test cmocka)

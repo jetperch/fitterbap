@@ -90,7 +90,7 @@ uint8_t on_log_level(void * user_data,
 static int32_t initialize(struct fbp_port_api_s * api, const struct fbp_port_config_s * config) {
     struct logp_s * self = (struct logp_s *) api;
     struct fbp_topic_s topic;
-    self->level_filter = FBP_LOG_LEVEL_NOTICE;
+    self->level_filter = FBP_LOGP_LEVEL;
     fbp_topic_set(&topic, config->topic_prefix.topic);
     fbp_topic_append(&topic, LEVEL_TOPIC);
     fbp_pubsub_meta(config->pubsub, topic.topic, LEVEL_META);

@@ -107,7 +107,9 @@ static void test_server_connect_initial(void ** state) {
     char * topic_list = "a" FBP_PUBSUB_UNIT_SEP_STR "b";
     expect_subscribe("", FBP_PUBSUB_SFLAG_NOPUB | FBP_PUBSUB_SFLAG_REQ);
     expect_subscribe("a", 0);
+    expect_publish_str(FBP_PUBSUB_TOPIC_ADD, "a");
     expect_subscribe("b", 0);
+    expect_publish_str(FBP_PUBSUB_TOPIC_ADD, "b");
     fbp_pubsubp_on_recv(self->s, PORT_ID, FBP_TRANSPORT_SEQ_SINGLE, FBP_PUBSUBP_MSG_TOPIC_LIST,
                         (uint8_t *) topic_list, sizeof(topic_list));
 
@@ -117,6 +119,7 @@ static void test_server_connect_initial(void ** state) {
 
     expect_send(PORT_ID, FBP_PUBSUBP_MSG_CONNECTED, CONN_RSP, sizeof(CONN_RSP), 0);
     expect_inject(FBP_DL_EV_APP_CONNECTED);
+    expect_publish_str(FBP_PUBSUB_CONN_ADD, topic_list);
     fbp_pubsubp_on_recv(self->s, PORT_ID, FBP_TRANSPORT_SEQ_SINGLE, FBP_PUBSUBP_MSG_CONNECTED,
                         CONN_REQ, sizeof(CONN_REQ));
 

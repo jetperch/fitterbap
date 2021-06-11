@@ -70,6 +70,9 @@ FBP_CPP_GUARD_START
 #define FBP_LOGP_DATA_SIZE_MAX (FBP_LOGH_FILENAME_SIZE_MAX + FBP_LOGH_MESSAGE_SIZE_MAX)
 #define FBP_LOGP_SEP '\x1f'
 
+#ifndef FBP_LOGP_LEVEL
+#define FBP_LOGP_LEVEL FBP_LOG_LEVEL_WARNING
+#endif
 
 /**
  * @brief Receive a message from the log handler

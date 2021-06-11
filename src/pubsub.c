@@ -20,6 +20,7 @@
 #include "fitterbap/ec.h"
 #include "fitterbap/log.h"
 #include "fitterbap/platform.h"
+#include "fitterbap/topic_list.h"
 #include "fitterbap/collections/list.h"
 #include "fitterbap/cstr.h"
 
@@ -55,7 +56,7 @@ struct message_s {
 
 struct fbp_pubsub_s {
     char topic_prefix[FBP_PUBSUB_TOPIC_LENGTH_MAX];     // The top-level topic name for this instance
-    char topic_list[FBP_PUBSUB_TOPIC_LENGTH_MAX * 4];   // list of top-level topic names routed through this instance
+    struct fbp_topic_list_s topic_list;
     fbp_pubsub_on_publish_fn cbk_fn;
     void * cbk_user_data;
     fbp_os_mutex_t mutex;
@@ -69,6 +70,8 @@ struct fbp_pubsub_s {
 };
 
 const char RESERVED_SUFFIX[] = "/?#$'\"\\`&@%";
+
+static uint8_t publish(struct topic_s * topic, struct message_s * msg);
 
 static inline void lock(struct fbp_pubsub_s * self) {
     if (self->mutex) {
@@ -349,79 +352,47 @@ static struct topic_s * topic_find_existing_base(struct fbp_pubsub_s * self, con
     return t;
 }
 
+static void topic_list_update(struct fbp_pubsub_s * self, bool do_publish) {
+    struct topic_s * t = topic_find(self, FBP_PUBSUB_TOPIC_LIST, true);
+    t->value.type = FBP_UNION_STR;
+    t->value.flags = FBP_UNION_FLAG_RETAIN;
+    t->value.value.str = self->topic_list.topic_list;
+    t->value.size = (uint32_t) (strlen(self->topic_list.topic_list) + 1);
+
+    // must manually call publish since "unchanged"
+    struct message_s msg = {
+        .name = FBP_PUBSUB_TOPIC_LIST,
+        .value = t->value,
+        .src_fn = NULL,
+        .src_user_data = NULL,
+    };
+    if (do_publish) {
+        publish(t, &msg);
+    }
+}
+
 static uint8_t on_topic_add(void * user_data, const char * topic, const struct fbp_union_s * value) {
     (void) topic;
     struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) user_data;
-    size_t sz_pre = strlen(self->topic_list);
-    size_t sz_tot = value->size + 1 + sz_pre;
-
-    if (sz_tot > sizeof(self->topic_list)) {
-        return FBP_ERROR_TOO_BIG;
-    }
-    self->topic_list[sz_pre] = FBP_PUBSUB_UNIT_SEP_CHR;
-    char * s_out = &self->topic_list[sz_pre + 1];
-    const char * s_in = value->value.str;
-    while (*s_in) {
-        *s_out++ = *s_in++;
-    }
-    *s_out = 0;
-    return fbp_pubsub_publish(self, FBP_PUBSUB_TOPIC_LIST, &fbp_union_str(self->topic_list), NULL, NULL);
+    fbp_topic_list_append(&self->topic_list, value->value.str);
+    topic_list_update(self, true);
+    return 0;
 }
 
 static uint8_t on_topic_remove(void * user_data, const char * topic, const struct fbp_union_s * value) {
     (void) topic;
     struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) user_data;
-    const char * rk = value->value.str;
-    char * dst = self->topic_list;
-    const char * r = rk;
-    char * s = dst;
-
-    while (1) {
-        if (!*r) {
-            if (!*s) {     // match at end, no copy
-                break;
-            } else if (*s == FBP_PUBSUB_UNIT_SEP_CHR) {  // match in middle, copy
-                ++s;
-                while (*s) {
-                    *dst++ = *s++;
-                }
-                break;
-            } // else, no match, advance
-        } else if (!*s) { // no match
-            return FBP_ERROR_NOT_FOUND;
-        } else if (*s == FBP_PUBSUB_UNIT_SEP_CHR) {
-            // not this item
-            dst = s + 1;
-            r = rk;
-            continue;
-        } else if (*r == *s) {  // still matching
-            ++r;
-            ++s;
-            continue;
-        } // else not matching, advance
-
-        // advance
-        while (*s && (*s != FBP_PUBSUB_UNIT_SEP_CHR)) {
-            s++;
-        }
-        if (*s == FBP_PUBSUB_UNIT_SEP_CHR) {
-            s++;
-        }
-        dst = s;
-        r = rk;
-    }
-    *dst = 0;
-    while ((dst > self->topic_list) && (dst[-1] == FBP_PUBSUB_UNIT_SEP_CHR)) {
-        *--dst = 0;
-    }
-    return fbp_pubsub_publish(self, FBP_PUBSUB_TOPIC_LIST, &fbp_union_str(self->topic_list), NULL, NULL);
+    fbp_topic_list_remove(&self->topic_list, value->value.str);
+    topic_list_update(self, true);
+    return 0;
 }
 
 struct fbp_pubsub_s * fbp_pubsub_initialize(const char * topic_prefix, uint32_t buffer_size) {
     FBP_LOGI("initialize");
     struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) fbp_alloc_clr(sizeof(struct fbp_pubsub_s) + buffer_size);
     fbp_cstr_copy(self->topic_prefix, topic_prefix, fbp_sizeof(self->topic_prefix));
-    fbp_cstr_copy(self->topic_list, topic_prefix, fbp_sizeof(self->topic_list));
+    fbp_topic_list_clear(&self->topic_list);
+    fbp_topic_list_append(&self->topic_list, topic_prefix);
     self->root_topic = topic_alloc(self, "");
     fbp_list_initialize(&self->subscriber_free);
     fbp_list_initialize(&self->msg_pend);
@@ -436,11 +407,7 @@ struct fbp_pubsub_s * fbp_pubsub_initialize(const char * topic_prefix, uint32_t 
     t->value.value.str = self->topic_prefix;
     t->value.size = (uint32_t) (strlen(self->topic_prefix) + 1);
 
-    t = topic_find(self, FBP_PUBSUB_TOPIC_LIST, true);
-    t->value.type = FBP_UNION_STR;
-    t->value.flags = FBP_UNION_FLAG_RETAIN;
-    t->value.value.str = self->topic_list;
-    t->value.size = (uint32_t) (strlen(self->topic_list) + 1);
+    topic_list_update(self, false);
 
     t = topic_find(self, FBP_PUBSUB_TOPIC_ADD, true);
     sub = subscriber_alloc(self);

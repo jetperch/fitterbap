@@ -56,6 +56,9 @@ FBP_CPP_GUARD_START
 #define FBP_PUBSUB_TOPIC_LIST "_/topic/list"
 #define FBP_PUBSUB_TOPIC_ADD "_/topic/add"
 #define FBP_PUBSUB_TOPIC_REMOVE "_/topic/remove"
+#define FBP_PUBSUB_CONN_ADD "./conn/add"            // list of topics
+#define FBP_PUBSUB_CONN_REMOVE "./conn/remove"      // list of topics
+
 
 /// The subscriber flags for fbp_pubsub_subscribe().
 enum fbp_pubsub_sflag_e {

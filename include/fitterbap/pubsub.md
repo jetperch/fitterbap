@@ -42,7 +42,8 @@ for small embedded microcontrollers.  Features include:
 ## Topics
 
 Topic names are any valid UTF-8.  However, we highly recommend restricting
-topic names to ASCII standard letters and numbers [48-57, 65-90, 97-122].
+topic names to ASCII standard letters and numbers 0-9, A-Z, a-z, ".", _ and - 
+(ASCII codes 45, 46, 48-57, 65-90, 95, 97-122)
 The following symbols are reserved:
 
     /?#$'"`&@%
@@ -88,15 +89,17 @@ Each pubsub instance will respond to the matching topics it owns.
 
 If publishing to a topic "t/h/n" owned by a pubsub instance fails, then that
 instance will publish to "t/h/n#".  The error will be forward to any matching
-response subscribers.  The value s a u32 containing the error code.
+response subscribers.  The value is a u32 containing the error code.
 
 
 ## Special Topics
 
-In addition to to topics ending in a special character, some topics
-have special meaning.  Any topic that starts with '_' is considered
+In addition to topics ending in a special character, some topics
+have special meaning.  Any topic that starts with "_/" is considered
 local to a PubSub instance.  Links should not propagate those topics
 to any other PubSub instance.
+
+Topics that start with "./" indicate comm events.  
 
 The following topics are reserved:
 
@@ -108,6 +111,12 @@ The following topics are reserved:
 - **_/topic/list**: The retained "unit separator" (0x1F) separated topic 
   prefix list for this PubSub instance and all children, as aggregated
   from **_/topic/add** and **_/topic/remove**.
+  Note that this list updates before the connection fully establishes.
+  See ./comm/add and ./comm/remove below.
+- **./comm/add**: A connection was established, and the list of base topics 
+  are now available.
+- **./comm/remove**: A connection was lost, and the list of base topics
+  are now available.
 
 
 ## Distributed State Recovery
