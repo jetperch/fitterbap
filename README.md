@@ -33,21 +33,29 @@ firmware for embedded devices based upon microcontrollers.  Many features of
 the library use malloc, but it avoids using free.
 The Fitterbap library is available under the permissive Apache 2.0 license.
 
-As of May 2021, the Fitterbap library API is not yet stable and subject to 
+As of June 2021, the Fitterbap library API is not yet stable and subject to 
 change without notice.
+
+
+## Getting started
+
+The easiest way to get started is to check out the
+[fitterbap_example_stm32g4](https://github.com/jetperch/fitterbap_example_stm32g4).
+If you want to try distributed PubSub and the comm stack, you can buy the 
+[STMicroelectronics Nucleo-G491RE](https://www.st.com/en/evaluation-tools/nucleo-g491re.html)
+development board.  When you first connect the Nucleo board over USB, 
+it shows up as a mass storage device.  You can simply copy over the 
+release binaries and start the host UI, which looks like this:
+
+![Fitterbap Host Comm UI](doc/host_comm_ui.png)
 
 
 ## Known limitations
 
 *   Comm
-    *    Data link reconnection needs more work.
-    *    Port 0 time sync not yet implemented.
-    *    Window size is currently hard-coded.  Needs negotiation protocol.
-    *    Timestamped UTF-8 source/sink not yet implemented.
     *    No native USB reference implementation yet, but can use USB-CDC.
 *   PubSub
     *    Hard-coded maximum topic lengths.
-    *    Topic query (my/topic?) not yet implemented.
     *    No validation using provided topic metadata.
 *   Host
     *    Win 10x64 only, no macOS or Linux yet.
