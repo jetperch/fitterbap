@@ -43,15 +43,21 @@ struct fbp_time_counter_s fbp_time_counter() {return counter_;}
 #define TEARDOWN() \
     fbp_ts_finalize(self)
 
+#define assert_time_within_1us(value_, expected_) \
+    _assert_in_range( \
+        cast_to_largest_integral_type(value_), \
+        cast_to_largest_integral_type((expected_) - FBP_TIME_MICROSECOND), \
+        cast_to_largest_integral_type((expected_) + FBP_TIME_MICROSECOND), __FILE__, __LINE__)
+
 static void test_initialize(void ** state) {
     SETUP();
-    assert_int_equal(0, fbp_ts_counter());
+    assert_int_equal(0, fbp_time_counter().value);
     assert_int_equal(0, fbp_ts_time(self));
     assert_int_equal(1000, counter_.frequency);
     counter_.value = 60000;
-    assert_int_equal(60000, fbp_ts_counter());
-    assert_int_equal(FBP_TIME_MINUTE, fbp_ts_time(self));
-    assert_int_equal(FBP_TIME_MINUTE, fbp_ts_time(NULL));
+    assert_int_equal(60000, fbp_time_counter().value);
+    assert_time_within_1us(fbp_ts_time(self), FBP_TIME_MINUTE);
+    assert_time_within_1us(fbp_ts_time(NULL), FBP_TIME_MINUTE);
     TEARDOWN();
 }
 
@@ -59,11 +65,11 @@ static void test_single_exact_update(void ** state) {
     SETUP();
     counter_.value = 60000;
     fbp_ts_update(self, counter_.value, FBP_TIME_HOUR, FBP_TIME_HOUR, counter_.value);
-    assert_int_equal(FBP_TIME_HOUR, fbp_ts_time(NULL));
+    assert_time_within_1us(fbp_ts_time(NULL), FBP_TIME_HOUR);
 
     // Increment counter by one second, and verify
     counter_.value += counter_.frequency;
-    assert_int_equal(FBP_TIME_HOUR + FBP_TIME_SECOND, fbp_ts_time(NULL));
+    assert_time_within_1us(fbp_ts_time(NULL), FBP_TIME_HOUR + FBP_TIME_SECOND);
     TEARDOWN();
 }
 

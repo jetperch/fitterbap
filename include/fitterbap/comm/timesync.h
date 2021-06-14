@@ -55,16 +55,6 @@ FBP_CPP_GUARD_START
 /// Opaque instance
 struct fbp_ts_s;
 
-
-/**
- * @brief The current local, monotonic counter value.
- *
- * @return The counter value.
- */
-static inline uint64_t fbp_ts_counter() {
-    return fbp_time_counter().value;
-}
-
 /**
  * @brief Get the current time.
  *
@@ -75,9 +65,6 @@ static inline uint64_t fbp_ts_counter() {
  *      fitterbap/time.h.  This function returns 0 if the UTC
  *      time is not yet known.
  * @see fbp_time_utc
- *
- * When using this module to provide time, define:
- * int64_t fbp_time_utc() {return fbp_ts_time(NULL);}
  *
  * This function is thread-safe.
  */
