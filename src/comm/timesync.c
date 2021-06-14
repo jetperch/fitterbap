@@ -131,8 +131,8 @@ FBP_API int64_t fbp_ts_time(struct fbp_ts_s * self) {
     // Get counter, may not always be instantaneous
     int64_t counter = fbp_time_counter().value >> self->counter_right_shift;
     counter -= counter_offset;
-    int64_t value = self->counter_period_12q52 * counter;
-    value = (value >> 22) + self->time_offset;
+    int64_t value = counter_period_12q52 * counter;
+    value = (value >> 22) + time_offset;
     return value;
 }
 
