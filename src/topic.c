@@ -36,7 +36,6 @@ void fbp_topic_append(struct fbp_topic_s * topic, const char * subtopic) {
 }
 
 void fbp_topic_set(struct fbp_topic_s * topic, const char * str) {
-    int32_t rc = 0;
     fbp_topic_clear(topic);
     while (*str && (topic->length < FBP_PUBSUB_TOPIC_LENGTH_MAX)) {
         topic->topic[topic->length++] = *str++;

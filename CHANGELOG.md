@@ -4,6 +4,13 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.4.1
+
+2021 Jun 15 [in progress]
+
+*   Removed unused variables.
+
+
 ## 0.4.0
 
 2021 Jun 14

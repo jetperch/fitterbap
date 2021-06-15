@@ -147,7 +147,7 @@ static inline uint8_t prev_idx(uint8_t idx) {
 static int32_t process_one(struct fbp_ts_s * self) {
     struct update_s * prior = &self->updates[self->process_tail];
     struct update_s * current = &self->updates[self->process_head];
-    struct update_s * prev = &self->updates[prev_idx(self->process_head)];
+    // struct update_s * prev = &self->updates[prev_idx(self->process_head)];
 
     if (self->process_head == self->update_head) {
         return 1;  // no work to do

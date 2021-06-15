@@ -34,7 +34,6 @@ struct fbp_stack_s * fbp_stack_initialize(
     struct fbp_port_config_s port_config;
     memset(&port_config, 0, sizeof(port_config));
     fbp_topic_set(&port_config.topic_prefix, topic_prefix);
-    uint8_t topic_prefix_len = port_config.topic_prefix.length;
     struct fbp_stack_s * self = fbp_alloc_clr(sizeof(struct fbp_stack_s));
     self->pubsub = pubsub;
     self->evm_api = *evm_api;
