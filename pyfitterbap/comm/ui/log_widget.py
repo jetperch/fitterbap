@@ -58,9 +58,27 @@ class LogWidget(QtWidgets.QWidget):
         self._table.setObjectName('log_table')
         self._table.setModel(self._model)
         self._layout.addWidget(self._table)
+        self._scroll_timer_active = False
 
         self.setSizePolicy(QtWidgets.QSizePolicy.Preferred,
                            QtWidgets.QSizePolicy.Preferred)
+
+    def _scroll_timer_start(self):
+        if self._scroll_timer_active:
+            return
+        rows = self._model.rowCount()
+        if rows <= 0:
+            return
+        last_row_pos = self._table.rowViewportPosition(rows - 1)
+        height = self._table.viewport().height()
+        if last_row_pos <= height:
+            self._scroll_timer_active = True
+            QtCore.QTimer.singleShot(10, self.scroll_to_bottom)
+
+    @QtCore.Slot()
+    def scroll_to_bottom(self):
+        self._scroll_timer_active = False
+        self._table.scrollToBottom()
 
     @QtCore.Slot(object)
     def message(self, msg):
@@ -93,6 +111,7 @@ class LogWidget(QtWidgets.QWidget):
         msg['items'] = items
         self._messages.append(msg)
         self._model.appendRow(items)
+        self._scroll_timer_start()
 
     def on_publish(self, topic, value, retain):
         self.message(value)

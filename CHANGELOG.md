@@ -9,6 +9,7 @@ This file contains the list of changes made to the Fitterbap library.
 2021 Jun 15 [in progress]
 
 *   Removed unused variables.
+*   Updated comm_ui log view widget to display most recent entry.
 
 
 ## 0.4.0
