@@ -10,6 +10,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 *   Removed unused variables.
 *   Updated comm_ui log view widget to display most recent entry.
+*   Added null pointer check to fbp_evm_schedule().
 
 
 ## 0.4.0

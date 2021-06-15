@@ -84,6 +84,9 @@ void fbp_evm_free(struct fbp_evm_s * self) {
 int32_t fbp_evm_schedule(struct fbp_evm_s * self, int64_t timestamp,
                           fbp_evm_callback cbk_fn, void * cbk_user_data) {
     struct event_s * ev;
+    if (!cbk_fn) {
+        return FBP_ERROR_PARAMETER_INVALID;
+    }
     lock(self);
     if (fbp_list_is_empty(&self->events_free)) {
         ++self->event_counter;
