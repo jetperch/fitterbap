@@ -57,6 +57,8 @@ class LogWidget(QtWidgets.QWidget):
         self._table = QtWidgets.QTableView(self)
         self._table.setObjectName('log_table')
         self._table.setModel(self._model)
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
         self._layout.addWidget(self._table)
         self._scroll_timer_active = False
 

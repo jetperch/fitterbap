@@ -9,7 +9,9 @@ This file contains the list of changes made to the Fitterbap library.
 2021 Jun 15 [in progress]
 
 *   Removed unused variables.
-*   Updated comm_ui log view widget to display most recent entry.
+*   Updated comm_ui log view widget to:
+    *    Display most recent entry.
+    *    Automatically size columns and automatically expand message.
 *   Added null pointer check to fbp_evm_schedule().
 
 
