@@ -369,6 +369,12 @@ class Value(QtCore.QObject):
         b = self.editor.blockSignals(True)
         try:
             if 'ro' in self._meta.get('flags', []):
+                if dtype == 'u32' and self._meta.get('format') == 'version':
+                    x = int(x)
+                    major = (x >> 24) & 0xff
+                    minor = (x >> 16) & 0xff
+                    patch = x & 0xffff
+                    x = f'{major}.{minor}.{patch}'
                 self.editor.setText(str(x))
             elif self._options is not None:
                 idx = self._find_option_idx(x)

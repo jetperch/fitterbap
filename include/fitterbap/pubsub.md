@@ -74,6 +74,8 @@ keys:
      values will be interpreted as equivalents.
 - range: The list of [v_min, v_max] or [v_min, v_max, v_step].  Both
   v_min and v_max are *inclusive*.  v_step defaults to 1 if omitted.
+- format: Formatting hints for the value:
+  - version: The u32 dtype should be interpreted as major8.minor8.patch16.
 - flags: A list of flags for this topic.  Options include:
   - ro: This topic cannot be updated.
   - hide: This topic should not appear in the user interface.
