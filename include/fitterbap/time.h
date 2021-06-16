@@ -457,6 +457,27 @@ static inline int64_t fbp_time_max(int64_t a, int64_t b) {
     return (a > b) ? a : b;
 }
 
+/**
+ * @brief The length of the ISO 8601 string produced by fbp_time_to_str().
+ */
+#define FBP_TIME_STRING_LENGTH (27)
+
+/**
+ * @brief Converts fitterbap time to an ISO 8601 string.
+ *
+ * @param t The fitterbap time.
+ * @param str The string buffer.
+ * @param size The size of str in bytes, which should be at least
+ *      FBP_TIME_STRING_LENGTH bytes to fit the full ISO 8601
+ *      string with the null terminator.
+ * @return The number of characters written to buf, not including the
+ *      null terminator.  If this value is less than
+ *      (FBP_TIME_STRING_LENGTH - 1), then the full string was truncated.
+ * @see http://howardhinnant.github.io/date_algorithms.html
+ * @see https://stackoverflow.com/questions/7960318/math-to-convert-seconds-since-1970-into-date-and-vice-versa
+ */
+int32_t fbp_time_to_str(int64_t t, char * str, size_t size);
+
 FBP_CPP_GUARD_END
 
 /** @} */

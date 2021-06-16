@@ -32,6 +32,7 @@ set(SOURCES
         pattern_32a.c
         platform.c
         pubsub.c
+        time.c
         topic.c
         topic_list.c
         union.c

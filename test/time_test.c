@@ -125,6 +125,23 @@ static void test_utc(void **state) {
     assert_true(t < (FBP_TIME_YEAR * (year_offset + 1)));
 }
 
+static void test_str(void **state) {
+    (void) state;
+    char s[30];
+    assert_int_equal(26, fbp_time_to_str(0, s, sizeof(s)));
+    assert_string_equal("2018-01-01T00:00:00.000000", s);
+    assert_int_equal(19, fbp_time_to_str(0, s, 20));
+    assert_string_equal("2018-01-01T00:00:00", s);
+
+    fbp_time_to_str(FBP_TIME_SECOND, s, sizeof(s));
+    assert_string_equal("2018-01-01T00:00:01.000000", s);
+    fbp_time_to_str(FBP_TIME_SECOND * 60 * 60 * 24, s, sizeof(s));
+    assert_string_equal("2018-01-02T00:00:00.000000", s);
+
+    fbp_time_to_str(117133546395387584LL, s, sizeof(s));
+    assert_string_equal("2021-06-16T14:31:56.002794", s);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_constants),
@@ -138,6 +155,7 @@ int main(void) {
             cmocka_unit_test(test_round_inf),
             cmocka_unit_test(test_counter),
             cmocka_unit_test(test_utc),
+            cmocka_unit_test(test_str),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

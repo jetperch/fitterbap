@@ -14,6 +14,7 @@ This file contains the list of changes made to the Fitterbap library.
     *    Automatically size columns and automatically expand message.
 *   Added null pointer check to fbp_evm_schedule().
 *   Added pubsub "format" metadata to support major.minor.patch u32 version.
+*   Added fbp_time_to_str().
 
 
 ## 0.4.0
