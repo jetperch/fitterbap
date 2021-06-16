@@ -21,7 +21,7 @@
 #include <inttypes.h>
 
 
-int fbp_time_to_str(int64_t t, char * str, size_t size) {
+int32_t fbp_time_to_str(int64_t t, char * str, size_t size) {
     if (!size) {
         return 0;
     }

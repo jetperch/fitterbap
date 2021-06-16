@@ -24,6 +24,7 @@
 #define FBP_TIME_H__
 
 #include <stdint.h>
+#include <stddef.h>
 #include "fitterbap/cmacro_inc.h"
 
 /**
