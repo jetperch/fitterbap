@@ -340,8 +340,8 @@ class Value(QtCore.QObject):
         self.editor.setToolTip(tooltip)
         if 'hide' in flags:
             self.setVisible(False)
-        if 'dev' in flags:
-            self.setVisible(False)
+        # if 'dev' in flags:
+        #     self.setVisible(False)
         if default is not None:
             self.value = default
 
