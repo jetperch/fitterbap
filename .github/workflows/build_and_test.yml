@@ -1,0 +1,86 @@
+# Copyright 2021 Jetperch LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# GitHub actions
+# See documentation: https://docs.github.com/en/actions
+
+name: Build and run tests.
+on: [push, pull_request, release]
+
+concurrency:
+  group: dut
+  cancel-in-progress: false
+
+jobs:
+  build_ubuntu:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v2
+
+      - name: Configure python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential ninja-build cmake python3
+          gcc --version
+          ninja --version
+          cmake --version
+          python3 -VV
+
+      - name: Configure native build using CMake
+        run: |
+          mkdir cmake_build
+          cmake -S . -B cmake_build/ -DCMAKE_BUILD_TYPE=Release -G ninja
+
+      - name: Build native
+        run: |
+          cmake --build cmake_build/ --target all
+
+      - name: Run native tests
+        run: |
+          ctest --test-dir cmake_build/
+
+      - name: Install python dependencies
+        run: |
+          pip3 install -U -r requirements.txt
+
+      - name: Build python native
+        run: |
+          python3 setup.py build_ext --inplace
+
+      - name: Run python unit tests
+        run: |
+          python3 -m unittest
+
+      - name: Build python source package
+        run: python3 setup.py sdist
+
+      - name: Build python binary wheel package
+        run: python3 setup.py bdist_wheel
+
+      - name: Upload python packages
+        uses: actions/upload-artifact@v2
+        with:
+          name: packages
+          path: dist/*
