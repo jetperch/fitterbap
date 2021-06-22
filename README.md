@@ -16,6 +16,9 @@
 
 # Welcome!
 
+[![Windows](https://github.com/jetperch/fitterbap/actions/workflows/windows.yml/badge.svg)](https://github.com/jetperch/fitterbap/actions/workflows/windows.yml)
+
+
 Welcome to Fitterbap, the **Fi**rmware **t**oolkit **t**o **e**nable 
 **r**eliable **b**est **a**rchitecture **p**ractices!
 Fitterbap provides common utilities useful for embedded systems that are often 
