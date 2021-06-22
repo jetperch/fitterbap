@@ -14,8 +14,9 @@
 
 # GitHub actions
 # See documentation: https://docs.github.com/en/actions
+# CMake example: https://github.com/Mizux/cmake-cpp/blob/main/.github/workflows/windows.yml
 
-name: Build and run tests.
+name: Windows
 on: [push, pull_request, release]
 
 concurrency:
@@ -23,11 +24,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    runs-on: windows-latest
     strategy:
       matrix:
-        os: [windows-latest]  # todo: macos-latest, ubuntu-latest
         python-version: [3.9]
 
     steps:
