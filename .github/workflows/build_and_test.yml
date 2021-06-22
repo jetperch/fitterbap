@@ -46,7 +46,6 @@ jobs:
           echo Path = %Path%
           cmake --version
           python3 -VV
-          where nmake
 
 #      - name: Install macOS dependencies
 #        if: runner.os == macos-latest
