@@ -47,54 +47,23 @@ jobs:
           cmake --version
           python3 -VV
 
-#      - name: Install macOS dependencies
-#        if: runner.os == macos-latest
-#        shell: bash
-#        run: |
-#          brew update
-#          brew upgrade
-#          brew install ninja cmake
-#          ninja --version
-#          cmake --version
-#          python3 -VV
-#
-#      - name: Install linux dependencies
-#        if: runner.os == ubuntu-latest
-#        shell: bash
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install build-essential ninja-build cmake
-#          gcc --version
-#          ninja --version
-#          cmake --version
-#          python3 -VV
-
       - name: Configure native build using CMake
-        shell: cmd
-        run: |
-          mkdir cmake_build
-          cmake -S . -B cmake_build/ -DCMAKE_BUILD_TYPE=Release -G Ninja
+        run: cmake -S . -B cmake_build -G "Visual Studio 16 2019" -DCMAKE_CONFIGURATION_TYPES=Release
 
       - name: Build native
-        shell: cmd
-        run: |
-          cmake --build cmake_build/ --target all
+        run: cmake --build cmake_build --config Release --target ALL_BUILD
 
       - name: Run native tests
-        run: |
-          ctest --test-dir cmake_build/
+        run: cmake --build cmake_build --config Release --target RUN_TESTS
 
       - name: Install python dependencies
-        run: |
-          pip3 install -U -r requirements.txt
+        run: pip3 install -U -r requirements.txt
 
       - name: Build python native
-        run: |
-          python3 setup.py build_ext --inplace
+        run: python3 setup.py build_ext --inplace
 
       - name: Run python unit tests
-        run: |
-          python3 -m unittest
+        run: python3 -m unittest
 
       - name: Build python source package
         run: python3 setup.py sdist
