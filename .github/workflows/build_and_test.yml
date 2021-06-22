@@ -40,35 +40,33 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Windows dependencies
-        if: ${{ matrix.os }} == windows-latest
+        if: runner.os == 'Windows'
         shell: cmd
         run: |
-          choco install cmake ninja
-          ninja --version
           cmake --version
           python3 -VV
 
-      - name: Install macOS dependencies
-        if: ${{ matrix.os }} == macos-latest
-        shell: bash
-        run: |
-          brew update
-          brew upgrade
-          brew install ninja cmake
-          ninja --version
-          cmake --version
-          python3 -VV
-
-      - name: Install linux dependencies
-        if: ${{ matrix.os }} == ubuntu-latest
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install build-essential ninja-build cmake
-          gcc --version
-          ninja --version
-          cmake --version
-          python3 -VV
+#      - name: Install macOS dependencies
+#        if: runner.os == macos-latest
+#        shell: bash
+#        run: |
+#          brew update
+#          brew upgrade
+#          brew install ninja cmake
+#          ninja --version
+#          cmake --version
+#          python3 -VV
+#
+#      - name: Install linux dependencies
+#        if: runner.os == ubuntu-latest
+#        shell: bash
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install build-essential ninja-build cmake
+#          gcc --version
+#          ninja --version
+#          cmake --version
+#          python3 -VV
 
       - name: Configure native build using CMake
         run: |
