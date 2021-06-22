@@ -54,18 +54,32 @@ with open(VERSION_PATH, 'r', encoding='utf-8') as f:
 
 
 C_INCS = [C_INC_PATH, C_INC2_PATH, C_INC3_PATH, np.get_include()]
+
+if sys.platform.startswith('win'):
+    platform_sources = [
+        'src/host/win/comm.c',
+        'src/host/win/os_mutex.c',
+        'src/host/win/os_task.c',
+        'src/host/win/platform.c',
+        'src/host/win/uart.c',
+        'src/host/win/uart_thread.c',
+    ]
+elif sys.platform.startswith('linux'):
+    platform_sources = [
+        'src/host/linux/platform.c'
+    ]
+elif sys.platform.startswith('darwin'):  # macos
+    platform_sources = []
+else:
+    platform_sources = []
+
+
 ext = '.pyx' if USE_CYTHON else '.c'
 extensions = [
     setuptools.Extension('pyfitterbap.comm.comm',
         sources=[
             'pyfitterbap/comm/comm' + ext,
             'src/event_manager.c',
-            'src/host/win/comm.c',
-            'src/host/win/os_mutex.c',
-            'src/host/win/os_task.c',
-            'src/host/win/platform.c',
-            'src/host/win/uart.c',
-            'src/host/win/uart_thread.c',
             'src/collections/ring_buffer_msg.c',
             'src/comm/data_link.c',
             'src/comm/framer.c',
@@ -86,7 +100,7 @@ extensions = [
             'src/topic_list.c',
             'src/union.c',
             'third-party/tinyprintf/tinyprintf.c'
-        ],
+        ] + platform_sources,
         include_dirs=C_INCS,
     ),
     setuptools.Extension('pyfitterbap.crc',

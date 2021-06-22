@@ -35,7 +35,7 @@
 // Use version_update.py to update.
 #define FBP_VERSION_MAJOR 0
 #define FBP_VERSION_MINOR 4
-#define FBP_VERSION_PATCH 0
+#define FBP_VERSION_PATCH 1
 
 /**
  * \brief Macro to encode version to uint32_t

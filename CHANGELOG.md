@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.4.1
 
-2021 Jun 16 [in progress]
+2021 Jun 22
 
 *   Removed unused variables.
 *   Updated comm_ui log view widget to:
@@ -15,6 +15,7 @@ This file contains the list of changes made to the Fitterbap library.
 *   Added null pointer check to fbp_evm_schedule().
 *   Added pubsub "format" metadata to support major.minor.patch u32 version.
 *   Added fbp_time_to_str().
+*   Attempted Github Actions integration with start of linux support.
 
 
 ## 0.4.0

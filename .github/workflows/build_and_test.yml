@@ -23,10 +23,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build_ubuntu:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [windows-latest]  # todo: macos-latest, ubuntu-latest
         python-version: [3.9]
 
     steps:
@@ -38,11 +39,32 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install Windows dependencies
+        if: matrix.os == windows-latest
+        shell: cmd
+        run: |
+          choco install cmake ninja
+          ninja --version
+          cmake --version
+          python3 -VV
+
+      - name: Install macOS dependencies
+        if: matrix.os == macos-latest
+        shell: bash
+        run: |
+          brew update
+          brew upgrade
+          brew install ninja cmake
+          ninja --version
+          cmake --version
+          python3 -VV
+
+      - name: Install linux dependencies
+        if: matrix.os == ubuntu-latest
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential ninja-build cmake python3
+          sudo apt-get install build-essential ninja-build cmake
           gcc --version
           ninja --version
           cmake --version
@@ -51,7 +73,7 @@ jobs:
       - name: Configure native build using CMake
         run: |
           mkdir cmake_build
-          cmake -S . -B cmake_build/ -DCMAKE_BUILD_TYPE=Release -G ninja
+          cmake -S . -B cmake_build/ -DCMAKE_BUILD_TYPE=Release
 
       - name: Build native
         run: |
