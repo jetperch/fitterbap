@@ -43,8 +43,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
+          echo Path = %Path%
           cmake --version
           python3 -VV
+          where nmake
 
 #      - name: Install macOS dependencies
 #        if: runner.os == macos-latest
@@ -69,11 +71,13 @@ jobs:
 #          python3 -VV
 
       - name: Configure native build using CMake
+        shell: cmd
         run: |
           mkdir cmake_build
-          cmake -S . -B cmake_build/ -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B cmake_build/ -DCMAKE_BUILD_TYPE=Release -G Ninja
 
       - name: Build native
+        shell: cmd
         run: |
           cmake --build cmake_build/ --target all
 
