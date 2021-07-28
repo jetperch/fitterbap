@@ -206,6 +206,7 @@ setuptools.setup(
     keywords='fitterbap pubsub uart',
 
     packages=setuptools.find_packages(exclude=['native', 'docs', 'test', 'dist', 'build']),
+    include_package_data=True,
     ext_modules=extensions,
     cmdclass={
         'docs': CustomBuildDocs,

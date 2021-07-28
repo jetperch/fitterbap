@@ -4,6 +4,15 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.4.2
+
+2021 Jul 28 [in progress]
+
+*   Updated comm/framer.h analysis based upon
+    [Martin Cowen's](http://blog.martincowen.me.uk/using-and-misusing-crcs.html)
+    feedback.  Thank you!
+
+
 ## 0.4.1
 
 2021 Jun 22

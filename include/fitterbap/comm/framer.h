@@ -77,7 +77,7 @@
  * - "length" is the payload length (not full frame length) in total_bytes, minus 1.
  *   The maximum payload length is 256 total_bytes.  Since the frame overhead is 9
  *   total_bytes, the actual frame length ranges from 9 to 265 total_bytes.
- * - "length_crc" is the CRC-8 computed with polynomial 0xEB over the length field
+ * - "length_crc" is the CRC-8 computed with polynomial 0xD7 over the length field
  *   only.  This CRC has Hamming Distance (HD) of 5 over the 8-bit length.
  *   By increasing the reliability of the length field, the frame_crc
  *   remains more effective with regards to Hamming Distance.
@@ -141,7 +141,7 @@
  * then validates frame_type, and candidate frames with invalid frame_types
  * are ignored.  For data frames, the framer validates the length CRC.
  *
- * The CRC-32-CCITT is then computed over the entire frame from the first
+ * The 32-bit CRC is then computed over the entire frame from the first
  * non-SOF byte through the payload, using the length byte to determine
  * the total byte count for data frames.  If the
  * frame_crc matches the computed CRC and EOF matches,
@@ -156,8 +156,9 @@
  * ### 32-bit CRC:
  *
  * The 32-bit CRC uses a table-based CRC-32-CCITT by default.  As discussed
- * below, other CRC choices, such as CRC-32C, provide even better error
- * performance.  My microcontrollers also offer hardware acceleration.
+ * below, other CRC choices, such as CRC-32C (ethernet), provide even better
+ * performance.  Many microcontrollers offer hardware acceleration, and you
+ * can select a hardware-accelerated CRC algorithm for specific applications.
  *
  * Define FBP_FRAMER_CRC32 to the function that the framer should use to
  * compute the 32-bit CRC.  The standard implementation uses fbp_crc32
@@ -177,14 +178,19 @@
  * could match the corrupted data.  The longer the data, the shorter the HD.
  * Some CRC polynomials are better than others.
  *
+ * CRCs are also not equally effective, even with the same HD.  The
+ * Hamming Weight (HW) is the number of undetectable errors given that
+ * number of bits.
+ *
+ *
  * For our application, we compute a 32-bit CRC over 262 bytes (2096 bits).
  * So, how do common 32-bit CRCs stack up?
  *
  * [CRC-32 (ethernet)](https://users.ece.cmu.edu/~koopman/crc/c32/0x82608edb.txt):
- * HD=5 @ 2096 bits
+ * HD=5 @ 2096 bits, Hamming Weight 89622
  *
  * [CRC-32C](https://users.ece.cmu.edu/~koopman/crc/c32/0x8f6e37a0.txt):
- * HD=6 @ 2096 bits
+ * HD=6 @ 2096 bits, Hamming Weight 59795110
  *
  *
  * ## Analysis
@@ -197,8 +203,8 @@
  * To address item (2), this design uses SOF1 and SOF2 bytes that dramatically
  * reduce the search space.  This design also keeps the frame locked
  * computation burden (3) low.  The transmitter must populate the header
- * and compute the CRC32.  The receiver must validate the header fields
- * and also calculate the CRC32.  CRC32 is a reasonable computational
+ * and compute the 32-bit CRC.  The receiver must validate the header fields
+ * and also calculate the 32-bit CRC.  32-bit CRC is a reasonable computational
  * burden while also giving great error detection performance.
  *
  * This frame format contains multiple features to keep the false-positive
@@ -276,13 +282,20 @@
  *     On random data, the likelihood is 1/256 (or 2**8 / 2**16 = 1/256)
  *     since each length value has one and only one corresponding CRC8 value.
  *
+ * [CRC-8 0xD7](https://users.ece.cmu.edu/~koopman/crc/c08/0xeb.txt) has
+ * HD=5 @ 8 bits, Hamming Weight 24
+ *
  * However, assuming a 1e-6 bit error rate and the Hamming distance of 5, we
- * need 5 or more bit errors to occur to possibly match.  Using python 3 with
- * gmpy2, the odds of bit errors exceeding the Hamming distance are then:
+ * need 5 or more bit errors to occur to falsely match.  Using python 3 with
+ * [gmpy2](https://pypi.org/project/gmpy2/)
+ * [windows download](https://www.lfd.uci.edu/~gohlke/pythonlibs/#gmpy),
+ * the odds of bit errors exceeding the Hamming distance are then:
  *
  *     import math
+ *     import gmpy2
  *     from gmpy2 import mpfr
  *     gmpy2.get_context().precision=256
+ *     # Probability of Undetected Error for any random polynomial
  *     def crc_false_positive(bit_error_rate, length_bits, hamming_distance):
  *         p = mpfr(bit_error_rate)
  *         pt = sum([math.comb(length_bits, i) * (p**i) *
@@ -291,28 +304,50 @@
  *     crc_false_positive(1e-6, 8 + 8, 5)
  *     = 4e-27
  *
- * Now how about the CRC-32 with HD=5 over 2096 bits?
+ * The above calculation does not account for the polynomial effectiveness
+ * represented by Hamming Weight.  According to
+ * [maxino09](http://users.ece.cmu.edu/~koopman/pubs/maxino09_checksums.pdf#page=3),
+ * the Probability of Undetected Error accounting for CRC effectiveness is:
  *
- *     = crc_false_positive(1e-6, 2096 + 32, 5)
- *     = 3.3e-16 frames
+ *     Pud = HW * BER ^ x * (1 - BER) ^ (n - x)
  *
- * However, this only assets that an false positive is possible.  We still
- * need to match the CRC-32 value, with likelihood 2**-32.  The actual
- * likelihood is then:
+ * According to [Koopman's CRC Zoo](https://users.ece.cmu.edu/~koopman/crc/c08/0xeb.txt),
+ * the HW is 24 for this CRC over length 8.  Therefore, the likelihood at HD(5) is
  *
- *     = 3.3e-16 * 2**-32
- *     = 7.68e-26
+ *     def crc_pud(bit_error_rate, length_bits, hamming_distance, hamming_weight):
+ *         ber = mpfr(bit_error_rate)
+ *         return hamming_weight * (ber ** hamming_distance) * ((1 - ber) ** (length_bits - hamming_distance))
+ *     crc_pud(1e-6, 8, 5, 24)
+ *     = 2.4e-29
+ *
+ * which is a factor of 182 times better the the previous calculation.
+ * Now, we can also add contributions from more bit errors:
+ *
+ *      crc_pud(1e-6, 8, 6, 44) + crc_pud(1e-6, 8, 7, 40) + crc_pud(1e-6, 8, 8, 45)
+ *      => 4.4e-35
+ *
+ * but the value is insignificant compared to 2.4e-29 at HD(5).
+ *
+ * Now how about the CRC-32 with HD=5?
+ *
+ *     crc_pud(1e-6, 2096 + 32, 5, 89622)
+ *     => 8.9e-26 frames
  *
  * At 3 Mbaud, we have 1119 frames / second, so our expected error rate is:
  *
- *     = 1 / 7.68e-26 / 1119 / (60 * 60 * 24 * 365)
- *     = 368,979,371,273,698 years
+ *     = 1 / 8.9e-26 / 1119 / (60 * 60 * 24 * 365)
+ *     => 3.2e14 years
+ *
+ * Note that the alternative computation using crc_false_positive gives
+ * approximately the same result:
+ *
+ *      = 1 / (crc_false_positive(1e-6, 2096 + 32, 5) * 2**-32) / 1119 / (60 * 60 * 24 * 365)
+ *      => 3.4e14 years
  *
  * If we select CRC-32C with HD=6, the result is even better:
  *
- *     = crc_false_positive(1e-6, 2096 + 32, 6)
- *     = 1.17e-19 frames
- *     => 1e18 years
+ *     1 / crc_pud(1e-6, 2096 + 32, 6, 59795110) / 1119 / (60 * 60 * 24 * 365)
+ *     => 4.7e17 years
  *
  *
  * ## References
