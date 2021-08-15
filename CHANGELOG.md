@@ -11,6 +11,7 @@ This file contains the list of changes made to the Fitterbap library.
 *   Updated comm/framer.h analysis based upon
     [Martin Cowen's](http://blog.martincowen.me.uk/using-and-misusing-crcs.html)
     feedback.  Thank you!
+*   Added uart_thread_tester.
 
 
 ## 0.4.1

@@ -108,3 +108,7 @@ add_executable(host host.c $<TARGET_OBJECTS:fitterbap_objlib>)
 target_link_libraries(host)
 add_dependencies(host fitterbap_objlib test_objlib)
 
+SET_FILENAME("uart_thread_tester.c")
+add_executable(uart_thread_tester uart_thread_tester.c $<TARGET_OBJECTS:fitterbap_objlib>)
+target_link_libraries(uart_thread_tester)
+add_dependencies(uart_thread_tester fitterbap_objlib test_objlib)
