@@ -39,6 +39,8 @@ FBP_CPP_GUARD_START
 
 typedef void (*uart_recv_fn)(void *user_data, uint8_t *buffer, uint32_t buffer_size);
 
+typedef void (*uart_write_complete_fn)(void * user_data, uint8_t *buffer, uint32_t buffer_size, uint32_t remaining);
+
 struct uart_config_s {
     uint32_t baudrate;
     uint32_t send_buffer_size;
@@ -47,6 +49,8 @@ struct uart_config_s {
     uint32_t recv_buffer_count;
     uart_recv_fn recv_fn;
     void *recv_user_data;
+    uart_write_complete_fn write_complete_fn;
+    void *write_complete_user_data;
 };
 
 struct uart_status_s {

@@ -36,6 +36,8 @@ struct uart_s {
     HANDLE handle;
     uart_recv_fn recv_fn;
     void * recv_user_data;
+    uart_write_complete_fn write_complete_fn;
+    void *write_complete_user_data;
 
     uint32_t write_buffer_size;
     struct fbp_list_s buf_write;
@@ -171,6 +173,7 @@ static void buf_list_free(struct fbp_list_s * list) {
 
 void uart_close(struct uart_s * self) {
     if (self->handle != INVALID_HANDLE_VALUE) {
+        EscapeCommFunction(self->handle, CLRDTR);
         CloseHandle(self->handle);
         self->handle = INVALID_HANDLE_VALUE;
     }
@@ -184,6 +187,8 @@ int32_t uart_open(struct uart_s * self, const char *device_path, struct uart_con
     uart_close(self);
     self->recv_fn = config->recv_fn;
     self->recv_user_data = config->recv_user_data;
+    self->write_complete_fn = config->write_complete_fn;
+    self->write_complete_user_data = config->write_complete_user_data;
     self->write_buffer_size = config->send_buffer_size;
     self->read_buffer_size = config->recv_buffer_size;
 
@@ -265,6 +270,8 @@ int32_t uart_open(struct uart_s * self, const char *device_path, struct uart_con
     DWORD comm_errors = 0;
     ClearCommError(self->handle, &comm_errors, NULL);
     ClearCommBreak(self->handle);
+
+    EscapeCommFunction(self->handle, SETDTR);
 
     return 0;
 }
@@ -398,6 +405,10 @@ static void process_write(struct uart_s *self) {
         self->status.write_bytes += buf->size;
         ++self->status.write_buffer_count;
         fbp_list_remove_head(&self->buf_write);
+        if (self->write_complete_fn) {
+            self->write_complete_fn(self->write_complete_user_data, buf->buf, buf->size,
+                                    fbp_list_length(&self->buf_write));
+        }
         write_buf_free(self, buf);
         FBP_LOGD3("write complete");
     }

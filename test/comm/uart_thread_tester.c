@@ -43,6 +43,7 @@ static uint32_t tx_idx = 0;
 static uint32_t rx_idx = 0;
 static HANDLE ctrl_event;
 static HANDLE rx_event;
+static HANDLE tx_event;
 struct fbp_uartt_s * uart = NULL;
 volatile struct stats_s stats;
 struct stats_s stats_prev;
@@ -91,6 +92,12 @@ static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size)
     SetEvent(rx_event);
 }
 
+static void on_uart_send(void *user_data, uint8_t *buffer, uint32_t buffer_size, uint32_t remaining) {
+    if (remaining == 0) {
+        SetEvent(tx_event);
+    }
+}
+
 BOOL WINAPI CtrlHandler(DWORD fdwCtrlType) {
     (void) fdwCtrlType;
     SetEvent(ctrl_event);
@@ -136,9 +143,11 @@ int main(int argc, char * argv[]) {
     rx_event = CreateEvent(NULL, TRUE, FALSE, NULL);
     FBP_ASSERT_ALLOC(rx_event);
 
-    for (int i = 0; i < BUF32_LENGTH; ++i) {
-        uint16_t v = (uint16_t) i;
-        buf_u32[i] = (((uint32_t) v) << 16) | ~v;
+    tx_event = CreateEvent(NULL, TRUE, TRUE, NULL);
+    FBP_ASSERT_ALLOC(tx_event);
+
+    for (uint32_t i = 0; i < BUF32_LENGTH; ++i) {
+        buf_u32[i] = (i << 16) | (~i & 0xffff);
     }
 
     fbp_allocator_set(hal_alloc, hal_free);
@@ -152,6 +161,8 @@ int main(int argc, char * argv[]) {
             .recv_buffer_count = 8,
             .recv_fn = on_uart_recv,
             .recv_user_data = NULL,
+            .write_complete_fn = on_uart_send,
+            .write_complete_user_data = NULL
     };
 
     uart = fbp_uartt_initialize(device_path, &uart_config);
@@ -167,15 +178,22 @@ int main(int argc, char * argv[]) {
 
     stats_prev.time = stats.time;
     uart_send();
+    HANDLE wait_handles[] = {ctrl_event, rx_event, tx_event};
+    SetEvent(tx_event);
 
     while (1) {
+        WaitForMultipleObjects(FBP_ARRAY_SIZE(wait_handles), wait_handles, false, 500);
         if (WAIT_OBJECT_0 == WaitForSingleObject(ctrl_event, 0)) {
             break;
         }
-        if (WAIT_OBJECT_0 == WaitForSingleObject(rx_event, 10)) {
+        if (WAIT_OBJECT_0 == WaitForSingleObject(tx_event, 0)) {
+            ResetEvent(tx_event);
+            uart_send();
+        }
+        if (WAIT_OBJECT_0 == WaitForSingleObject(rx_event, 0)) {
             ResetEvent(rx_event);
         }
-        uart_send();
+
         stats.time = fbp_time_rel_ms();
         if ((stats.time - stats_prev.time) > 1000) {
             printf("tx=%I64d, rx=%I64d\n",
@@ -188,6 +206,7 @@ int main(int argc, char * argv[]) {
 
     fbp_uartt_finalize(uart);
     CloseHandle(rx_event);
+    CloseHandle(tx_event);
     CloseHandle(ctrl_event);
     return 0;
 }
