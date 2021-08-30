@@ -40,7 +40,12 @@
 // #define FBP_LOGP_LEVEL FBP_LOG_LEVEL_WARNING
 
 /* Optionally Override the log format */
-#if 0
+#if 0  // use the included Fitterbap log handler
+struct fbp_logh_s;
+int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * filename, uint32_t line, const char * format, ...);
+#define FBP_LOG_PRINTF(level, format, ...) \
+    fbp_logh_publish(NULL, level, __FILENAME__, __LINE__, format, __VA_ARGS__)
+#elif 0  // redefine the printf format
 #define FBP_LOG_PRINTF(level, format, ...) \
    fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
 #endif

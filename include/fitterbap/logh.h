@@ -143,7 +143,7 @@ FBP_API int32_t fbp_logh_publish_formatted(struct fbp_logh_s * self, struct fbp_
 FBP_API int32_t fbp_logh_dispatch_register(struct fbp_logh_s * self, fbp_logh_recv fn, void * user_data);
 
 /**
- * @brief Unregister a callback
+ * @brief Unregister a callback.
  *
  * @param self The instance or NULL to use the default singleton.
  * @param fn The function previous registered fbp_logh_dispatch_register().
@@ -151,6 +151,18 @@ FBP_API int32_t fbp_logh_dispatch_register(struct fbp_logh_s * self, fbp_logh_re
  * @return 0 or FBP_ERROR_NOT_FOUND.
  */
 FBP_API int32_t fbp_logh_dispatch_unregister(struct fbp_logh_s * self, fbp_logh_recv fn, void * user_data);
+
+/**
+ * @brief Unregister all callbacks.
+ *
+ * @param self The instance or NULL to use the default singleton.
+ * @return 0 or FBP_ERROR_NOT_FOUND.
+ *
+ * Prefer to use fbp_logh_dispatch_unregister() so that registered callbacks
+ * remain in control.  The anticipated use case for this function is during
+ * fault handling to process all outstanding messages to a debug UART.
+ */
+FBP_API void fbp_logh_dispatch_unregister_all(struct fbp_logh_s * self);
 
 /**
  * @brief Register a function to call on publish.
