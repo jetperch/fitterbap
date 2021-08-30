@@ -12,12 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if ((${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm") AND ${CMAKE_CROSSCOMPILING})
-    SET(FITTERBAP_PLATFORM "ARM")
-else()
-    SET(FITTERBAP_PLATFORM "STDLIB")
-endif()
-
 set(SOURCES
         collections/list.c
         cli.c
@@ -55,12 +49,12 @@ set(SOURCES
 )
 
 
-if ("${PLATFORM}" STREQUAL "FREERTOS")
+if ("${FITTERBAP_OS}" STREQUAL "FREERTOS")
     set(SOURCES_HOST
             host/freertos/os_mutex.c
             host/freertos/os_task.c)
 
-elseif (WIN32)
+elseif ("${FITTERBAP_OS}" STREQUAL "WIN32")
     set(SOURCES_HOST
             host/win/os_mutex.c
             host/win/os_task.c

@@ -27,6 +27,17 @@ else()
     set(FITTERBAP_TOPLEVEL 0)
 endif()
 
+if(DEFINED FITTERBAP_OS)
+    # use the provided value
+elseif (WIN32)
+    SET(FITTERBAP_OS "WIN32" CACHE STRING)
+elseif (LINUX)
+    SET(FITTERBAP_OS "LINUX" CACHE STRING)
+else ()
+    message(FATAL_ERROR "Could not detect target OS")
+endif()
+message(STATUS "Fitterbap OS = ${FITTERBAP_OS}")
+
 option(FITTERBAP_DOCS "Use Doxygen to create the HTML based Host API documentation" OFF)
 option(FITTERBAP_UNIT_TEST "Build the fitterbap unit tests" ON)
 option(FITTERBAP_EXAMPLES "Build the fitterbap examples" ON)
