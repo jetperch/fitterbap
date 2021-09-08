@@ -20,6 +20,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <string.h>
+#include <stdio.h>
 #include "fitterbap/comm/framer.h"
 #include "fitterbap/ec.h"
 
@@ -33,7 +34,7 @@ static uint8_t SOF1_64[] = {S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, 
                             S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1,
                             S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1, S1};
 static uint8_t PAYLOAD1[] = {1, 2, 3, 4, 5, 6, 7, 8};
-static uint8_t EOF[] = {FBP_FRAMER_SOF1};
+static uint8_t FEOF[] = {FBP_FRAMER_SOF1};
 
 
 struct test_s {
@@ -61,7 +62,7 @@ static void expect_data(uint16_t frame_id, uint16_t metadata,
 }
 
 static void send_eof(struct fbp_framer_s * self) {
-    fbp_framer_ll_recv(self, EOF, sizeof(EOF));
+    fbp_framer_ll_recv(self, FEOF, sizeof(FEOF));
 }
 
 static void send_data(struct test_s * self, uint16_t frame_id, uint16_t metadata,
@@ -112,6 +113,12 @@ static int setup(void ** state) {
     self->f.api.data_fn = on_data;
     fbp_framer_construct_data(self->frame1, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
     fbp_framer_reset(&self->f);
+#if 0
+    for (int i = 0; i < FBP_FRAMER_MAX_SIZE; ++i) {
+        printf("0x%02x, ", self->frame1[i]);
+    }
+    printf("\n");
+#endif
     *state = self;
     return 0;
 }

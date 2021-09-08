@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.4.2
 
-2021 Aug 30 [in progress]
+2021 Sep 8 [in progress]
 
 *   Updated comm/framer.h analysis based upon
     [Martin Cowen's](http://blog.martincowen.me.uk/using-and-misusing-crcs.html)
@@ -15,6 +15,7 @@ This file contains the list of changes made to the Fitterbap library.
 *   Improved log handler.
 *   Improved host UART: Added DTR and TX callback.
 *   Added TX event to UART thread tester for CPU efficiency.
+*   Added compile-time option to display frames in framer_test.
 
 
 ## 0.4.1
