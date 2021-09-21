@@ -61,7 +61,7 @@
  * For extremely fast transmitters (UART CDC over USB), the maximum number of
  * outstanding frames and acknowledgement turn-around time limit the total
  * rate.  USB has a typically response time of 2 milliseconds, which this
- * framer easily accommodates.  The implementation presumes that this framer
+ * implementation easily accommodates.  The implementation presumes that it
  * is running in the same thread as the receive message processing and
  * can keep up with the raw data rate.
  *
@@ -75,7 +75,7 @@
  * ## Why another protocol?
  *
  * As described below, this data link layer implements 1990's
- * technology.  A number of decent protocols UART-style protocols
+ * technology.  A number of decent UART-style protocols
  * exist, but performance is not great.  When designs need
  * robust performance, TCP/IP is the proven solution.  Unfortunately,
  * TCP/IP through a stack like lwIP requires significant code
@@ -137,8 +137,8 @@
  * The transmitter will retransmit indefinitely, but will indicate an
  * error after a threshold.
  *
- * This framer contains support for backpressure by providing notifications
- * when the recipient acknowledge the frame transmission.
+ * This protocol contains support for backpressure by providing notifications
+ * when the recipient acknowledges the frame transmission.
  * The application can configure the desired number of pending
  * send frames based upon memory availability and application complexity.
  *
@@ -158,13 +158,11 @@
  *
  *     (32 * (256 + 10)) / (3000000 / 10) = 28 milliseconds
  *
- * For memory efficiency, the protocol uses a variable message sized
- * ring buffer to store the transmit messages, which keeps bandwidth
- * fast even for small-sized messages.  The receive side uses
- * dedicated, full-frame-sized buffers.  In the common case where
- * the microcontroller to host path contains far more data than the
- * host to microcontroller path, this allows a reduced microcontroller
- * memory footprint.  Maintaining a variable length received buffer
+ * For memory management simplicity, the implementation uses two fixed-size
+ * message buffers, one for transmit and one for receive.  A previous
+ * implementation used a variable-sized transmit message buffer, but the
+ * memory savings were shown to be insignificant at the cost of more
+ * complexity and processing.  Maintaining a variable length received buffer
  * is much more complicated due to out of order reception and
  * message retirement.
  *
