@@ -14,21 +14,23 @@
  * limitations under the License.
  */
 
+/**
+ * @file
+ *
+ * @brief FBP platform.
+ */
 
-#include "fitterbap/os/task.h"
-#include <windows.h>
+#ifndef FBP_PLATFORM_H_
+#define FBP_PLATFORM_H_
 
-intptr_t fbp_os_current_task_id() {
-    return ((intptr_t) GetCurrentThreadId());
-}
+#ifdef __linux__
+#include "fitterbap/host/linux/platform.h"
+#elif _WIN32
+#include "fitterbap/host/win/platform.h"
+#else
+#endif
 
-void fbp_os_sleep(int64_t duration) {
-    if (duration < 0) {
-        return;
-    }
-    int64_t duration_ms = FBP_TIME_TO_MILLISECONDS(duration);
-    if (duration_ms > 0xffffffff) {
-        duration_ms = 0xffffffff;
-    }
-    Sleep((DWORD) FBP_TIME_TO_MILLISECONDS(duration_ms));
-}
+/** @} */
+
+#endif /* FBP_PLATFORM_H_ */
+

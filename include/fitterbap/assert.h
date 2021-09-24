@@ -23,7 +23,10 @@
 #ifndef FBP_ASSERT_H_
 #define FBP_ASSERT_H_
 
-#include "fitterbap/platform.h"
+#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
+#include "fitterbap/platform_dependencies.h"
 
 /**
  * @ingroup fbp_core

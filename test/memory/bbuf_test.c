@@ -19,7 +19,6 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include "fitterbap/memory/bbuf.h"
-#include "../hal_test_impl.h"
 #include "fitterbap.h"
 
 
@@ -130,7 +129,6 @@ static void u64_unsafe_le(void **state) {
 }
 
 int main(void) {
-    fbp_allocator_set((fbp_alloc_fn) malloc, free);
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(u8_unsafe),
             cmocka_unit_test(u16_unsafe_be),

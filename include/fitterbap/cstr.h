@@ -23,8 +23,7 @@
 #ifndef FBP_CSTR_H_
 #define FBP_CSTR_H_
 
-#include "fitterbap/platform.h"
-#include "fitterbap/config.h"
+#include "fitterbap/common_header.h"
 #include <stdint.h>
 
 /**
@@ -147,7 +146,7 @@ FBP_API int fbp_cstr_to_i32s(const char * src, int32_t exponent, int32_t * value
  *      modified.  To allow default values on parsing errors, set value
  *      before calling this function.
  *
- * This function is only available if FBP_CSTR_FLOAT_ENABLE is 1 in the
+ * This function is only available if FBP_CONFIG_USE_CSTR_FLOAT is 1 in the
  * fbp config.h file.
  */
 FBP_API int fbp_cstr_to_f32(const char * src, float * value);

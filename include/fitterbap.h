@@ -26,14 +26,13 @@
 #ifndef FBP_H__
 #define FBP_H__
 
+#include "fitterbap/common_header.h"
 #include "fitterbap/argchk.h"
 #include "fitterbap/assert.h"
 #include "fitterbap/cdef.h"
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/dbc.h"
 #include "fitterbap/ec.h"
 #include "fitterbap/log.h"
-#include "fitterbap/platform.h"
 #include "fitterbap/time.h"
 #include "fitterbap/version.h"
 

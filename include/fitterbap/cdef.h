@@ -23,7 +23,7 @@
 #ifndef FBP_CDEF_H_
 #define FBP_CDEF_H_
 
-#include "platform.h"
+#include "fitterbap/common_header.h"
 #include <stddef.h>  // offsetof
 
 /**

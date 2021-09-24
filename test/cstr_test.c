@@ -200,7 +200,7 @@ static void atoi_invalid_params(void ** state) {
     assert_int_equal(value, 3);
 }
 
-#if FBP_CSTR_FLOAT_ENABLE
+#if FBP_CONFIG_USE_CSTR_FLOAT
 static void atof_good_with_space(void ** state) {
     (void) state;
     float value = 3.0;
@@ -363,7 +363,7 @@ int main(void) {
         cmocka_unit_test(atoi_bad),
         cmocka_unit_test(atoi_invalid_params),
 
-#if FBP_CSTR_FLOAT_ENABLE
+#if FBP_CONFIG_USE_CSTR_FLOAT
         cmocka_unit_test(atof_good_with_space),
         cmocka_unit_test(atof_good_exponent_form),
         cmocka_unit_test(atof_bad),

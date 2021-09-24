@@ -353,7 +353,7 @@ static void op_echo_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_si
 
 static int32_t timesync_req_send(struct fbp_port0_s * self) {
     int64_t times[5] = {0, 0, 0, 0, 0};
-    times[1] = fbp_time_counter().value;
+    times[1] = fbp_time_counter_u64();
     if (self->mode == FBP_PORT0_MODE_SERVER) {
         FBP_LOGW("timesync_req_send by server");
     }
@@ -384,7 +384,7 @@ static void op_timesync_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t ms
         return;
     }
     memcpy(times, msg, sizeof(times));  // copy to guarantee alignment
-    times[4] = fbp_time_counter().value;
+    times[4] = fbp_time_counter_u64();
     fbp_ts_update(self->timesync, (uint64_t) times[1], times[2], times[3], (uint64_t) times[4]);
 
     if (self->mode == FBP_PORT0_MODE_CLIENT) {

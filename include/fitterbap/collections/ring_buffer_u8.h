@@ -23,8 +23,7 @@
 #ifndef FBP_COLLECTIONS_RING_BUFFER_U8_H__
 #define FBP_COLLECTIONS_RING_BUFFER_U8_H__
 
-#include "fitterbap/cmacro_inc.h"
-#include "fitterbap/platform.h"
+#include "fitterbap/common_header.h"
 #include <stdint.h>
 #include <stdbool.h>
 

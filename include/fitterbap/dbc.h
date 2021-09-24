@@ -20,8 +20,8 @@
  * @brief Design by contract macros.
  */
 
-#ifndef FBP_FBP_DBC_H_
-#define FBP_FBP_DBC_H_
+#ifndef FBP_DBC_H_
+#define FBP_DBC_H_
 
 #include "log.h"
 #include "fitterbap/assert.h"
@@ -204,4 +204,4 @@
 
 /** @} */
 
-#endif /* FBP_FBP_DBC_H_ */
+#endif /* FBP_DBC_H_ */

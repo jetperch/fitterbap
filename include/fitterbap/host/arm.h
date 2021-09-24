@@ -20,34 +20,30 @@
  * @brief Platform for ARM.
  */
 
-#ifndef FBP_PLATFORM_ARM_H_
-#define FBP_PLATFORM_ARM_H_
+#ifndef FBP_HOST_PLATFORM_ARM_H_
+#define FBP_HOST_PLATFORM_ARM_H_
 
-#include "fitterbap/platform.h"
-#include "fitterbap/assert.h"
-#include <string.h>  // use memset and memcpy from the standard library
+#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
+#include "fitterbap/platform_dependencies.h"
+
 
 FBP_CPP_GUARD_START
 
-static inline uint32_t fbp_clz(uint32_t x) {
+FBP_INLINE_FN uint32_t fbp_clz(uint32_t x) {
     uint32_t leading_zeros;
     __asm volatile ( "clz %0, %1" : "=r" ( leading_zeros ) : "r" ( x ) );
     return leading_zeros;
 }
 
-static inline uint32_t fbp_upper_power_of_two(uint32_t x) {
-    uint32_t pow = 32 - fbp_clz(x - 1);
-    return (1 << pow);
-}
-
-static inline void fbp_memset(void * ptr, int value, fbp_size_t num) {
-    memset(ptr, value, num);
-}
-
-static inline void fbp_memcpy(void * destination, void const * source, fbp_size_t num) {
-    memcpy(destination, (void *) source, num);
+FBP_INLINE_FN uint32_t fbp_upper_power_of_two(uint32_t x) {
+    if (x == 0) {
+        return 0;
+    }
+    return 32 - fbp_clz(x - 1);
 }
 
 FBP_CPP_GUARD_END
 
-#endif /* FBP_PLATFORM_ARM_H_ */
+#endif /* FBP_HOST_PLATFORM_ARM_H_ */

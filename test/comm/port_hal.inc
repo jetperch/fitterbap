@@ -31,15 +31,16 @@ struct test_s {
     struct fbp_pubsub_s p;
     struct fbp_evm_s * evm;
     struct fbp_evm_api_s evm_api;
-    struct fbp_time_counter_s time_counter;
+    uint32_t time_counter_frequency;
+    uint64_t time_counter_value;
 };
 
 struct test_s * instance_;
 
 struct test_s * port_hal_initialize() {
     struct test_s * self = fbp_alloc_clr(sizeof(struct test_s));
-    self->time_counter.value = 0;
-    self->time_counter.frequency = 1000;
+    self->time_counter_value = 0;
+    self->time_counter_frequency = 1000;
     instance_ = self;
     self->evm = fbp_evm_allocate();
     assert_int_equal(0, fbp_evm_api_get(self->evm, &self->evm_api));
@@ -58,20 +59,28 @@ void port_hal_finalize(struct test_s * self) {
     instance_ = NULL;
 }
 
-void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_lock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
-void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_unlock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
-void fbp_os_sleep(int64_t duration) {
+void fbp_os_sleep_(int64_t duration) {
     (void) duration;
 }
 
-struct fbp_time_counter_s fbp_time_counter() {
-    return instance_->time_counter;
+uint32_t fbp_time_counter_frequency_() {
+    return instance_->time_counter_frequency;
+}
+
+uint64_t fbp_time_counter_u64_() {
+    return instance_->time_counter_value;
+}
+
+uint32_t fbp_time_counter_u32_() {
+    return (uint32_t) instance_->time_counter_value;
 }
 
 const char * fbp_pubsub_topic_prefix(struct fbp_pubsub_s * self) {

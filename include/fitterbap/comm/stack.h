@@ -23,15 +23,15 @@
 #ifndef FBP_COMM_STACK_H_
 #define FBP_COMM_STACK_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/comm/port0.h"
 #include "fitterbap/comm/log_port.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/comm/pubsub_port.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @ingroup fbp_comm

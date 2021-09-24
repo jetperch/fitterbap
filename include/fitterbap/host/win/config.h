@@ -23,13 +23,10 @@
 #ifndef FBP_HOST_WIN_CONFIG_H__
 #define FBP_HOST_WIN_CONFIG_H__
 
-#include "fitterbap/config.h"
+#include <stdint.h>
 
-#define FBP_FRAMER_CRC32 fbp_crc32
-#define FBP_CRC_CRC32 1
-
-#define FBP_PLATFORM_STDLIB 1
-#define FBP_CSTR_FLOAT_ENABLE 0
 typedef void * fbp_os_mutex_t;
+typedef intptr_t fbp_size_t;
 
 #endif  /* FBP_HOST_WIN_CONFIG_H__ */
+

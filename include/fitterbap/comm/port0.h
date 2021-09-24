@@ -23,11 +23,11 @@
 #ifndef FBP_COMM_PORT0_H_
 #define FBP_COMM_PORT0_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/comm/transport.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @ingroup fbp_comm

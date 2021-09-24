@@ -23,8 +23,6 @@
 #ifndef FBP_LOG_HANDLER_H_
 #define FBP_LOG_HANDLER_H_
 
-#include "fitterbap/config.h"
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/log.h"
 #include <stdint.h>
 

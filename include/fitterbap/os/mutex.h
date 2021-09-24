@@ -25,6 +25,7 @@
 
 #include "fitterbap/cmacro_inc.h"
 #include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
 
 /**
  * @ingroup fbp_os
@@ -46,14 +47,14 @@ FBP_CPP_GUARD_START
  *
  * @return The mutex or 0.
  */
-FBP_API fbp_os_mutex_t fbp_os_mutex_alloc();
+FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc() FBP_COMPILER_ALLOC(fbp_os_mutex_free);
 
 /**
  * @brief Free an existing mutex (not recommended).
  *
  * @param mutex The mutex to free, previous produced using fbp_os_mutex_alloc().
  */
-FBP_API void fbp_os_mutex_free(fbp_os_mutex_t mutex);
+FBP_INLINE_FN void fbp_os_mutex_free(fbp_os_mutex_t mutex) ;
 
 /**
  * @brief Lock a mutex.
@@ -67,7 +68,7 @@ FBP_API void fbp_os_mutex_free(fbp_os_mutex_t mutex);
  * a system failure.  In deployed embedded systems, this
  * should trip the watchdog timer.
  */
-FBP_API void fbp_os_mutex_lock(fbp_os_mutex_t mutex);
+FBP_INLINE_FN void fbp_os_mutex_lock(fbp_os_mutex_t mutex);
 
 /**
  * @brief Unlock a mutex.
@@ -75,7 +76,7 @@ FBP_API void fbp_os_mutex_lock(fbp_os_mutex_t mutex);
  * @param mutex The mutex to unlock, which was previously locked
  *      with fbp_os_mutex_lock().  If NULL, then skip the unlock.
  */
-FBP_API void fbp_os_mutex_unlock(fbp_os_mutex_t mutex);
+FBP_INLINE_FN void fbp_os_mutex_unlock(fbp_os_mutex_t mutex);
 
 FBP_CPP_GUARD_END
 

@@ -48,14 +48,19 @@ ADD_CMOCKA_TEST(cstr_test)
 ADD_CMOCKA_TEST(dbc_test)
 ADD_CMOCKA_TEST(ec_test)
 
-add_executable(event_manager_test event_manager_test.c ../src/event_manager.c)
+add_executable(event_manager_test event_manager_test.c ../src/event_manager.c hal.c)
 add_dependencies(event_manager_test cmocka)
 target_link_libraries(event_manager_test cmocka)
 add_test(event_manager_test ${CMAKE_CURRENT_BINARY_DIR}/event_manager_test)
 
 ADD_CMOCKA_TEST(fsm_test)
 ADD_CMOCKA_TEST(lfsr_test)
-ADD_CMOCKA_TEST(log_test)
+
+add_executable(log_test log_test.c ../src/log.c)
+add_dependencies(log_test cmocka)
+target_link_libraries(log_test cmocka)
+add_test(log_test ${CMAKE_CURRENT_BINARY_DIR}/log_test)
+
 ADD_CMOCKA_TEST(logh_test)
 ADD_CMOCKA_TEST(pattern_32a_test)
 ADD_CMOCKA_TEST(platform_test)

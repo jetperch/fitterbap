@@ -15,7 +15,6 @@
  */
 
 #include "fitterbap/cstr.h"
-#include "fitterbap/config.h"
 #include "fitterbap/ec.h"
 
 
@@ -280,7 +279,7 @@ int fbp_cstr_to_i32s(const char * src, int32_t exponent, int32_t * value) {
     return 0;
 }
 
-#if FBP_CSTR_FLOAT_ENABLE
+#if FBP_CONFIG_USE_CSTR_FLOAT
 int fbp_cstr_to_f32(const char * src, float * value) {
     char *p;
     float x0;

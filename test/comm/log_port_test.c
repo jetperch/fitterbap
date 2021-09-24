@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -151,7 +150,6 @@ static void test_receive(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_initialize),
             cmocka_unit_test(test_publish_one),

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -487,7 +486,6 @@ static void test_reset_retry(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_initial_state),
             cmocka_unit_test(test_send_when_not_connected),

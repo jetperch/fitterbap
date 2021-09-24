@@ -23,7 +23,7 @@
 #ifndef FBP_COMM_TRANSPORT_H_
 #define FBP_COMM_TRANSPORT_H_
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/data_link.h"
 #include <stdint.h>
 

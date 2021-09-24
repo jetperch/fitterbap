@@ -23,7 +23,7 @@
 #ifndef FBP_MEMORY_BUFFER_H_
 #define FBP_MEMORY_BUFFER_H_
 
-#include "fitterbap/platform.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/collections/list.h"
 #include <stdint.h>
 #include <stdbool.h>

@@ -23,7 +23,7 @@
 #endif
 
 #define FBP_LOG_PRINTF(level, format, ...) \
-    fbp_log_printf_("%c " format "\n", fbp_log_level_char[level], __VA_ARGS__);
+    my_printf("%c " format "\n", fbp_log_level_char[level], __VA_ARGS__);
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -45,7 +45,6 @@ void my_printf(const char * format, ...) {
 
 static void test_logf(void **state) {
     (void) state;
-    fbp_log_initialize(my_printf);
     expect_string(my_printf, str, "C hello world\n");
     FBP_LOG_CRITICAL("%s %s", "hello", "world");
     expect_string(my_printf, str, "E hello world\n");
@@ -66,7 +65,6 @@ static void test_logf(void **state) {
 
 static void test_logs(void **state) {
     (void) state;
-    fbp_log_initialize(my_printf);
     expect_string(my_printf, str, "C hello\n");
     FBP_LOG_CRITICAL("hello");
     expect_string(my_printf, str, "E hello\n");
@@ -90,7 +88,6 @@ static void test_local_levels(void **state) {
     (void) state;
 #undef FBP_LOG_LEVEL
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_DEBUG
-    fbp_log_initialize(my_printf);
     expect_string(my_printf, str, "D hello\n");
     FBP_LOG_DEBUG("%s", "hello");
     FBP_LOG_DEBUG2("%s", "hello");
@@ -105,7 +102,6 @@ static void test_global_levels(void **state) {
     (void) state;
 #undef FBP_LOG_GLOBAL_LEVEL
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_DEBUG
-    fbp_log_initialize(my_printf);
     expect_string(my_printf, str, "D hello\n");
     FBP_LOG_DEBUG("%s", "hello");
     FBP_LOG_DEBUG2("%s", "hello");

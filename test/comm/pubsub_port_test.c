@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -252,7 +251,6 @@ static void test_deserialize(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_server_connect_initial),
             cmocka_unit_test(test_client_connect_initial),

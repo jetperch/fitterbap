@@ -160,8 +160,8 @@
  * performance.  Many microcontrollers offer hardware acceleration, and you
  * can select a hardware-accelerated CRC algorithm for specific applications.
  *
- * Define FBP_FRAMER_CRC32 to the function that the framer should use to
- * compute the 32-bit CRC.  The standard implementation uses fbp_crc32
+ * Define FBP_CONFIG_COMM_FRAMER_CRC32(data, length) to compute the 32-bit
+ * checksum.  The standard implementation uses fbp_crc32
  * declared by fitterbap/crc.h and defined by src/crc32.c.
  *
  *

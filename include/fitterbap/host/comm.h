@@ -23,7 +23,6 @@
 #ifndef FBP_HOST_COMM_H_
 #define FBP_HOST_COMM_H_
 
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/comm/log_port.h"

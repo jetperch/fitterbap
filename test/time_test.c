@@ -18,12 +18,11 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "fitterbap/time.h"
+#include "fitterbap/common_header.h"
 
 
 #define ABS(x) ( (x) < 0 ? -x : x)
 #define CLOSE(x, t) ( ABS(x) < (t) )
-
 
 static void test_constants(void **state) {
     (void) state;
@@ -111,9 +110,9 @@ static void test_round_inf(void **state) {
 
 static void test_counter(void **state) {
     (void) state;
-    struct fbp_time_counter_s counter = fbp_time_counter();
-    assert_true(counter.frequency >= 1000LL);  // recommendation
-    assert_true(counter.frequency < 10000000000LL);  // requirement
+    uint32_t frequency = fbp_time_counter_frequency();
+    assert_true(frequency >= 1000LL);  // recommendation
+    assert_true(frequency < 10000000000LL);  // requirement
 }
 
 static void test_utc(void **state) {

@@ -15,6 +15,7 @@
  */
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
+#include "fitterbap/common_header.h"
 #include "fitterbap/fsm.h"
 #include "fitterbap/dbc.h"
 #include <inttypes.h>

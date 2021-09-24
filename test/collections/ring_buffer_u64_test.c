@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -150,7 +149,6 @@ static void test_add_full(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_initial_state, setup, teardown),
             cmocka_unit_test_setup_teardown(test_push_until_full, setup, teardown),

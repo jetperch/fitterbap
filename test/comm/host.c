@@ -54,15 +54,15 @@ void fbp_fatal(char const * file, int line, char const * msg) {
     exit(1);
 }
 
-static void * hal_alloc(fbp_size_t size_bytes) {
+void * fbp_alloc_(fbp_size_t size_bytes) {
     return malloc((size_t) size_bytes);
 }
 
-static void hal_free(void * ptr) {
+void fbp_free_(void * ptr) {
     free(ptr);
 }
 
-static void app_log_printf_(const char *format, ...) {
+static void fbp_log_printf_(const char *format, ...) {
     va_list arg;
     printf("%d ", (uint32_t) fbp_time_rel_ms());
     va_start(arg, format);
@@ -127,8 +127,6 @@ int main(int argc, char * argv[]) {
     }
 
     // printf("RAND_MAX = %ull\n", RAND_MAX);
-    fbp_allocator_set(hal_alloc, hal_free);
-    fbp_log_initialize(app_log_printf_);
     // srand(2);
 
     h_.pubsub = fbp_pubsub_initialize("h", pubsub_buffer_size);

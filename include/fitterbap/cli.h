@@ -20,10 +20,10 @@
  * @brief Provide a simple command line interface.
  */
 
-#ifndef FBP_FBP_CLI_H_
-#define FBP_FBP_CLI_H_
+#ifndef FBP_CLI_H_
+#define FBP_CLI_H_
 
-#include "fitterbap/platform.h"
+#include "fitterbap/common_header.h"
 
 /**
  * @ingroup fbp_core
@@ -236,4 +236,4 @@ FBP_CPP_GUARD_END
 
 /** @} */
 
-#endif /* FBP_FBP_CLI_H_ */
+#endif /* FBP_CLI_H_ */

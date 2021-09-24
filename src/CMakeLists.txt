@@ -24,7 +24,6 @@ set(SOURCES
         log.c
         logh.c
         pattern_32a.c
-        platform.c
         pubsub.c
         time.c
         topic.c
@@ -56,11 +55,9 @@ if ("${FITTERBAP_OS}" STREQUAL "FREERTOS")
 
 elseif ("${FITTERBAP_OS}" STREQUAL "WIN32")
     set(SOURCES_HOST
-            host/win/os_mutex.c
-            host/win/os_task.c
-            host/win/platform.c
             host/win/uart.c
             host/win/uart_thread.c
+            host/win/platform.c
             host/win/comm.c)
 else()
     set(SOURCES_HOST "")
@@ -75,11 +72,3 @@ foreach(f IN LISTS SOURCES)
 endforeach()
 
 add_library(fitterbap_objlib OBJECT ${SOURCES})
-
-if(${FITTERBAP_TOPLEVEL})
-    add_library(fitterbap SHARED $<TARGET_OBJECTS:fitterbap_objlib> lib.c)
-else()
-    add_library(fitterbap STATIC $<TARGET_OBJECTS:fitterbap_objlib>)
-    add_library(fitterbap_lib OBJECT lib.c)
-endif()
-add_dependencies(fitterbap fitterbap_objlib)

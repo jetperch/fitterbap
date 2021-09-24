@@ -23,13 +23,13 @@
 #ifndef FBP_COMM_PORT_API_H_
 #define FBP_COMM_PORT_API_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/topic.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @ingroup fbp_comm

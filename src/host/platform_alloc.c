@@ -14,39 +14,15 @@
  * limitations under the License.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 #include "fitterbap/common_header.h"
-#include "fitterbap/log.h"
-#include "fitterbap/assert.h"
-#include <stdlib.h>
-#include <string.h> // memset
-#include <stdarg.h>
-#include <stdio.h>
+#include <windows.h>
 
 void * fbp_alloc_(fbp_size_t size_bytes) {
-    void * ptr =  test_malloc((size_t) size_bytes);
-    // printf("hal_alloc %p\n", ptr);
+    void * ptr = malloc(size_bytes);
+    FBP_ASSERT_ALLOC(ptr);
     return ptr;
 }
 
 void fbp_free_(void * ptr) {
-    // printf("hal_free %p\n", ptr);
-    test_free(ptr);
-}
-
-void fbp_log_printf_(const char *format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    vprintf(format, arg);
-    va_end(arg);
-}
-
-void fbp_fatal(char const * file, int line, char const * msg) {
-    (void) file;
-    (void) line;
-    (void) msg;
-    mock_assert(0, msg, file, line);
+    free(ptr);
 }

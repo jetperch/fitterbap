@@ -55,8 +55,6 @@ release binaries and start the host UI, which looks like this:
 
 ## Known limitations
 
-*   Comm
-    *    No native USB reference implementation yet, but can use USB-CDC.
 *   PubSub
     *    Hard-coded maximum topic lengths.
     *    No validation using provided topic metadata.
@@ -76,8 +74,9 @@ using CMake can use ExternalProject_Add.  Other build systems
 will likely need to include the source files directly.  Consider using
 git subtrees or git submodules.  
 
-You will need to manually create the fitterbap/config.h file and implement the
-platform abstraction layer.   See fitterbap/platform.h for details.
+You will need to manually create the fitterbap/config.h and fitterbap/platform.h.
+See include/fitterbap/config_defaults.h and 
+include/fitterbap/platform_dependencies.h for details.
 
 
 ### Host python

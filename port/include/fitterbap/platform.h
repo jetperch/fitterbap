@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef HAL_TEST_IMPLEMENTATION_H_
-#define HAL_TEST_IMPLEMENTATION_H_
+/**
+ * @file
+ *
+ * @brief MS Windows platform
+ */
 
-#include "fitterbap/cmacro_inc.h"
-#include <stdint.h>
-
-FBP_CPP_GUARD_START
-
-
-void hal_test_initialize();
-void hal_test_enable_logging();
+#ifndef FBP_PORT_PLATFORM_H_
+#define FBP_PORT_PLATFORM_H_
 
 
+#if defined(WIN32)
+#include "fitterbap/host/win/platform.h"
+#endif
 
-FBP_CPP_GUARD_END
 
-#endif /* HAL_TEST_IMPLEMENTATION_H_ */
+#endif /* FBP_PORT_PLATFORM_H_ */

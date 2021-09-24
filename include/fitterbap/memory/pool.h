@@ -23,9 +23,9 @@
 #ifndef FBP_MEMORY_POOL_H_
 #define FBP_MEMORY_POOL_H_
 
+#include "fitterbap/cmacro_inc.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include "fitterbap/cmacro_inc.h"
 
 /**
  * @ingroup fbp_memory

@@ -23,9 +23,11 @@
 #ifndef FBP_TIME_H__
 #define FBP_TIME_H__
 
+#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "fitterbap/cmacro_inc.h"
 
 /**
  * @ingroup fbp_core
@@ -159,7 +161,7 @@ FBP_CPP_GUARD_START
  * @param x The double-precision floating point time in seconds.
  * @return The time as a 34Q30.
  */
-static inline int64_t FBP_F64_TO_TIME(double x) {
+FBP_INLINE_FN int64_t FBP_F64_TO_TIME(double x) {
     if (x < 0) {
         return -FBP_F64_TO_TIME(-x);
     }
@@ -181,7 +183,7 @@ static inline int64_t FBP_F64_TO_TIME(double x) {
  * @param x The single-precision floating point time in seconds.
  * @return The time as a 34Q30.
  */
-static inline int64_t FBP_F32_TO_TIME(float x) {
+FBP_INLINE_FN int64_t FBP_F32_TO_TIME(float x) {
     if (x < 0.0f) {
         return -FBP_F32_TO_TIME(-x);
     }
@@ -195,7 +197,7 @@ static inline int64_t FBP_F32_TO_TIME(float x) {
  * @param z The counter frequency in Hz.
  * @return The 64-bit time in counter ticks.
  */
-static inline int64_t FBP_TIME_TO_COUNTER(int64_t x, uint64_t z) {
+FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER(int64_t x, uint64_t z) {
     if (x < 0) {
         return -FBP_TIME_TO_COUNTER(-x, z);
     }
@@ -213,7 +215,7 @@ static inline int64_t FBP_TIME_TO_COUNTER(int64_t x, uint64_t z) {
  * @param z The counter frequency in Hz.
  * @return The 64-bit time in counter ticks.
  */
-static inline int64_t FBP_TIME_TO_COUNTER_RZERO(int64_t x, uint64_t z) {
+FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER_RZERO(int64_t x, uint64_t z) {
     if (x < 0) {
         return -FBP_TIME_TO_COUNTER_RZERO(-x, z);
     }
@@ -229,7 +231,7 @@ static inline int64_t FBP_TIME_TO_COUNTER_RZERO(int64_t x, uint64_t z) {
  * @param z The counter frequency in Hz.
  * @return The 64-bit time in counter ticks.
  */
-static inline int64_t FBP_TIME_TO_COUNTER_RINF(int64_t x, uint64_t z) {
+FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER_RINF(int64_t x, uint64_t z) {
     if (x < 0) {
         return -FBP_TIME_TO_COUNTER_RINF(-x, z);
     }
@@ -278,7 +280,7 @@ static inline int64_t FBP_TIME_TO_COUNTER_RINF(int64_t x, uint64_t z) {
  * @param z The counter frequency in Hz.
  * @return The 64-bit signed fixed point time.
  */
-static inline int64_t FBP_COUNTER_TO_TIME(uint64_t x, uint64_t z) {
+FBP_INLINE_FN int64_t FBP_COUNTER_TO_TIME(uint64_t x, uint64_t z) {
     // compute (x << FBP_TIME_Q) / z, but without unnecessary saturation
     uint64_t seconds = x / z;
     uint64_t remainder = x - (seconds * z);
@@ -325,22 +327,37 @@ static inline int64_t FBP_COUNTER_TO_TIME(uint64_t x, uint64_t z) {
  * @param t The time.
  * @return The absolute value of t.
  */
-static inline int64_t FBP_TIME_ABS(int64_t t) {
+FBP_INLINE_FN int64_t FBP_TIME_ABS(int64_t t) {
     return ( (t) < 0 ? -(t) : (t) );
 }
 
 /**
- * @brief The platform counter structure.
+ * @brief Get the monotonic platform counter frequency.
+ *
+ * @return The approximate counter frequency, in counts per second (Hz).
  */
-struct fbp_time_counter_s {
-    /// The counter value.
-    uint64_t value;
-    /// The approximate counter frequency.
-    uint64_t frequency;
-};
+FBP_INLINE_FN uint32_t fbp_time_counter_frequency();
 
 /**
- * @brief Get the monotonic platform counter.
+ * @brief Get the 32-bit monotonic platform counter.
+ *
+ * @return The monotonic platform counter.
+ *
+ * The platform implementation may select an appropriate source and
+ * frequency.  The FBP library assumes a nominal frequency of
+ * at least 1000 Hz, but we recommend a frequency of at least 1 MHz
+ * to enable profiling and high accuracy time synchronization
+ * using the comm stack.  The frequency should not exceed 10 GHz
+ * to prevent rollover.
+ *
+ * The counter must be monotonic.  If the underlying hardware is less
+ * than the full 32 bits, then the platform must unwrap and extend
+ * the hardware value to 32-bit.
+ */
+FBP_INLINE_FN uint32_t fbp_time_counter_u32();
+
+/**
+ * @brief Get the 64-bit monotonic platform counter.
  *
  * @return The monotonic platform counter.
  *
@@ -358,7 +375,7 @@ struct fbp_time_counter_s {
  * The FBP authors recommend this counter starts at 0 when the
  * system powers up, which also helps prevent rollover.
  */
-FBP_API struct fbp_time_counter_s fbp_time_counter();
+FBP_INLINE_FN uint64_t fbp_time_counter_u64();
 
 /**
  * @brief Get the monotonic platform time as a 34Q30 fixed point number.
@@ -368,9 +385,8 @@ FBP_API struct fbp_time_counter_s fbp_time_counter();
  *      UTC or wall-clock calendar time.  This time has both
  *      offset and scale errors relative to UTC.
  */
-static inline int64_t fbp_time_rel() {
-    struct fbp_time_counter_s counter = fbp_time_counter();
-    return FBP_COUNTER_TO_TIME(counter.value, counter.frequency);
+FBP_INLINE_FN int64_t fbp_time_rel() {
+    return FBP_COUNTER_TO_TIME(fbp_time_counter_u64(), fbp_time_counter_frequency());
 }
 
 /**
@@ -381,7 +397,7 @@ static inline int64_t fbp_time_rel() {
  *      UTC or wall-clock calendar time.  This time has both
  *      offset and scale errors relative to UTC.
  */
-static inline int64_t fbp_time_rel_ms() {
+FBP_INLINE_FN int64_t fbp_time_rel_ms() {
     return FBP_TIME_TO_MILLISECONDS(fbp_time_rel());
 }
 
@@ -393,7 +409,7 @@ static inline int64_t fbp_time_rel_ms() {
  *      UTC or wall-clock calendar time.  This time has both
  *      offset and scale errors relative to UTC.
  */
-static inline int64_t fbp_time_rel_us() {
+FBP_INLINE_FN int64_t fbp_time_rel_us() {
     return FBP_TIME_TO_MICROSECONDS(fbp_time_rel());
 }
 
@@ -416,14 +432,14 @@ static inline int64_t fbp_time_rel_us() {
  *      epoch = dateutil.parser.parse('2018-01-01T00:00:00Z').timestamp()
  *      datetime.datetime.fromtimestamp((my_time >> 30) + epoch)
  */
-FBP_API int64_t fbp_time_utc();
+FBP_INLINE_FN int64_t fbp_time_utc();
 
 /**
  * @brief Get the UTC time in milliseconds.
  *
  * @return The UTC time in milliseconds.
  */
-static inline int64_t fbp_time_utc_ms() {
+FBP_INLINE_FN int64_t fbp_time_utc_ms() {
     return FBP_TIME_TO_MILLISECONDS(fbp_time_utc());
 }
 
@@ -432,7 +448,7 @@ static inline int64_t fbp_time_utc_ms() {
  *
  * @return The UTC time in microseconds.
  */
-static inline int64_t fbp_time_utc_us() {
+FBP_INLINE_FN int64_t fbp_time_utc_us() {
     return FBP_TIME_TO_MICROSECONDS(fbp_time_utc());
 }
 
@@ -443,7 +459,7 @@ static inline int64_t fbp_time_utc_us() {
  * @param b The second time value.
  * @return The smaller value of a and b.
  */
-static inline int64_t fbp_time_min(int64_t a, int64_t b) {
+FBP_INLINE_FN int64_t fbp_time_min(int64_t a, int64_t b) {
     return (a < b) ? a : b;
 }
 
@@ -454,7 +470,7 @@ static inline int64_t fbp_time_min(int64_t a, int64_t b) {
  * @param b The second time value.
  * @return The larger value of a and b.
  */
-static inline int64_t fbp_time_max(int64_t a, int64_t b) {
+FBP_INLINE_FN int64_t fbp_time_max(int64_t a, int64_t b) {
     return (a > b) ? a : b;
 }
 

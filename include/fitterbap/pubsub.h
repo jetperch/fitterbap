@@ -21,10 +21,10 @@
  * @brief Trivial publish-subscribe.
  */
 
-#ifndef FBP_STREAM_PUBSUB_H__
-#define FBP_STREAM_PUBSUB_H__
+#ifndef FBP_PUBSUB_H__
+#define FBP_PUBSUB_H__
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/os/mutex.h"
 #include "fitterbap/union.h"
 #include <stdint.h>
@@ -336,4 +336,4 @@ FBP_CPP_GUARD_END
 
 /** @} */
 
-#endif  /* FBP_STREAM_PUBSUB_H__ */
+#endif  /* FBP_PUBSUB_H__ */

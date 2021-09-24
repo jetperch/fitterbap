@@ -24,7 +24,6 @@
 #ifndef FBP_TOPIC_H__
 #define FBP_TOPIC_H__
 
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/pubsub.h"
 #include <stdint.h>
 

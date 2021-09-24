@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -122,7 +121,6 @@ static void test_numeric_to_bool(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_numeric_eq),
             cmocka_unit_test(test_cstr_eq),

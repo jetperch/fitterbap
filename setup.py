@@ -58,15 +58,15 @@ C_INCS = [C_INC_PATH, C_INC2_PATH, C_INC3_PATH, np.get_include()]
 if sys.platform.startswith('win'):
     platform_sources = [
         'src/host/win/comm.c',
-        'src/host/win/os_mutex.c',
-        'src/host/win/os_task.c',
         'src/host/win/platform.c',
         'src/host/win/uart.c',
         'src/host/win/uart_thread.c',
+        'src/host/platform_alloc.c',
     ]
 elif sys.platform.startswith('linux'):
     platform_sources = [
         'src/host/linux/platform.c'
+        'src/host/platform_alloc.c',
     ]
 elif sys.platform.startswith('darwin'):  # macos
     platform_sources = []

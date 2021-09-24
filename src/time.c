@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include "fitterbap/common_header.h"
 #include "fitterbap/time.h"
 #include "tinyprintf.h"
 #include <inttypes.h>

@@ -23,7 +23,6 @@
 #ifndef FBP_HOST_UART_THREAD_H_
 #define FBP_HOST_UART_THREAD_H_
 
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/host/uart.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/os/mutex.h"

@@ -48,7 +48,7 @@ cdef extern from "stdarg.h":
 cdef extern from "stdio.h":
     int vsnprintf (char * s, size_t n, const char * format, va_list arg ) nogil
 
-cdef extern from "fitterbap/platform.h":
+cdef extern from "fitterbap/platform_dependencies.h":
     void fbp_fatal(const char * file, int line, const char * msg) nogil
 
 cdef extern from "fitterbap/log.h":
@@ -68,7 +68,7 @@ cdef void _log_print(const char * s) with gil:
         record = log.makeRecord(src_file, lvl, src_file, int(src_line), msg, [], None, None, None, None)
         log.handle(record)
 
-cdef void log_printf(const char *fmt, ...) nogil:
+cdef void fbp_log_printf_(const char *fmt, ...) nogil:
     cdef va_list args
     cdef char[256] s
     va_start(args, <void*> fmt)
@@ -77,15 +77,6 @@ cdef void log_printf(const char *fmt, ...) nogil:
     _log_print(s)
 
 
-fbp_log_initialize(log_printf)
-
-
-cdef extern from "fitterbap/platform.h":
-    void fbp_fatal(const char * file, int line, const char * msg) nogil
-    ctypedef intptr_t fbp_size_t
-    void * fbp_alloc(fbp_size_t size_bytes) nogil
-    void fbp_free(void * ptr) nogil
-
 cdef void _fbp_fatal(const char * file, int line, const char * msg) with gil:
     # since called from within C code, this exception will be ignored.
     # Consider a better error handler method.
@@ -93,9 +84,3 @@ cdef void _fbp_fatal(const char * file, int line, const char * msg) with gil:
 
 cdef void fbp_fatal(const char * file, int line, const char * msg) nogil:
     _fbp_fatal(file, line, msg)
-
-cdef void * fbp_alloc(fbp_size_t size_bytes) nogil:
-    return malloc(size_bytes)
-
-cdef void fbp_free(void * ptr) nogil:
-    free(ptr)

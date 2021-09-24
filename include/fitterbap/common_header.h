@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2021 Jetperch LLC
+ * Copyright 2021 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,19 @@
  * limitations under the License.
  */
 
-#include "fitterbap/log.h"
-#include <stdio.h>
+/**
+ * @file
+ *
+ * @brief Common header includes.
+ */
 
+#ifndef FBP_COMMON_HEADER_H__
+#define FBP_COMMON_HEADER_H__
 
-char const * const fbp_log_level_str[FBP_LOG_LEVEL_ALL + 1] = {
-        "EMERGENCY",
-        "ALERT",
-        "CRITICAL",
-        "ERROR",
-        "WARN",
-        "NOTICE"
-        "INFO",
-        "DEBUG",
-        "DEBUG2"
-        "DEBUG3",
-        "ALL"
-};
+#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
+#include "fitterbap/platform_dependencies.h"
+#include "fitterbap/platform.h"
 
-char const fbp_log_level_char[FBP_LOG_LEVEL_ALL + 1] = {
-        '!', 'A', 'C', 'E', 'W', 'N', 'I', 'D', 'D', 'D', '.'
-};
+#endif  /* FBP_COMMON_HEADER_H__ */

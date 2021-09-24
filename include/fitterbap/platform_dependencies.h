@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef FBP_PLATFORM_H_
-#define FBP_PLATFORM_H_
+#ifndef FBP_PLATFORM_DEPENDENCIES_H_
+#define FBP_PLATFORM_DEPENDENCIES_H_
 
 /**
  * @file
@@ -25,6 +25,9 @@
 
 #include "fitterbap/cmacro_inc.h"
 #include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
+#include "fitterbap/os/mutex.h"
+#include "fitterbap/os/task.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -54,6 +57,7 @@ FBP_CPP_GUARD_START
 FBP_API void fbp_fatal(char const * file, int line, char const * msg);
 
 /**
+ * @def fbp_size_t
  * @brief The value to use for all fbp sizes.
  *
  * The use of signed and unsigned types for lengths/sizes, which are in the
@@ -70,9 +74,17 @@ FBP_API void fbp_fatal(char const * file, int line, char const * msg);
  * for checking overflows and underflows.  C's automatic promotion from signed
  * to unsigned is a problem, but you are using
  * "-Wall -Werror -Wpedantic -Wextra", right?
+ *
+ * #define fbp_size_t intptr_t
+ * #define fbp_size_t size_t
  */
-typedef intptr_t fbp_size_t;
 
+/**
+ * @brief sizeof that always returns fbp_size_t.
+ *
+ * @param x The object to the size.
+ * @return The size of x in bytes as type fbp_size_t.
+ */
 #define fbp_sizeof(x) ((fbp_size_t) sizeof(x))
 
 /**
@@ -81,14 +93,67 @@ typedef intptr_t fbp_size_t;
  * @param x The value for count leading zeros.
  * @return The number of most significant bits with zeros.
  */
-static inline uint32_t fbp_clz(uint32_t x);
+FBP_INLINE_FN uint32_t fbp_clz(uint32_t x);
+
+#define fbp_clz_check_bits(bits) \
+    y = x >> bits; \
+    if (y) { \
+        leading_zeros -= bits; \
+    x = y; \
+}
+
+/**
+ * @brief Generic C implementation for count leading zeros.
+ *
+ * @param x The value for count leading zeros.
+ * @return The number of most significant bits with zeros.
+ *
+ * Divide & conquer implementation.  For platforms that do not have
+ * a CLZ instruction, use:
+ *
+ * FBP_INLINE_FN uint32_t fbp_clz(uint32_t x) {return fbp_clz_generic(x);}
+ */
+FBP_INLINE_FN uint32_t fbp_clz_generic(uint32_t x) {
+    uint32_t leading_zeros = 32;
+    uint32_t y;
+    fbp_clz_check_bits(16);
+    fbp_clz_check_bits(8);
+    fbp_clz_check_bits(4);
+    fbp_clz_check_bits(2);
+    fbp_clz_check_bits(1);
+    leading_zeros -= x;
+    return leading_zeros;
+}
 
 /**
  * @brief Round up to the nearest power of 2.
  *
  * @param x The value to round up to the nearest power of 2.
+ * @return The power of 2.
  */
-static inline uint32_t fbp_upper_power_of_two(uint32_t x);
+FBP_INLINE_FN uint32_t fbp_upper_power_of_two(uint32_t x);
+
+/**
+ * @brief Generic C implementation for fbp_upper_power_of_two.
+ *
+ * @param x The value to round up to the nearest power of 2.
+ * @return The power of 2.
+ *
+ * https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+ * 1 << (32 - clz) is even faster with native CLZ support.
+ *
+ * FBP_INLINE_FN uint32_t fbp_upper_power_of_two(uint32_t x) {return fbp_upper_power_of_two_generic(x);}
+ */
+FBP_INLINE_FN uint32_t fbp_upper_power_of_two_generic(uint32_t x) {
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x++;
+    return x;
+}
 
 /**
  * @brief Fill the first num total_bytes of the memory buffer to value.
@@ -97,7 +162,7 @@ static inline uint32_t fbp_upper_power_of_two(uint32_t x);
  * @param value The new value for each byte.
  * @param num The number of total_bytes to fill.
  */
-static inline void fbp_memset(void * ptr, int value, fbp_size_t num);
+FBP_INLINE_FN void fbp_memset(void * ptr, int value, fbp_size_t num);
 
 /**
  * @brief Copy data from one buffer to another.
@@ -109,7 +174,7 @@ static inline void fbp_memset(void * ptr, int value, fbp_size_t num);
  * The buffers destination and source must not overlap or the buffers may
  * be corrupted by this function!
  */
-static inline void fbp_memcpy(void * destination, void const * source, fbp_size_t num);
+FBP_INLINE_FN void fbp_memcpy(void * destination, void const * source, fbp_size_t num);
 
 /**
  * @brief The function type used by FBP to allocate memory.
@@ -129,12 +194,13 @@ typedef void * (*fbp_alloc_fn)(fbp_size_t size_bytes);
 typedef void (*fbp_free_fn)(void * ptr);
 
 /**
- * @brief Set the allocator used by fbp.
+ * \brief Function to deallocate memory provided by fbp_alloc() or fbp_alloc_clr().
  *
- * @param alloc The function used to allocate memory.
- * @param free The function used to free memory.
+ * \param ptr The pointer to the memory to free.
+ *
+ * Many embedded systems do not allow free and can just call fbp_fatal().
  */
-FBP_API void fbp_allocator_set(fbp_alloc_fn alloc, fbp_free_fn free);
+FBP_INLINE_FN void fbp_free(void * ptr);
 
 /**
  * @brief Allocate memory from the heap.
@@ -145,10 +211,8 @@ FBP_API void fbp_allocator_set(fbp_alloc_fn alloc, fbp_free_fn free);
  * This function will assert on out of memory conditions.
  * For platforms that support freeing memory, use fbp_free() to return the
  * memory to the heap.
- *
- * Call fbp_allocator_set to assign an allocator before calling this function!
  */
-FBP_API void * fbp_alloc(fbp_size_t size_bytes);
+FBP_INLINE_FN void * fbp_alloc(fbp_size_t size_bytes) FBP_COMPILER_ALLOC(fbp_free);
 
 /**
  * @brief Allocate memory from the heap and clear to 0.
@@ -160,54 +224,36 @@ FBP_API void * fbp_alloc(fbp_size_t size_bytes);
  * For platforms that support freeing memory, use fbp_free() to return the
  * memory to the heap.
  */
-static inline void * fbp_alloc_clr(fbp_size_t size_bytes) {
+FBP_INLINE_FN void * fbp_alloc_clr(fbp_size_t size_bytes) FBP_COMPILER_ALLOC(fbp_free) {
     void * ptr = fbp_alloc(size_bytes);
     fbp_memset(ptr, 0, size_bytes);
     return ptr;
 }
 
 /**
- * \brief Function to deallocate memory provided by fbp_alloc() or fbp_alloc_clr().
- *
- * \param ptr The pointer to the memory to free.
- *
- * Many embedded systems do not allow free and can just call fbp_fatal().
- */
-FBP_API void fbp_free(void * ptr);
-
-
-/**
  * Additional functions to define:
  *
- * log.h:
- *  A fbp_log_printf() implementation, and call fbp_log_initialize()
- *
  * time.h:
- * - fbp_time_counter()
+ * - fbp_time_counter_frequency()
+ * - fbp_time_counter_u32()
+ * - fbp_time_counter_u64()
  * - fbp_time_utc()
  *
  * os/mutex.h
- * - fbp_os_mutex_t  (in config.h)
+ * - fbp_os_mutex_t:        typedef in config.h
  * - fbp_os_mutex_alloc()
  * - fbp_os_mutex_free()
  * - fbp_os_mutex_lock()
  * - fbp_os_mutex_unlock()
  *
  * os/task.h
+ * - fbp_os_current_task_id()
  * - fbp_os_sleep()
  */
 
-
-#if defined(FBP_PLATFORM_STDLIB)
-#include "fitterbap/platform/stdlib.h"
-#elif defined(FBP_PLATFORM_ARM)
-#include "fitterbap/platform/arm.h"
-#else
-#error "unsupported platform"
-#endif
 
 FBP_CPP_GUARD_END
 
 /** @} */
 
-#endif /* FBP_PLATFORM_H_ */
+#endif /* FBP_PLATFORM_DEPENDENCIES_H_ */

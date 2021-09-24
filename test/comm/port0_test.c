@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -67,8 +66,16 @@ struct fbp_transport_s * instance_;
 #define TX_WINDOW_SIZE 16
 #define RX_WINDOW_SIZE 12
 
-struct fbp_time_counter_s fbp_time_counter() {
-    return (struct fbp_time_counter_s) {.frequency = 1000, .value = instance_->counter};
+uint32_t fbp_time_counter_frequency_() {
+    return 1000;
+}
+
+uint64_t fbp_time_counter_u64_() {
+    return instance_->counter;
+}
+
+uint32_t fbp_time_counter_u32_() {
+    return (uint32_t) instance_->counter;
 }
 
 void fbp_ts_update(struct fbp_ts_s * self, uint64_t src_tx, int64_t tgt_rx, int64_t tgt_tx, uint64_t src_rx) {
@@ -131,7 +138,7 @@ void fbp_transport_event_inject(struct fbp_transport_s * self, enum fbp_dl_event
 #define expect_dl_event_inject(dl_, event_) \
     expect_value(fbp_transport_event_inject, event, event_);
 
-int64_t fbp_time_utc() {
+int64_t fbp_time_utc_() {
     return instance_->timestamp;
 }
 
@@ -144,11 +151,11 @@ const char * fbp_transport_meta_get(struct fbp_transport_s * self, uint8_t port_
     }
 }
 
-void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_lock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
-void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_unlock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
@@ -501,7 +508,6 @@ static void test_connect(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_server_connect, setup, teardown),
             cmocka_unit_test_setup_teardown(test_client_connect, setup, teardown),

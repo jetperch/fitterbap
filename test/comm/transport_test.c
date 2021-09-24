@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -199,7 +198,6 @@ static void test_event_inject(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_send, setup, teardown),
             cmocka_unit_test_setup_teardown(test_event, setup, teardown),

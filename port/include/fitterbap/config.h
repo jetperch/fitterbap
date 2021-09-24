@@ -56,13 +56,13 @@ int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * f
  * The signature must be:
  *   uint32_t (*fn)(uint32_t crc, uint8_t const *data, uint32_t length)
  */
-//#define FBP_FRAMER_CRC32 fbp_crc32
+//#define FBP_CONFIG_COMM_FRAMER_CRC32 fbp_crc32
 //#define FBP_CRC_CRC32 1
 
 
 // Uncomment for your platform
-//#define FBP_PLATFORM_STDLIB 1
-// #define FBP_PLATFORM_ARM 1
+//#define FBP_CONFIG_USE_PLATFORM_STDLIB 1
+//#define FBP_PLATFORM_ARM 1
 
 // remove the following for custom platforms
 #ifdef __linux__
@@ -73,7 +73,7 @@ int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * f
 #endif
 
 // 1 to enable floating point
-// #define FBP_CSTR_FLOAT_ENABLE 0
+// #define FBP_CONFIG_USE_CSTR_FLOAT 0
 
 // typedef void * fbp_os_mutex_t;
 

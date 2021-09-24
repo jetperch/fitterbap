@@ -23,15 +23,6 @@
 #ifndef FBP_CONFIG_H_
 #define FBP_CONFIG_H_
 
-/**
- * @ingroup fbp
- * @defgroup fbp_config Configuration
- *
- * @brief FBP configuration.
- *
- * @{
- */
-
 
 /* Set global log level */
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_ALL
@@ -47,9 +38,6 @@
 #endif
 */
 
-#define FBP_FRAMER_CRC32 fbp_crc32
-#define FBP_CRC_CRC32 1
-
 #ifdef __linux__
 #include "fitterbap/host/linux/config.h"
 #elif _WIN32
@@ -57,7 +45,6 @@
 #else
 #endif
 
-/** @} */
 
 #endif /* FBP_CONFIG_H_ */
 

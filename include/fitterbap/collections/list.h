@@ -23,9 +23,9 @@
 #ifndef FBP_COLLECTIONS_LIST_H_
 #define FBP_COLLECTIONS_LIST_H_
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/cdef.h"
-#include "fitterbap/platform.h"
+#include <stdbool.h>
 
 /**
  * @ingroup fbp_collections
@@ -96,7 +96,7 @@ struct fbp_list_s {
  *
  * Every list and item must be initialized before use.
  */
-static inline void fbp_list_initialize(struct fbp_list_s * list) {
+FBP_INLINE_FN void fbp_list_initialize(struct fbp_list_s * list) {
     list->next = list;
     list->prev = list;
 }
@@ -107,7 +107,7 @@ static inline void fbp_list_initialize(struct fbp_list_s * list) {
  * @param list The list pointer to check.
  * @return true if empty, false if contains one or more items.
  */
-static inline bool fbp_list_is_empty(struct fbp_list_s * list) {
+FBP_INLINE_FN bool fbp_list_is_empty(struct fbp_list_s * list) {
     return (list->next == list);
 }
 
@@ -134,7 +134,7 @@ static inline bool fbp_list_is_empty(struct fbp_list_s * list) {
  * list corruption if a module forgets to remove an item from an old list
  * before adding it to a new list.
  */
-static inline void fbp_list_remove_unsafe_(struct fbp_list_s * item) {
+FBP_INLINE_FN void fbp_list_remove_unsafe_(struct fbp_list_s * item) {
     item->prev->next = item->next;
     item->next->prev = item->prev;
 }
@@ -146,7 +146,7 @@ static inline void fbp_list_remove_unsafe_(struct fbp_list_s * item) {
  * @param item The pointer to the item to add.  The item will be automatically
  *      removed from any list in which it currently belongs.
  */
-static inline void fbp_list_add_head(struct fbp_list_s * list, struct fbp_list_s * item) {
+FBP_INLINE_FN void fbp_list_add_head(struct fbp_list_s * list, struct fbp_list_s * item) {
     fbp_list_remove_unsafe_(item);
     item->next = list->next;
     item->prev = list;
@@ -161,7 +161,7 @@ static inline void fbp_list_add_head(struct fbp_list_s * list, struct fbp_list_s
  * @param item The pointer to the item to add.  The item will be automatically
  *      removed from any list in which it currently belongs.
  */
-static inline void fbp_list_add_tail(struct fbp_list_s * list, struct fbp_list_s * item) {
+FBP_INLINE_FN void fbp_list_add_tail(struct fbp_list_s * list, struct fbp_list_s * item) {
     fbp_list_remove_unsafe_(item);
     item->next = list;
     item->prev = list->prev;
@@ -175,7 +175,7 @@ static inline void fbp_list_add_tail(struct fbp_list_s * list, struct fbp_list_s
  * @param list The list pointer.
  * @return The pointer to the first item in the list or 0 if empty.
  */
-static inline struct fbp_list_s * fbp_list_peek_head(struct fbp_list_s * list) {
+FBP_INLINE_FN struct fbp_list_s * fbp_list_peek_head(struct fbp_list_s * list) {
     if ((0 != list) && (list->next != list)) {
         return list->next;
     }
@@ -188,7 +188,7 @@ static inline struct fbp_list_s * fbp_list_peek_head(struct fbp_list_s * list) {
  * @param list The list pointer.
  * @return The pointer ot the last item in the list or 0 if empty.
  */
-static inline struct fbp_list_s * fbp_list_peek_tail(struct fbp_list_s * list) {
+FBP_INLINE_FN struct fbp_list_s * fbp_list_peek_tail(struct fbp_list_s * list) {
     if ((0 != list) && (list->prev != list)) {
         return list->prev;
     }
@@ -201,7 +201,7 @@ static inline struct fbp_list_s * fbp_list_peek_tail(struct fbp_list_s * list) {
  * @param list The list pointer.
  * @return The pointer to the first item in the list or 0 if empty.
  */
-static inline struct fbp_list_s * fbp_list_remove_head(struct fbp_list_s * list) {
+FBP_INLINE_FN struct fbp_list_s * fbp_list_remove_head(struct fbp_list_s * list) {
     if ((0 != list) && (list->next != list)) {
         struct fbp_list_s * item = list->next;
         item->next->prev = list;
@@ -219,7 +219,7 @@ static inline struct fbp_list_s * fbp_list_remove_head(struct fbp_list_s * list)
  * @param list The list pointer.
  * @return The pointer to the last item in the list or 0 if empty.
  */
-static inline struct fbp_list_s * fbp_list_remove_tail(struct fbp_list_s * list) {
+FBP_INLINE_FN struct fbp_list_s * fbp_list_remove_tail(struct fbp_list_s * list) {
     if ((0 != list) && (list->prev != list)) {
         struct fbp_list_s * item = list->prev;
         item->prev->next = list;
@@ -241,7 +241,7 @@ static inline struct fbp_list_s * fbp_list_remove_tail(struct fbp_list_s * list)
  * invalid memory accesses.  Either call fbp_list_initialize() when the
  * item is initialized or ensure that the item is already in a list.
  */
-static inline void fbp_list_remove(struct fbp_list_s * item) {
+FBP_INLINE_FN void fbp_list_remove(struct fbp_list_s * item) {
     item->prev->next = item->next;
     item->next->prev = item->prev;
     item->next = item;
@@ -262,7 +262,7 @@ static inline void fbp_list_remove(struct fbp_list_s * item) {
  * invalid memory accesses.  Either call fbp_list_initialize() when the
  * item is initialized or ensure that the item is already in a list.
  */
-static inline struct fbp_list_s * fbp_list_replace(struct fbp_list_s * remove, struct fbp_list_s * add) {
+FBP_INLINE_FN struct fbp_list_s * fbp_list_replace(struct fbp_list_s * remove, struct fbp_list_s * add) {
     if (remove->next == remove) {
         return 0; // empty item, replace not possible
     }
@@ -282,7 +282,7 @@ static inline struct fbp_list_s * fbp_list_replace(struct fbp_list_s * remove, s
  * @param new_item The new item pointer which will be inserted before
  *      position_item.
  */
-static inline void fbp_list_insert_before(
+FBP_INLINE_FN void fbp_list_insert_before(
         struct fbp_list_s * position_item,
         struct fbp_list_s * new_item) {
     fbp_list_remove_unsafe_(new_item);
@@ -299,7 +299,7 @@ static inline void fbp_list_insert_before(
  * @param new_item The new item pointer which will be inserted after
  *      position_item.
  */
-static inline void fbp_list_insert_after(
+FBP_INLINE_FN void fbp_list_insert_after(
         struct fbp_list_s * position_item,
         struct fbp_list_s * new_item) {
     fbp_list_remove_unsafe_(new_item);
@@ -373,7 +373,7 @@ static inline void fbp_list_insert_after(
  * @param list The list pointer.
  * @return The number of items in the list.
  */
-static inline fbp_size_t fbp_list_length(struct fbp_list_s * list) {
+FBP_INLINE_FN fbp_size_t fbp_list_length(struct fbp_list_s * list) {
     fbp_size_t sz = 0;
     struct fbp_list_s * item;
     fbp_list_foreach_unsafe(list, item) {
@@ -393,7 +393,7 @@ static inline fbp_size_t fbp_list_length(struct fbp_list_s * list) {
  * This function is O(n), so iterating using this function is O(n^2)!
  */
 FBP_API struct fbp_list_s * fbp_list_index(struct fbp_list_s * list,
-                                              fbp_size_t index);
+                                           fbp_size_t index);
 
 /**
  * @brief Get the index of the item.
@@ -406,7 +406,7 @@ FBP_API struct fbp_list_s * fbp_list_index(struct fbp_list_s * list,
  * This operation is O(n).
  */
 FBP_API fbp_size_t fbp_list_index_of(struct fbp_list_s * list,
-                                        struct fbp_list_s * item);
+                                     struct fbp_list_s * item);
 
 /**
  * @brief Check if a list contains an item.
@@ -418,8 +418,8 @@ FBP_API fbp_size_t fbp_list_index_of(struct fbp_list_s * list,
  *
  * This operation is O(n).
  */
-static inline bool fbp_list_contains(struct fbp_list_s * list,
-                                      struct fbp_list_s * item) {
+FBP_INLINE_FN bool fbp_list_contains(struct fbp_list_s * list,
+                                     struct fbp_list_s * item) {
     return (fbp_list_index_of(list, item) < 0);
 }
 
@@ -430,8 +430,8 @@ static inline bool fbp_list_contains(struct fbp_list_s * list,
  *      all items in list.
  * @param list The source list which will be empty after this operation.
  */
-static inline void fbp_list_append(struct fbp_list_s * list_tgt,
-                                    struct fbp_list_s * list) {
+FBP_INLINE_FN void fbp_list_append(struct fbp_list_s * list_tgt,
+                                   struct fbp_list_s * list) {
     list->prev->next = list_tgt;
     list->next->prev = list_tgt->prev;
     list_tgt->prev->next = list->next;
