@@ -54,7 +54,7 @@
  */
 #define FBP_DBC_ASSERT(condition, message) do { \
     if (!(condition)) { \
-        fbp_fatal(__FILENAME__, __LINE__, (message)); \
+        FBP_FATAL(message); \
     } \
 } while (0);
 

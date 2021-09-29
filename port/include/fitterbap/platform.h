@@ -23,7 +23,6 @@
 #ifndef FBP_PORT_PLATFORM_H_
 #define FBP_PORT_PLATFORM_H_
 
-
 #if defined(WIN32)
 #include "fitterbap/host/win/platform.h"
 #endif

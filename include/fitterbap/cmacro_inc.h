@@ -78,9 +78,10 @@
 #define FBP_STRUCT_PACKED __attribute__((packed))
 #define FBP_USED __attribute__((used))
 #define FBP_FORMAT __attribute__((format))
-#define FBP_INLINE_FN static inline __attribute__((always_inline))
+#define FBP_INLINE_FN __attribute__((always_inline)) static inline
 #define FBP_PRINTF_FORMAT __attribute__((format (printf, 1, 2)))
-#define FBP_COMPILER_ALLOC(free_fn) __attribute__ ((malloc, malloc (free_fn, 1)))
+#define FBP_COMPILER_ALLOC(free_fn) __attribute__((malloc))
+//#define FBP_COMPILER_ALLOC(free_fn) __attribute__((malloc, malloc(free_fn, 1)))  // gcc 11
 #else
 #define FBP_STRUCT_PACKED
 #define FBP_USED
@@ -89,6 +90,7 @@
 #define FBP_PRINTF_FORMAT
 #define FBP_COMPILER_ALLOC(free_fn)
 #endif
+
 
 /** @} */
 

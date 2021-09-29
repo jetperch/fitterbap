@@ -43,10 +43,15 @@ set(SOURCES
         memory/buffer.c
         memory/object_pool.c
         memory/pool.c
-        ../third-party/tinyprintf/tinyprintf.c  # required by comm/log_port.c
         ${PLATFORM_SRC}
 )
 
+# Respect if TINYPRINTF has already been included, such as with RTOS build
+get_property(tinyprintf_property GLOBAL PROPERTY TINYPRINTF)
+if (!tinyprintf_property)
+    set(SOURCES ${SOURCES} ../third-party/tinyprintf/tinyprintf.c)
+endif()
+set_property(GLOBAL PROPERTY TINYPRINTF 1)
 
 if ("${FITTERBAP_OS}" STREQUAL "FREERTOS")
     set(SOURCES_HOST

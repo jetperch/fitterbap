@@ -167,7 +167,6 @@ static void handle_event(struct fbp_fsm_s * self,
               event_name_(self, event));
 }
 
-
 void fbp_fsm_event(struct fbp_fsm_s * self,
                   fbp_fsm_event_t event) {
     FBP_DBC_NOT_NULL(self);

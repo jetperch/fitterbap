@@ -76,9 +76,11 @@ set(FITTERBAP_LIBS fitterbap ${THIRD_PARTY_LIBS} CACHE INTERNAL "fitterbap libra
 set(FITTERBAP_DEPENDS fitterbap CACHE INTERNAL "fitterbap dependencies" FORCE)
 
 include_directories(${FITTERBAP_INCLUDE})
-if (FITTERBAP_TOPLEVEL)
-    message(STATUS "Configured for FBP toplevel")
+if (${FITTERBAP_TOPLEVEL})
+    message(STATUS "Fitterbap: IS toplevel")
     include_directories(${CMAKE_SOURCE_DIR}/port/include)
+else()
+    message(STATUS "Fitterbap: is NOT toplevel")
 endif()
 add_subdirectory(src)
 

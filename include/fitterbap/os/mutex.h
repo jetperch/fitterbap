@@ -43,18 +43,18 @@
 FBP_CPP_GUARD_START
 
 /**
- * @brief Allocate a new mutex.
- *
- * @return The mutex or 0.
- */
-FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc() FBP_COMPILER_ALLOC(fbp_os_mutex_free);
-
-/**
  * @brief Free an existing mutex (not recommended).
  *
  * @param mutex The mutex to free, previous produced using fbp_os_mutex_alloc().
  */
 FBP_INLINE_FN void fbp_os_mutex_free(fbp_os_mutex_t mutex) ;
+
+/**
+ * @brief Allocate a new mutex.
+ *
+ * @return The mutex or 0.
+ */
+FBP_COMPILER_ALLOC(fbp_os_mutex_free) FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc();
 
 /**
  * @brief Lock a mutex.

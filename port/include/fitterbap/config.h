@@ -32,7 +32,6 @@
  * @{
  */
 
-
 /* Set global log level */
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_ALL
 

@@ -198,14 +198,20 @@ FBP_INLINE_FN int64_t FBP_F32_TO_TIME(float x) {
  * @return The 64-bit time in counter ticks.
  */
 FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER(int64_t x, uint64_t z) {
+    bool negate = false;
     if (x < 0) {
-        return -FBP_TIME_TO_COUNTER(-x, z);
+        x = -x;
+        negate = true;
     }
     // return (int64_t) ((((x * z) >> (FBP_TIME_Q - 1)) + 1) >> 1);
     uint64_t c = (((x & ~FBP_FRACT_MASK) >> (FBP_TIME_Q - 1)) * z);
     uint64_t fract = (x & FBP_FRACT_MASK) << 1;
     c += ((fract * z) >> FBP_TIME_Q) + 1;
-    return (int64_t) (c >> 1);
+    c >>= 1;
+    if (negate) {
+        c = -c;
+    }
+    return c;
 }
 
 /**

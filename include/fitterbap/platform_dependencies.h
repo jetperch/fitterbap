@@ -189,7 +189,7 @@ typedef void * (*fbp_alloc_fn)(fbp_size_t size_bytes);
  *
  * @param ptr The pointer to the memory to free.
  *
- * Many embedded systems do not allow free and can just call fbp_fatal().
+ * Many embedded systems do not allow free and can just call FBP_FATAL().
  */
 typedef void (*fbp_free_fn)(void * ptr);
 
@@ -198,7 +198,7 @@ typedef void (*fbp_free_fn)(void * ptr);
  *
  * \param ptr The pointer to the memory to free.
  *
- * Many embedded systems do not allow free and can just call fbp_fatal().
+ * Many embedded systems do not allow free and can just call FBP_FATAL().
  */
 FBP_INLINE_FN void fbp_free(void * ptr);
 
@@ -212,7 +212,7 @@ FBP_INLINE_FN void fbp_free(void * ptr);
  * For platforms that support freeing memory, use fbp_free() to return the
  * memory to the heap.
  */
-FBP_INLINE_FN void * fbp_alloc(fbp_size_t size_bytes) FBP_COMPILER_ALLOC(fbp_free);
+FBP_COMPILER_ALLOC(fbp_free) FBP_INLINE_FN void * fbp_alloc(fbp_size_t size_bytes);
 
 /**
  * @brief Allocate memory from the heap and clear to 0.
@@ -224,7 +224,7 @@ FBP_INLINE_FN void * fbp_alloc(fbp_size_t size_bytes) FBP_COMPILER_ALLOC(fbp_fre
  * For platforms that support freeing memory, use fbp_free() to return the
  * memory to the heap.
  */
-FBP_INLINE_FN void * fbp_alloc_clr(fbp_size_t size_bytes) FBP_COMPILER_ALLOC(fbp_free) {
+FBP_COMPILER_ALLOC(fbp_free) FBP_INLINE_FN void * fbp_alloc_clr(fbp_size_t size_bytes) {
     void * ptr = fbp_alloc(size_bytes);
     fbp_memset(ptr, 0, size_bytes);
     return ptr;

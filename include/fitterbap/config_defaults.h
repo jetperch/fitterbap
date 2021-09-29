@@ -60,6 +60,9 @@ FBP_CPP_GUARD_START
 // typedef void * fbp_os_mutex_t;
 // typedef intptr_t fbp_size_t;
 
+#ifndef FBP_FATAL
+#define FBP_FATAL(msg) fbp_fatal(__FILE__, __LINE__, msg)
+#endif
 
 FBP_CPP_GUARD_END
 
