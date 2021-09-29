@@ -48,7 +48,8 @@ set(SOURCES
 
 # Respect if TINYPRINTF has already been included, such as with RTOS build
 get_property(tinyprintf_property GLOBAL PROPERTY TINYPRINTF)
-if (!tinyprintf_property)
+if (NOT tinyprintf_property)
+    message(STATUS "Fitterbap add tinyprintf")
     set(SOURCES ${SOURCES} ../third-party/tinyprintf/tinyprintf.c)
 endif()
 set_property(GLOBAL PROPERTY TINYPRINTF 1)
