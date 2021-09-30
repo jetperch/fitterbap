@@ -237,7 +237,7 @@ int32_t fbp_logh_process(struct fbp_logh_s * self) {
 
 struct fbp_logh_s * fbp_logh_initialize(char origin_prefix, uint32_t msg_buffers_max, int64_t (*time_fn)()) {
     struct fbp_logh_s * self = fbp_alloc_clr(sizeof(struct fbp_logh_s));
-    self->mutex = fbp_os_mutex_alloc();
+    self->mutex = fbp_os_mutex_alloc("fbp_logh");
     self->origin_prefix = origin_prefix;
     fbp_list_initialize(&self->msg_free);
     fbp_list_initialize(&self->msg_pend);

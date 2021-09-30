@@ -52,9 +52,10 @@ FBP_INLINE_FN void fbp_os_mutex_free(fbp_os_mutex_t mutex) ;
 /**
  * @brief Allocate a new mutex.
  *
+ * @param name The mutex name for platforms that support debug info.
  * @return The mutex or 0.
  */
-FBP_COMPILER_ALLOC(fbp_os_mutex_free) FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc();
+FBP_COMPILER_ALLOC(fbp_os_mutex_free) FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc(const char * name);
 
 /**
  * @brief Lock a mutex.

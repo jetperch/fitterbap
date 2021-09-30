@@ -241,7 +241,7 @@ FBP_API void fbp_ts_update(struct fbp_ts_s * self, uint64_t src_tx, int64_t tgt_
 
 FBP_API struct fbp_ts_s * fbp_ts_initialize() {
     struct fbp_ts_s * self = fbp_alloc_clr(sizeof(struct fbp_ts_s));
-    self->mutex = fbp_os_mutex_alloc();
+    self->mutex = fbp_os_mutex_alloc("fbp_ts");
     uint32_t frequency = fbp_time_counter_frequency();
     while (frequency > FREQ_MAX) {
         ++self->counter_right_shift;
