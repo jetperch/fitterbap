@@ -96,9 +96,10 @@ struct fbp_union_s {
     uint8_t op;     ///< The application-specific operation.
     uint8_t app;    ///< Application specific data.  If unused, write to 0.
 
+    uint32_t size;  ///< payload size for pointer types.
+
     /// The actual value.
     union fbp_union_inner_u value;
-    uint32_t size;  ///< payload size for pointer types.
 };
 
 // Convenience value creation macros
