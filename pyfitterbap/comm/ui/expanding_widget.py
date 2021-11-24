@@ -27,7 +27,7 @@ class ExpandingWidget(QtWidgets.QWidget):
         self._main_layout.setContentsMargins(0, 0, 0, 0)
 
         self._toggle_button = QtWidgets.QToolButton()
-        self._toggle_button.setStyleSheet("QToolButton { border: none; }")
+        self._toggle_button.setStyleSheet("QToolButton { border-width: 0px; background: transparent; }")
         self._toggle_button.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self._toggle_button.setArrowType(QtCore.Qt.RightArrow)
         self._toggle_button.setCheckable(True)
@@ -148,15 +148,9 @@ class _MainWindow(QtWidgets.QMainWindow):
 
 def _run():
     import sys
-    import ctypes
-    # http://doc.qt.io/qt-5/highdpi.html
-    # https://vicrucann.github.io/tutorials/osg-qt-high-dpi/
-    if sys.platform.startswith('win'):
-        ctypes.windll.user32.SetProcessDPIAware()
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app = QtWidgets.QApplication(sys.argv)
     ui = _MainWindow()
-    rc = app.exec_()
+    rc = app.exec()
     del ui
     del app
     return rc

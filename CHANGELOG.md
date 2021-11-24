@@ -25,6 +25,7 @@ This file contains the list of changes made to the Fitterbap library.
   * Improved and simplified reset handling.
   * Fixed comm send timeout 0 when full.
   * Fixed endless immediate scheduling lower level transmitter is full.
+* Fixed python to better support PySide6.
 
 
 ## 0.4.1

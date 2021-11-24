@@ -102,6 +102,6 @@ if(FITTERBAP_DOCS AND FITTERBAP_TOPLEVEL)
     add_custom_target(docs ALL
                       COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
                       SOURCES ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-                      DEPENDS fitterbap)
+                      DEPENDS fitterbap_objlib)
     install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/html/ DESTINATION doc)
 endif()

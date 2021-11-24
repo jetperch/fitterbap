@@ -74,9 +74,10 @@ class WaveformWidget(QtWidgets.QWidget):
                 self._source_combobox.addItem(topic)
             self._topics[topic] = v + 1
             if topic == self._source_combobox.currentText():
-                sample_id_bytes = value[:4]
+                #sample_id_bytes = value[:4]
                 d = self._buffer
-                d_next = np.frombuffer(value[4:], dtype=np.float32)
+                #d_next = np.frombuffer(value[4:], dtype=np.float32)
+                d_next = np.frombuffer(value, dtype=np.int16).astype(np.float32)
                 d_len = len(d_next)
                 d_end = self._index + d_len
                 if d_end > len(d):

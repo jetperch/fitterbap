@@ -352,19 +352,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_msg(msg, timeout, level=log.ERROR)
 
 
-def _high_dpi_enable():
-    # http://doc.qt.io/qt-5/highdpi.html
-    # https://vicrucann.github.io/tutorials/osg-qt-high-dpi/
-    if sys.platform.startswith('win'):
-        ctypes.windll.user32.SetProcessDPIAware()
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
-
-
 def run():
-    _high_dpi_enable()
     app = QtWidgets.QApplication(sys.argv)
     ui = MainWindow(app)
-    rc = app.exec_()
+    rc = app.exec()
     del ui
     del app
     return rc
