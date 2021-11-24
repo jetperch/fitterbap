@@ -238,7 +238,7 @@ static uint16_t tx_buf_frame_sz(struct tx_frame_s * f) {
     return ((uint16_t) f->msg[4]) + 1 + FBP_FRAMER_OVERHEAD_SIZE;
 }
 
-static uint16_t tx_buf_frame_id(struct tx_frame_s * f) {
+FBP_USED static uint16_t tx_buf_frame_id(struct tx_frame_s * f) {
     return (((uint16_t) f->msg[2] & 0x7) << 8) | f->msg[3];
 }
 
@@ -480,6 +480,7 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
 }
 
 static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_id, const char * src) {
+    (void) src;
     int32_t frame_delta = fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id);
     if (frame_delta < 0) {
         FBP_LOGD1("%s : in the past : delta=%d, recv=%d, last=%d, next=%d",

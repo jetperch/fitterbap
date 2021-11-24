@@ -545,7 +545,6 @@ static void test_meta_rsp_subscriber_root_retained(void ** state) {
 static uint8_t on_publish_return_error(
         void * user_data, const char * topic, const struct fbp_union_s * value) {
     (void) user_data;
-    size_t topic_sz = strlen(topic);
     uint8_t type = value->type;
     uint32_t value_u32 = value->value.u32;
     check_expected_ptr(topic);

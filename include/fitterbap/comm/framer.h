@@ -389,7 +389,7 @@ FBP_CPP_GUARD_START
 /// The framer link message (ACK) size in bytes, excluding EOF
 #define FBP_FRAMER_LINK_SIZE (8)
 #define FBP_FRAMER_OVERHEAD_SIZE (FBP_FRAMER_HEADER_SIZE + FBP_FRAMER_FOOTER_SIZE)
-#define FBP_FRAMER_FRAME_ID_MAX ((1 << 11) - 1)
+#define FBP_FRAMER_FRAME_ID_MAX ((1U << 11) - 1U)
 
 /**
  * @brief The frame types.

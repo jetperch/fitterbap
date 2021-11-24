@@ -94,7 +94,7 @@ void fbp_free_(void * ptr) {
     free(ptr);
 }
 
-static void fbp_log_printf_(const char *format, ...) {
+void fbp_log_printf_(const char * format, ...) {
     va_list arg;
     va_start(arg, format);
     vprintf(format, arg);
@@ -137,6 +137,7 @@ static uint32_t ll_send_available(void * user_data) {
 static void on_event(void *user_data, enum fbp_dl_event_e event) {
     struct host_s * host = (struct host_s *) user_data;
     (void) host;
+    (void) event;
     FBP_LOGE("on_event(%d)\n", (int) event);
     // FBP_FATAL("on_event_fn\n");
 }

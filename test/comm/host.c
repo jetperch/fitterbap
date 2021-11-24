@@ -62,7 +62,7 @@ void fbp_free_(void * ptr) {
     free(ptr);
 }
 
-static void fbp_log_printf_(const char *format, ...) {
+void fbp_log_printf_(const char *format, ...) {
     va_list arg;
     printf("%d ", (uint32_t) fbp_time_rel_ms());
     va_start(arg, format);

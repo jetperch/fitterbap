@@ -40,7 +40,6 @@ struct stats_s {
 static uint32_t buf_u32[BUF32_LENGTH];
 static uint8_t * buf_u8 = (uint8_t *) buf_u32;
 static uint32_t tx_idx = 0;
-static uint32_t rx_idx = 0;
 static HANDLE ctrl_event;
 static HANDLE rx_event;
 static HANDLE tx_event;
@@ -63,7 +62,7 @@ void fbp_free_(void * ptr) {
     free(ptr);
 }
 
-static void fbp_log_printf_(const char *format, ...) {
+void fbp_log_printf_(const char *format, ...) {
     va_list arg;
     printf("%d ", (uint32_t) fbp_time_rel_ms());
     va_start(arg, format);
@@ -87,12 +86,17 @@ static void uart_send() {
 }
 
 static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size) {
+    (void) user_data;
+    (void) buffer;
     stats.rx_count += buffer_size;
     // todo check data
     SetEvent(rx_event);
 }
 
 static void on_uart_send(void *user_data, uint8_t *buffer, uint32_t buffer_size, uint32_t remaining) {
+    (void) user_data;
+    (void) buffer;
+    (void) buffer_size;
     if (remaining == 0) {
         SetEvent(tx_event);
     }

@@ -552,6 +552,7 @@ int32_t send_topic_list(struct fbp_pubsubp_s * self) {
 uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
                               const char * topic, const struct fbp_union_s * value) {
     const char * topic_orig = topic;
+    (void) topic_orig; // when logging is off
     uint8_t port_data = 0;
     if (!self->transport) {
         return 0;

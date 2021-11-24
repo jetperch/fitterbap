@@ -162,10 +162,13 @@ FBP_CPP_GUARD_START
  * @return The time as a 34Q30.
  */
 FBP_INLINE_FN int64_t FBP_F64_TO_TIME(double x) {
+    int negate = 0;
     if (x < 0) {
-        return -FBP_F64_TO_TIME(-x);
+        negate = 1;
+        x = -x;
     }
-    return (int64_t) ((x * (double) FBP_TIME_SECOND) + 0.5);
+    int64_t c = (int64_t) ((x * (double) FBP_TIME_SECOND) + 0.5);
+    return negate ? -c : c;
 }
 
 /**
@@ -184,10 +187,13 @@ FBP_INLINE_FN int64_t FBP_F64_TO_TIME(double x) {
  * @return The time as a 34Q30.
  */
 FBP_INLINE_FN int64_t FBP_F32_TO_TIME(float x) {
-    if (x < 0.0f) {
-        return -FBP_F32_TO_TIME(-x);
+    int negate = 0;
+    if (x < 0) {
+        negate = 1;
+        x = -x;
     }
-    return (int64_t) ((x * (float) FBP_TIME_SECOND) + 0.5f);
+    int64_t c = (int64_t) ((x * (float) FBP_TIME_SECOND) + 0.5f);
+    return negate ? -c : c;
 }
 
 /**
@@ -223,12 +229,15 @@ FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER(int64_t x, uint64_t z) {
  * @return The 64-bit time in counter ticks.
  */
 FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER_RZERO(int64_t x, uint64_t z) {
+    int negate = 0;
     if (x < 0) {
-        return -FBP_TIME_TO_COUNTER_RZERO(-x, z);
+        negate = 1;
+        x = -x;
     }
-    uint64_t c = (x >> FBP_TIME_Q) * z;
-    c += ((x & FBP_FRACT_MASK) * z) >> FBP_TIME_Q;
-    return (int64_t) c;
+    uint64_t c_u64 = (x >> FBP_TIME_Q) * z;
+    c_u64 += ((x & FBP_FRACT_MASK) * z) >> FBP_TIME_Q;
+    int64_t c = (int64_t) c_u64;
+    return negate ? -c : c;
 }
 
 /**
@@ -239,13 +248,16 @@ FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER_RZERO(int64_t x, uint64_t z) {
  * @return The 64-bit time in counter ticks.
  */
 FBP_INLINE_FN int64_t FBP_TIME_TO_COUNTER_RINF(int64_t x, uint64_t z) {
+    int negate = 0;
     if (x < 0) {
-        return -FBP_TIME_TO_COUNTER_RINF(-x, z);
+        negate = 1;
+        x = -x;
     }
     x += FBP_TIME_SECOND - 1;
-    uint64_t c = (x >> FBP_TIME_Q) * z;
-    c += ((x & FBP_FRACT_MASK) * z) >> FBP_TIME_Q;
-    return (int64_t) c;
+    uint64_t c_u64 = (x >> FBP_TIME_Q) * z;
+    c_u64 += ((x & FBP_FRACT_MASK) * z) >> FBP_TIME_Q;
+    int64_t c = (int64_t) c_u64;
+    return negate ? -c : c;
 }
 
 /**

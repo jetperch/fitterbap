@@ -20,7 +20,7 @@
 #include "fitterbap/dbc.h"
 #include <inttypes.h>
 
-static const char * state_name_(struct fbp_fsm_s * self, fbp_fsm_state_t state) {
+FBP_USED static const char * state_name_(struct fbp_fsm_s * self, fbp_fsm_state_t state) {
     const char * name = 0;
     if ((state >= 0) && (state < self->states_count)) {
         name = self->states[state].name;
@@ -38,7 +38,7 @@ static const char * state_name_(struct fbp_fsm_s * self, fbp_fsm_state_t state) 
     return name;
 }
 
-static const char * event_name_(struct fbp_fsm_s * self, fbp_fsm_event_t event) {
+FBP_USED static const char * event_name_(struct fbp_fsm_s * self, fbp_fsm_event_t event) {
     const char * name = 0;
     if (self->event_name_fn) {
         name = self->event_name_fn(self, event);
@@ -101,6 +101,7 @@ void fbp_fsm_initialize(struct fbp_fsm_s * self) {
 }
 
 static void transition(struct fbp_fsm_s * self, fbp_fsm_state_t next, fbp_fsm_event_t event) {
+    (void) event;
     fbp_fsm_handler exit_handler = 0;
     fbp_fsm_handler enter_handler = 0;
 

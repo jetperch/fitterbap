@@ -56,7 +56,7 @@ struct fbp_uartt_s * fbp_uartt_initialize(const char *device_path, struct uart_c
     }
 
     FBP_LOGI("fbp_uartt_initialize(%s, %d)", device_path, (int) config->baudrate);
-    self->mutex = fbp_os_mutex_alloc();
+    self->mutex = fbp_os_mutex_alloc("uart");
     self->evm = fbp_evm_allocate();
     fbp_evm_register_schedule_callback(self->evm, on_schedule, self);
     fbp_evm_register_mutex(self->evm, self->mutex);

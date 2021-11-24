@@ -112,7 +112,7 @@ static void test_counter(void **state) {
     (void) state;
     uint32_t frequency = fbp_time_counter_frequency();
     assert_true(frequency >= 1000LL);  // recommendation
-    assert_true(frequency < 10000000000LL);  // requirement
+    // assert_true(frequency < 10000000000LL);  // requirement, but limited by 32-bit to 4 GHz
 }
 
 static void test_utc(void **state) {

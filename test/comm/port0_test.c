@@ -122,7 +122,7 @@ void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_size) {
 }
 
 #define expect_tx_window_set(dl_, tx_window_size_) \
-    expect_value(fbp_dl_tx_window_set, dl, dl_);   \
+    expect_value(fbp_dl_tx_window_set, dl, (intptr_t) dl_);   \
     expect_value(fbp_dl_tx_window_set, tx_window_size, tx_window_size_);
 
 uint32_t fbp_dl_rx_window_get(struct fbp_dl_s * self) {
@@ -215,7 +215,7 @@ int32_t evm_cancel_fn(struct fbp_evm_s * evm, int32_t event_id) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
     int32_t idx = event_id - 1;
-    assert_true(self->events[idx].cbk_fn);
+    assert_true(self->events[idx].cbk_fn != NULL);
     self->events[idx].cbk_fn = 0;
     return 0;
 }
@@ -286,7 +286,7 @@ static int teardown(void ** state) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) *state; \
     struct fbp_pubsub_s * pubsub = fbp_pubsub_initialize("h", 1024);   \
     assert_non_null(pubsub);                                           \
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);          \
+    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl1);  \
     struct fbp_port0_s * p = fbp_port0_initialize(FBP_PORT0_MODE_##mode_, &self->dl1, &self->evm, self, ll_send, pubsub, "h/c0/", NULL); \
     assert_non_null(p); \
     self->p1 = p
@@ -432,7 +432,7 @@ static void test_server_timeout_in_negotiate(void ** state) {
     evm_process_next(self);
 
     // no negotiate response causes timeout: negotiate -> disconnect
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);
+    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl1);
     evm_process_next(self);
 
     FINALIZE();
@@ -462,11 +462,11 @@ static void setup_dual(struct fbp_transport_s * self) {
     self->pubsub2 = fbp_pubsub_initialize("d", 1024);
     assert_non_null(self->pubsub2);
 
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);
+    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl1);
     self->p1 = fbp_port0_initialize(FBP_PORT0_MODE_SERVER, &self->dl1, &self->evm, self, send_p1_to_p2, self->pubsub1, "h/c0/", NULL); \
     assert_non_null(self->p1);
 
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl2);
+    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl2);
     self->p2 = fbp_port0_initialize(FBP_PORT0_MODE_CLIENT, &self->dl2, &self->evm, self, send_p2_to_p1, self->pubsub2, "d/c0/", NULL); \
     assert_non_null(self->p2);
 }

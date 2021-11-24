@@ -77,6 +77,7 @@ static void on_port_recv_default(void *user_data,
                                  enum fbp_transport_seq_e seq,
                                  uint8_t port_data,
                                  uint8_t *msg, uint32_t msg_size) {
+    (void) port_data;
     char topic[FBP_PUBSUB_TOPIC_LENGTH_MAX];
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
     if (msg_size > FBP_FRAMER_PAYLOAD_MAX_SIZE) {
@@ -184,7 +185,7 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
         goto on_error;
     }
 
-    self->pubsub_mutex = fbp_os_mutex_alloc();
+    self->pubsub_mutex = fbp_os_mutex_alloc("pubsub");
     if (!self->pubsub_mutex) {
         goto on_error;
     }

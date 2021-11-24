@@ -42,7 +42,7 @@
     }
 
 static int32_t msg_format(uint8_t * buf, struct fbp_logh_header_s * header, const char * filename, const char * message) {
-    char * p = buf + sizeof(*header);
+    char * p = (char *) (buf + sizeof(*header));
     memcpy(buf, header, sizeof(*header));
     while (*filename) {
         *p++ = *filename++;

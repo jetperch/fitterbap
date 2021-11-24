@@ -143,6 +143,7 @@ static bool is_reserved_char(char ch) {
 
 static bool topic_name_set(struct topic_s * topic, const char * name) {
     const char * name_orig = name;
+    (void) name_orig;  // when logging is off
     for (int i = 0; i < FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL; ++i) {
         if (*name) {
             topic->name[i] = *name++;

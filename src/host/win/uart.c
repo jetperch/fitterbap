@@ -104,7 +104,7 @@ static void buf_free(struct buf_s * buf) {
     fbp_free(buf);
 }
 
-static void buf_reset(struct buf_s * buf) {
+FBP_USED static void buf_reset(struct buf_s * buf) {
     buf->overlapped.Internal = 0;
     buf->overlapped.InternalHigh = 0;
     buf->overlapped.Offset = 0;

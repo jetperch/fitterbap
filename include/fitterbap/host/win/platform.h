@@ -84,7 +84,8 @@ FBP_INLINE_FN int64_t fbp_time_utc() {
     return fbp_time_utc_();
 }
 
-FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc() {
+FBP_INLINE_FN fbp_os_mutex_t fbp_os_mutex_alloc(const char * name) {
+    (void) name;
     return fbp_os_mutex_alloc_();
 }
 

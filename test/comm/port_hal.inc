@@ -180,7 +180,7 @@ int32_t fbp_pubsub_publish(
         case FBP_UNION_I16: check_expected(i16); break;
         case FBP_UNION_I32: check_expected(i32); break;
         case FBP_UNION_I64: check_expected(i64); break;
-        default: check_expected(self); break; // not valid
+        default: assert_true(0); break; // not valid
     }
     return 0;
 }
