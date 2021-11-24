@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.5.0
 
-2021 Sep 24 [in progress]
+2021 Nov 24 [in progress]
 
 * Restructured platform and configuration.
   * Allow for static inline functions in platform.
@@ -20,6 +20,8 @@ This file contains the list of changes made to the Fitterbap library.
 * Improved host UART: Added DTR and TX callback.
 * Added TX event to UART thread tester for CPU efficiency.
 * Added compile-time option to display frames in framer_test.
+* Fixed gcc 11.2 errors and warnings.
+* Improved and simplified comm data_link reset handling.
 
 
 ## 0.4.1

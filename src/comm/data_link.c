@@ -563,37 +563,24 @@ static void handle_nack_framing_error(struct fbp_dl_s * self, uint16_t frame_id)
 
 static void handle_reset(struct fbp_dl_s * self, uint16_t frame_id) {
     FBP_LOGD2("received reset %d from remote host", (int) frame_id);
-
     switch (frame_id) {
         case 0:  // reset request
-            if ((self->state == ST_CONNECTED) && is_reset(self)) {
+            if ((self->state == ST_DISCONNECTED) || is_reset(self)) {
                 // already reset: deduplicate.
-                send_link(self, FBP_FRAMER_FT_RESET, 1);
             } else {  // normal reset
                 event_emit(self, FBP_DL_EV_RESET_REQUEST);
                 reset_state(self);
-                send_link(self, FBP_FRAMER_FT_RESET, 1);
-                // assume other side receives response, so now connected.
-                // otherwise, the other side will timeout and resend reset request.
+                send_reset_request(self);  // Remote should normally deduplicate this request.
+            }
+            send_link(self, FBP_FRAMER_FT_RESET, 1);  // always acknowledge remote reset request
+            break;
+        case 1:  // reset response
+            if (self->state == ST_DISCONNECTED) {  // reset completed!
                 self->state = ST_CONNECTED;
                 event_emit(self, FBP_DL_EV_CONNECTED);
-            }
-            break;
-        case 1:  // reset response, reset completed!
-            if (self->state == ST_CONNECTED) {
-                if (is_reset(self)) {
-                    FBP_LOGW("reset response, already reset & connected");
-                    break;
-                }
-                FBP_LOGW("reset response, but connected");
-                // handle like reset request
-                event_emit(self, FBP_DL_EV_RESET_REQUEST);
-                reset_state(self);
             } else {
-                reset_state(self);
+                // ignore, remote will send reset request if needed
             }
-            self->state = ST_CONNECTED;
-            event_emit(self, FBP_DL_EV_CONNECTED);
             break;
         default:
             FBP_LOGW("unsupported reset %d", (int) frame_id);
