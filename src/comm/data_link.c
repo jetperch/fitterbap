@@ -138,7 +138,10 @@ static void on_event(void * user_data, int32_t event_id) {
 static void event_schedule(struct fbp_dl_s * self, int64_t next_event) {
     int64_t now = time_get(self);
     if (fbp_rbu64_size(&self->tx_link_buf)) {
-        next_event = now;
+        if (self->ll_instance.send_available(self->ll_instance.user_data) >= FBP_FRAMER_LINK_SIZE) {
+            // only force immediate send if transmitter has space.
+            next_event = now;
+        }
     }
     if (self->event_id) {
         self->evm.cancel(self->evm.evm, self->event_id);
@@ -218,7 +221,7 @@ int32_t fbp_dl_send(struct fbp_dl_s * self,
         rc = send_inner(self, metadata, msg, msg_size);
         if (rc == FBP_SUCCESS) {
             return 0;
-        } else if (rc == FBP_ERROR_FULL) {
+        } else if (timeout_ms && (rc == FBP_ERROR_FULL)) {
             uint32_t t_now = (uint32_t) fbp_time_rel_ms();
             if ((t_now - t_start) > timeout_ms) {
                 return FBP_ERROR_TIMED_OUT;
@@ -228,7 +231,7 @@ int32_t fbp_dl_send(struct fbp_dl_s * self,
             }
             fbp_os_sleep(FBP_TIME_MILLISECOND);
         } else {
-            FBP_LOGW("data_link send failed with %d", (int) rc);
+            // FBP_LOGW("data_link send failed with %d", (int) rc);
             return rc;
         }
     }

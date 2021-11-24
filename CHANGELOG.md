@@ -21,7 +21,10 @@ This file contains the list of changes made to the Fitterbap library.
 * Added TX event to UART thread tester for CPU efficiency.
 * Added compile-time option to display frames in framer_test.
 * Fixed gcc 11.2 errors and warnings.
-* Improved and simplified comm data_link reset handling.
+* Fixed comm data link.
+  * Improved and simplified reset handling.
+  * Fixed comm send timeout 0 when full.
+  * Fixed endless immediate scheduling lower level transmitter is full.
 
 
 ## 0.4.1
