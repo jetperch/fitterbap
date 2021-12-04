@@ -167,11 +167,7 @@ FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
  *
  * @param self The PubSub instance.
  * @param topic The topic to subscribe.
- * @param flags The fbp_pubsub_subscribe_flag_e flags:
- *      - FBP_PUBSUB_SFLAG_RETAIN: The cbk_fn will be called with any existing
- *        retained values.
- *      - FBP_PUBSUB_SFLAG_LINK: The cbk_fn will be treated as a link.  This
- *        subscriber will also receive metadata requests.
+ * @param flags The fbp_pubsub_sflag_e flags
  * @param cbk_fn The function to call on topic updates.
  *      Invocations are from fbp_pubsub_process().
  *      The cbk_fn is responsible for any thread resynchronization.
@@ -182,7 +178,7 @@ FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
  * If the topic does not already exist, this function will
  * automatically create it.
  *
- * Note that the FBP_PUBSUB_SFLAG_LINK flag is critical to the distributed
+ * Note that the flags are critical to implementing the distributed
  * architecture.  The system constructs the polytree architecture with
  * LINK topic subscriptions.
  * The server PubSub instance subscribes to all topics in client PubSub
