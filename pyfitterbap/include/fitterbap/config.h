@@ -45,6 +45,9 @@
 #else
 #endif
 
+#define FBP_CONFIG_USE_FLOAT32 1
+#define FBP_CONFIG_USE_FLOAT64 1
+#define FBP_CONFIG_USE_CSTR_FLOAT 1
 
 #endif /* FBP_CONFIG_H_ */
 

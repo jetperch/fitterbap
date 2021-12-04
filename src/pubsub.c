@@ -928,8 +928,12 @@ static void process_one(struct fbp_pubsub_s * self, struct message_s * msg) {
         case FBP_UNION_STR: break;
         case FBP_UNION_JSON: break;
         case FBP_UNION_BIN: break;
-        case FBP_UNION_F32: break;
+#if FBP_CONFIG_USE_FLOAT32
+         case FBP_UNION_F32: break;
+#endif
+#if FBP_CONFIG_USE_FLOAT64
         case FBP_UNION_F64: break;
+#endif
         case FBP_UNION_U8: break;
         case FBP_UNION_U16: break;
         case FBP_UNION_U32: break;

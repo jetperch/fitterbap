@@ -58,7 +58,6 @@ int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * f
 //#define FBP_CONFIG_COMM_FRAMER_CRC32 fbp_crc32
 //#define FBP_CRC_CRC32 1
 
-
 // Uncomment for your platform
 //#define FBP_CONFIG_USE_PLATFORM_STDLIB 1
 //#define FBP_PLATFORM_ARM 1
@@ -72,7 +71,9 @@ int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * f
 #endif
 
 // 1 to enable floating point
-// #define FBP_CONFIG_USE_CSTR_FLOAT 0
+#define FBP_CONFIG_USE_FLOAT32 1
+#define FBP_CONFIG_USE_FLOAT64 1
+#define FBP_CONFIG_USE_CSTR_FLOAT 1
 
 // typedef void * fbp_os_mutex_t;
 
@@ -80,4 +81,3 @@ int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * f
 /** @} */
 
 #endif /* FBP_CONFIG_H_ */
-

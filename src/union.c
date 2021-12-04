@@ -36,8 +36,12 @@ bool fbp_union_eq(const struct fbp_union_s * v1, const struct fbp_union_s * v2) 
                 return false;
             }
             return 0 == memcmp(v1->value.bin, v2->value.bin, v1->size);
+#if FBP_CONFIG_USE_FLOAT32
         case FBP_UNION_F32: return v1->value.f32 == v2->value.f32;
+#endif
+#if FBP_CONFIG_USE_FLOAT64
         case FBP_UNION_F64: return v1->value.f64 == v2->value.f64;
+#endif
         case FBP_UNION_U8: return v1->value.u8 == v2->value.u8;
         case FBP_UNION_U16: return v1->value.u16 == v2->value.u16;
         case FBP_UNION_U32: return v1->value.u32 == v2->value.u32;
@@ -58,8 +62,12 @@ int32_t fbp_union_to_bool(const struct fbp_union_s * value, bool * rv) {
         case FBP_UNION_STR:  return fbp_cstr_to_bool(value->value.str, rv) ? FBP_ERROR_PARAMETER_INVALID : 0;
         case FBP_UNION_JSON: return fbp_cstr_to_bool(value->value.str, rv) ? FBP_ERROR_PARAMETER_INVALID : 0;
         case FBP_UNION_BIN: *rv = false; return FBP_ERROR_PARAMETER_INVALID;
+#if FBP_CONFIG_USE_FLOAT32
         case FBP_UNION_F32: *rv = value->value.f32 != 0.0f; return 0;
+#endif
+#if FBP_CONFIG_USE_FLOAT64
         case FBP_UNION_F64: *rv = value->value.f64 != 0.0; return 0;
+#endif
         case FBP_UNION_U8:  *rv = value->value.u8 != 0;  return 0;
         case FBP_UNION_U16: *rv = value->value.u16 != 0; return 0;
         case FBP_UNION_U32: *rv = value->value.u32 != 0; return 0;

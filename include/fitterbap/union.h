@@ -25,6 +25,7 @@
 #define FBP_UNION_TYPE_H__
 
 #include "fitterbap/cmacro_inc.h"
+#include "fitterbap/config.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -106,10 +107,15 @@ struct fbp_union_s {
 #define fbp_union_null() ((struct fbp_union_s){.type=FBP_UNION_NULL, .op=0, .flags=0, .app=0, .value={.u64=0}, .size=0})
 #define fbp_union_null_r() ((struct fbp_union_s){.type=FBP_UNION_NULL, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u32=0}, .size=0})
 
+#if FBP_CONFIG_USE_FLOAT32
 #define fbp_union_f32(_value) ((struct fbp_union_s){.type=FBP_UNION_F32, .op=0, .flags=0, .app=0, .value={.f32=_value}, .size=0})
 #define fbp_union_f32_r(_value) ((struct fbp_union_s){.type=FBP_UNION_F32, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.f32=_value}, .size=0})
+#endif
+
+#if FBP_CONFIG_USE_FLOAT64
 #define fbp_union_f64(_value) ((struct fbp_union_s){.type=FBP_UNION_F64, .op=0, .flags=0, .app=0, .value={.f64=_value}, .size=0})
 #define fbp_union_f64_r(_value) ((struct fbp_union_s){.type=FBP_UNION_F64, .op=0, .app=0, .flags=FBP_UNION_FLAG_RETAIN, .value={.f64=_value}, .size=0})
+#endif
 
 #define fbp_union_u8(_value) ((struct fbp_union_s){.type=FBP_UNION_U8, .op=0, .flags=0, .app=0, .value={.u8=_value}, .size=0})
 #define fbp_union_u8_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U8, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u8=_value}, .size=0})
