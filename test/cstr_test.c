@@ -205,20 +205,50 @@ static void atof_good_with_space(void ** state) {
     (void) state;
     float value = 3.0;
     assert_int_equal(0, fbp_cstr_to_f32("  4.2  ", &value));
-    assert_float_close(value, 4.2, 0.00001);
+    assert_float_equal(value, 4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  123.456  ", &value));
+    assert_float_equal(value, 123.456, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  +4.2  ", &value));
+    assert_float_equal(value, 4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -4.2  ", &value));
+    assert_float_equal(value, -4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -4.2f  ", &value));
+    assert_float_equal(value, -4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -4.2F  ", &value));
+    assert_float_equal(value, -4.2, 0.00001);
 }
 
 static void atof_good_exponent_form(void ** state) {
     (void) state;
     float value = 3.0;
-    assert_int_equal(0, safestr_atof("  42.1e-1  ", &value));
-    assert_float_close(value, 4.21, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e0f  ", &value));
+    assert_float_equal(value, 42.123, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  +42.123E1F  ", &value));
+    assert_float_equal(value, 421.23, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e2  ", &value));
+    assert_float_equal(value, 4212.3, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e4  ", &value));
+    assert_float_equal(value, 42.123e4f, 1e0);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e8  ", &value));
+    assert_float_equal(value, 42.123e8f, 0.1e4);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e16  ", &value));
+    assert_float_equal(value, 42.123e16f, 0.1e12);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e32  ", &value));
+    assert_float_equal(value, 42.123e32f, 0.1e28);
+    assert_int_equal(0, fbp_cstr_to_f32("  -42.123e+2  ", &value));
+    assert_float_equal(value, -4212.3, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -42.123e-1f  ", &value));
+    assert_float_equal(value, -4.2123, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -42.123e-2F  ", &value));
+    assert_float_equal(value, -0.42123, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e-2F  ", &value));
+    assert_float_equal(value, 0.42123, 0.00001);
 }
 
 static void atof_bad(void ** state) {
     (void) state;
     float value = 3.0;
-    assert_int_equal(1, safestr_atof("  hello ", &value));
+    assert_int_equal(1, fbp_cstr_to_f32("  hello ", &value));
     assert_int_equal(value, 3.0);
 }
 #endif
