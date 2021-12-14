@@ -116,6 +116,7 @@ static bool validate_crc(uint8_t const * frame) {
     }
     // check EOF (SOF of next frame)
     if (frame[frame_sz] != FBP_FRAMER_SOF1) {
+        FBP_LOGD1("missing EOF");
         return false;
     }
     uint8_t const * crc_value = frame + frame_sz - FBP_FRAMER_FOOTER_SIZE;
@@ -124,7 +125,12 @@ static bool validate_crc(uint8_t const * frame) {
         | (((uint32_t) crc_value[2]) << 16)
         | (((uint32_t) crc_value[3]) << 24);
     uint32_t crc_calc = FBP_CONFIG_COMM_FRAMER_CRC32(frame + 2, frame_sz - FBP_FRAMER_FOOTER_SIZE - 2);
-    return (crc_rx == crc_calc);
+    if (crc_rx == crc_calc) {
+        return true;
+    } else {
+        FBP_LOGD1("crc invalid");
+        return false;
+    }
 }
 
 static void handle_framing_error(struct fbp_framer_s * self) {
@@ -142,8 +148,6 @@ static void handle_framing_error_discard(struct fbp_framer_s * self) {
     handle_framing_error(self);
     self->status.ignored_bytes += self->buf_offset;
     self->buf_offset = 0;
-    self->state = ST_SOF1;
-    self->length = 0;
 }
 
 static inline uint8_t recv_buf_advance(struct recv_buf_s * buf) {
@@ -155,9 +159,6 @@ static inline uint8_t recv_buf_advance(struct recv_buf_s * buf) {
 
 static void reprocess_buffer(struct fbp_framer_s * self) {
     handle_framing_error(self);
-
-    self->state = ST_SOF1;
-    self->length = 0;
     struct recv_buf_s buf = {
             .buf = self->buf + 1,
             .size = self->buf_offset - 1
@@ -167,39 +168,47 @@ static void reprocess_buffer(struct fbp_framer_s * self) {
     recv(self, &buf);
 }
 
-static void handle_frame(struct fbp_framer_s * self) {
-    uint8_t frame_type = parse_frame_type(self->buf);
-    if (self->buf_offset != self->length) {
-        FBP_LOGW("consume frame length error: %d != %d",
-                 (int) self->buf_offset, (int) self->length);
-        reprocess_buffer(self);
-    } else {
-        uint16_t frame_id = parse_frame_id(self->buf);
-        if (frame_type == FBP_FRAMER_FT_DATA) {
-            if (self->api.data_fn) {
-                uint16_t metadata = parse_data_metadata(self->buf);
-                uint16_t payload_length = parse_data_payload_length(self->buf);
-                self->api.data_fn(self->api.user_data, frame_id, metadata,
-                                  self->buf + FBP_FRAMER_HEADER_SIZE, payload_length);
-            }
-        } else {
-            if (self->api.link_fn) {
-                self->api.link_fn(self->api.user_data, frame_type, frame_id);
-            }
-        }
-        self->state = ST_SOF2;
-        self->buf[0] = FBP_FRAMER_SOF1;
-        self->buf_offset = 1;
-        self->length = 0;
+static bool handle_frame(struct fbp_framer_s * self, const uint8_t * p) {
+    uint8_t frame_type = parse_frame_type(p);
+    uint16_t frame_id = parse_frame_id(p);
+
+    if (!validate_crc(p)) {
+        ++self->status.resync;
+        return false;
     }
+
+    if (frame_type == FBP_FRAMER_FT_DATA) {
+        uint16_t metadata = parse_data_metadata(p);
+        uint16_t payload_length = parse_data_payload_length(p);
+        FBP_LOGD3("data frame received, frame_id=%d, metadata=0x%04" PRIx32 ", %d bytes",
+                  (int) frame_id, (uint32_t) metadata, (int) payload_length);
+        if (self->api.data_fn) {
+            self->api.data_fn(self->api.user_data, frame_id, metadata,
+                              (uint8_t *) (p + FBP_FRAMER_HEADER_SIZE), payload_length);
+        }
+    } else {
+        FBP_LOGD3("link frame received, frame_type=0x%02x, frame_id=%d", frame_type, frame_id);
+        if (self->api.link_fn) {
+            self->api.link_fn(self->api.user_data, frame_type, frame_id);
+        }
+    }
+    self->is_sync = true;
+    self->state = ST_SOF2;
+    self->length = 0;
+    self->buf[0] = FBP_FRAMER_SOF1;
+    self->buf_offset = 1;
+    return true;
 }
 
 static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
+    const uint8_t * nocopy = NULL;
+
     while (buf->size) {
         self->buf[self->buf_offset++] = recv_buf_advance(buf);
 
         switch (self->state) {
             case ST_SOF1:
+                nocopy = buf->buf - 1;
                 self->length = 0;
                 if (self->buf[0] == FBP_FRAMER_SOF1) {
                     self->state = ST_SOF2;
@@ -212,6 +221,7 @@ static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
                 break;
 
             case ST_SOF2:
+                nocopy = buf->buf - 2;
                 self->length = 0;
                 if (self->buf[1] == FBP_FRAMER_SOF2) {
                     FBP_LOGD3("SOF");
@@ -247,11 +257,22 @@ static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
 
             case ST_DATA_HEADER:
                 if (self->buf_offset >= (FBP_FRAMER_HEADER_SIZE - 2)) {
-                    self->state = ST_STORE;
-                    self->length = parse_data_payload_length(self->buf) + FBP_FRAMER_OVERHEAD_SIZE + 1;
                     uint8_t crc1 = length_crc_table[parse_data_payload_raw_length(self->buf)];
                     uint8_t crc2 = parse_data_length_crc(self->buf);
-                    if (crc1 != crc2) {
+                    if (crc1 == crc2) {
+                        self->state = ST_STORE;
+                        uint16_t payload_length = parse_data_payload_length(self->buf);
+                        self->length = payload_length + FBP_FRAMER_OVERHEAD_SIZE + 1;
+                        if (nocopy && ((nocopy + self->length) <= (buf->buf + buf->size))) {
+                            if (handle_frame(self, nocopy)) {
+                                uint32_t consume_len = 2 + payload_length + FBP_FRAMER_FOOTER_SIZE + 1;
+                                buf->buf += consume_len;
+                                buf->size -= consume_len;
+                            } else {
+                                reprocess_buffer(self);
+                            }
+                        }
+                    } else {
                         handle_framing_error_discard(self);
                         break;
                     }
@@ -271,15 +292,8 @@ static void recv(struct fbp_framer_s * self, struct recv_buf_s * buf) {
                     buf->size -= sz;
                 }
                 if (self->buf_offset >= self->length) {
-                    if (!validate_crc(self->buf)) {
-                        FBP_LOGD1("crc invalid");
-                        ++self->status.resync;
+                    if (!handle_frame(self, self->buf)) {
                         reprocess_buffer(self);
-                        break;
-                    } else {
-                        FBP_LOGD3("frame received, %d bytes", (int) self->length);
-                        self->is_sync = true;
-                        handle_frame(self);
                     }
                 }
                 break;
@@ -317,7 +331,7 @@ bool fbp_framer_validate_data(uint16_t frame_id, uint16_t metadata, uint32_t msg
 }
 
 int32_t fbp_framer_construct_data(uint8_t * b, uint16_t frame_id, uint16_t metadata,
-                                   uint8_t const *msg, uint32_t msg_size) {
+                                  uint8_t const *msg, uint32_t msg_size) {
     if (!fbp_framer_validate_data(frame_id, metadata, msg_size)) {
         return FBP_ERROR_PARAMETER_INVALID;
     }

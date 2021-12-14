@@ -73,6 +73,15 @@ static void send_data(struct test_s * self, uint16_t frame_id, uint16_t metadata
     send_eof(&self->f);
 }
 
+static void send_data_with_eof(struct test_s * self, uint16_t frame_id, uint16_t metadata,
+                               uint8_t const *msg_buffer, uint32_t msg_size) {
+    uint8_t b[FBP_FRAMER_MAX_SIZE + 1];
+    memset(b, FBP_FRAMER_SOF1, sizeof(b));
+    assert_int_equal(0, fbp_framer_construct_data(b, frame_id, metadata, msg_buffer, msg_size));
+    expect_data(frame_id, metadata, msg_buffer, msg_size);
+    fbp_framer_ll_recv(&self->f, b, msg_size + FBP_FRAMER_OVERHEAD_SIZE + 1);
+}
+
 static void on_link(void * user_data, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     struct test_s * self = (struct test_s *) user_data;
     (void) self;
@@ -91,6 +100,14 @@ static void send_link(struct test_s * self, enum fbp_framer_type_e frame_type, u
     fbp_framer_ll_recv(&self->f, b, sizeof(b));
     expect_link(frame_type, frame_id);
     send_eof(&self->f);
+}
+
+static void send_link_with_eof(struct test_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
+    uint8_t b[FBP_FRAMER_LINK_SIZE + 1];
+    assert_int_equal(0, fbp_framer_construct_link(b, frame_type, frame_id));
+    b[FBP_FRAMER_LINK_SIZE] = FBP_FRAMER_SOF1;
+    expect_link(frame_type, frame_id);
+    fbp_framer_ll_recv(&self->f, b, sizeof(b));
 }
 
 static void on_framing_error(void * user_data) {
@@ -135,6 +152,13 @@ static void test_ack_all(void ** state) {
     send_link(self, FBP_FRAMER_FT_ACK_ALL, FBP_FRAMER_FRAME_ID_MAX);
 }
 
+static void test_ack_all_with_eof(void ** state) {
+    struct test_s *self = (struct test_s *) *state;
+    send_link_with_eof(self, FBP_FRAMER_FT_ACK_ALL, 0);
+    send_link_with_eof(self, FBP_FRAMER_FT_ACK_ALL, 1);
+    send_link_with_eof(self, FBP_FRAMER_FT_ACK_ALL, FBP_FRAMER_FRAME_ID_MAX);
+}
+
 static void test_ack_one(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     send_link(self, FBP_FRAMER_FT_ACK_ONE, 0x12);
@@ -173,6 +197,22 @@ static void test_sofs_garbage_sofs_link(void ** state) {
 static void test_data(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     send_data(self, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
+    send_data_with_eof(self, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
+}
+
+static void test_multiple_data_one_buffer(void ** state) {
+    struct test_s *self = (struct test_s *) *state;
+    uint8_t msg[256];
+    uint8_t b[(FBP_FRAMER_MAX_SIZE + 1) * 256];
+    uint8_t * p = b;
+    for (int i = 0; i < 256; ++i) {
+        msg[i] = i;
+        assert_int_equal(0, fbp_framer_construct_data(p, i, 0x2280 + i, msg, i + 1));
+        expect_data(i, 0x2280 + i, msg, i + 1);
+        p += FBP_FRAMER_OVERHEAD_SIZE + i + 1;
+    }
+    *p++ = FBP_FRAMER_SOF1;
+    fbp_framer_ll_recv(&self->f, b, p - b);
 }
 
 static void test_sofs_data(void ** state) {
@@ -325,6 +365,7 @@ static void test_length_crc(void ** state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_ack_all, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_ack_all_with_eof, setup, teardown),
             cmocka_unit_test_setup_teardown(test_ack_one, setup, teardown),
             cmocka_unit_test_setup_teardown(test_nack_frame_id, setup, teardown),
             cmocka_unit_test_setup_teardown(test_nack_framing_error, setup, teardown),
@@ -332,6 +373,7 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_garbage_then_ack_all, setup, teardown),
             cmocka_unit_test_setup_teardown(test_sofs_garbage_sofs_link, setup, teardown),
             cmocka_unit_test_setup_teardown(test_data, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_multiple_data_one_buffer, setup, teardown),
             cmocka_unit_test_setup_teardown(test_sofs_data, setup, teardown),
             cmocka_unit_test_setup_teardown(test_data_split, setup, teardown),
             cmocka_unit_test_setup_teardown(test_data_truncated_data, setup, teardown),
