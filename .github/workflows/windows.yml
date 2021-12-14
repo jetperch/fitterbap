@@ -57,7 +57,9 @@ jobs:
         run: cmake --build cmake_build --config Release --target RUN_TESTS
 
       - name: Install python dependencies
-        run: pip3 install -U -r requirements.txt
+        run: |
+          pin3 install -U wheel
+          pip3 install -U -r requirements.txt
 
       - name: Build python native
         run: python3 setup.py build_ext --inplace
