@@ -58,7 +58,7 @@ jobs:
 
       - name: Install python dependencies
         run: |
-          pin3 install -U wheel
+          pip3 install -U wheel
           pip3 install -U -r requirements.txt
 
       - name: Build python native
