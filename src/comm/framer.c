@@ -23,6 +23,7 @@
 #include "fitterbap/crc.h"
 #include "fitterbap/log.h"
 #include "fitterbap/platform.h"
+#include <inttypes.h>
 
 
 #ifndef FBP_CONFIG_COMM_FRAMER_CRC32
