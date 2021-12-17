@@ -314,7 +314,7 @@ typedef void (*fbp_dl_recv_fn)(void *user_data, uint16_t metadata, uint8_t *msg,
  * @brief The API event callbacks to the upper layer.
  */
 struct fbp_dl_api_s {
-    void *user_data;            ///< The arbitrary user data.
+    void *user_data;           ///< The arbitrary user data.
     fbp_dl_event_fn event_fn;  ///< Function called on events.
     fbp_dl_recv_fn recv_fn;    ///< Function call on received messages.
 };
@@ -368,6 +368,9 @@ typedef void (*fbp_dl_ll_send_fn)(void * user_data, uint8_t const * buffer, uint
  */
 typedef uint32_t (*fbp_dl_ll_send_available_fn)(void * user_data);
 
+// Forward declaration from framer.h
+struct fbp_framer_s;
+
 /**
  * @brief The low-level abstract driver implementation.
  */
@@ -386,7 +389,8 @@ struct fbp_dl_ll_s {
     /// Function to get the number of bytes currently available to send().
     fbp_dl_ll_send_available_fn send_available;
 
-    // note: recv is performed through the fbp_dl_ll_recv with the dl instance.
+    // note: raw byte stream receive is performed through the framer->receive
+    // or by calling fbp_dl_ll_recv() which wraps the framer->receive call.
 };
 
 /**
@@ -395,12 +399,14 @@ struct fbp_dl_ll_s {
  * @param config The data link configuration.
  * @param evm The event manager instance.
  * @param ll_instance The lower-level driver instance.
+ * @param framer The framer instance, usually from fbp_framer_initialize().
  * @return The new data link instance.
  */
 FBP_API struct fbp_dl_s * fbp_dl_initialize(
         struct fbp_dl_config_s const * config,
         struct fbp_evm_api_s const * evm,
-        struct fbp_dl_ll_s const * ll_instance);
+        struct fbp_dl_ll_s const * ll_instance,
+        struct fbp_framer_s * framer);
 
 /**
  * @brief Register callbacks for the upper-layer.
@@ -467,7 +473,6 @@ FBP_API void fbp_dl_register_mutex(struct fbp_dl_s * self, fbp_os_mutex_t mutex)
  */
 FBP_API uint32_t fbp_dl_tx_window_max_get(struct fbp_dl_s * self);
 
-
 /**
  * @brief Set the effective TX window size.
  *
@@ -493,6 +498,14 @@ FBP_API void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_siz
  */
 FBP_API uint32_t fbp_dl_rx_window_get(struct fbp_dl_s * self);
 
+/**
+ * @brief Compute the difference between frame ids.
+ *
+ * @param a The first frame id.
+ * @param b The second frame_id.
+ * @return The frame id difference of a - b.
+ */
+FBP_API int32_t fbp_dl_frame_id_subtract(uint16_t a, uint16_t b);
 
 FBP_CPP_GUARD_END
 

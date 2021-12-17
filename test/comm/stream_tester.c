@@ -36,6 +36,7 @@ struct stream_tester_s;
 
 struct host_s {
     char name;
+    struct fbp_framer_s * framer;
     struct fbp_dl_s * udl;
     struct fbp_evm_s * evm;
     struct fbp_list_s recv_expect;
@@ -160,6 +161,7 @@ static void host_initialize(struct host_s *host, struct stream_tester_s * parent
     host->stream_tester = parent;
     host->name = name;
     host->target = target;
+    host->framer = fbp_framer_initialize();
     host->evm = fbp_evm_allocate();
     struct fbp_evm_api_s evm_api;
     fbp_evm_api_get(host->evm, &evm_api);
@@ -170,7 +172,7 @@ static void host_initialize(struct host_s *host, struct stream_tester_s * parent
             .send_available = ll_send_available,
     };
 
-    host->udl = fbp_dl_initialize(config, &evm_api, &ll);
+    host->udl = fbp_dl_initialize(config, &evm_api, &ll, host->framer);
     FBP_ASSERT_ALLOC(host->udl);
     fbp_list_initialize(&host->recv_expect);
     fbp_list_initialize(&host->send_queue);

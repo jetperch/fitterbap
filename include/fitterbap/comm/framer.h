@@ -102,7 +102,7 @@
  *   by the framer and can be used for autobaud detection.
  *
  * The link frame format is a fixed-length frame with
- * 8 total_bytes:
+ * 8 total_bytes excluding EOF:
  *
  * <table class="doxtable message">
  *  <tr><th>7</td><th>6</td><th>5</td><th>4</td>
@@ -114,10 +114,10 @@
  *      <td colspan="3">frame_id[10:8]</td>
  *  </tr>
  *  <tr><td colspan="8">frame_id[7:0]</td></tr>
- *  <tr><td colspan="8">frame_crc[7:0]</td></tr>
- *  <tr><td colspan="8">frame_crc[15:8]</td></tr>
- *  <tr><td colspan="8">frame_crc[23:16]</td></tr>
- *  <tr><td colspan="8">frame_crc[31:24]</td></tr>
+ *  <tr><td colspan="8">link_check[7:0]</td></tr>
+ *  <tr><td colspan="8">link_check[15:8]</td></tr>
+ *  <tr><td colspan="8">link_check[23:16]</td></tr>
+ *  <tr><td colspan="8">link_check[31:24]</td></tr>
  *  <tr><td colspan="8">EOF </td></tr>
  * </table>
  *
@@ -133,6 +133,11 @@
  *   indicates the most recent, correctly received frame.
  *   Note that this may not be lowest frame_id.
  * - RESET: Reset all state.
+ *
+ * Instead of using a CRC, the link frame's link_check is the simple
+ * bit-wise negation of the first 4 bytes.  While this approach
+ * offers no bit dispersion, it does give excellent detection
+ * performance with a Hamming distance of 32.
  *
  *
  * ## Framing algorithm
@@ -193,7 +198,7 @@
  * HD=6 @ 2096 bits, Hamming Weight 59795110
  *
  *
- * ## Analysis
+ * ## Data Frame Analysis
  *
  * Framer performance includes the following metrics:
  * 1. False-positive frame detection rate on random data
@@ -350,6 +355,25 @@
  *     => 4.7e17 years
  *
  *
+ * ## Link Frame Analysis
+ *
+ * | Field        |  Accuracy    |
+ * +--------------+--------------+
+ * | SOF1         | 1 / 256      |
+ * | SOF2         | 1 / 256      |
+ * | frame_type   | 6 / 32       |
+ * | frame_id     | 64 / 2^11    |
+ * | link_check   | 1 / 2^32     |
+ * | EOF          | 1 / 256      |
+ *
+ * The likelihood of a false-positive on random data is then:
+ *     kb = 1/256 * 1/256 * 6/32 * 64/2**11 * 1/2**32 * 1/256
+ *     kb = 8e-20
+ * Since the link frame does not contain the length CRC, the
+ * false-positive match of link frames is 256 times that of
+ * data frames.
+ *
+ *
  * ## References
  *
  *    - Framing & CRC
@@ -449,68 +473,79 @@ struct fbp_framer_api_s {
     void (*framing_error_fn)(void *user_data);
 };
 
-/// The framer instance.
+/**
+ * @brief The framer instance interface.
+ *
+ * This class implementation allows for the data link layer to work with
+ * other, customized framers.
+ */
 struct fbp_framer_s {
-    struct fbp_framer_api_s api;
-    uint8_t state;    // fbp_framer_state_e
-    uint8_t is_sync;
-    uint16_t length;        // the current frame length or 0
-    uint8_t buf[FBP_FRAMER_MAX_SIZE + 1];  // frame + EOF
-    uint16_t buf_offset;    // the size of the buffer
+    /**
+     * @brief Register callbacks for the upper-layer.
+     *
+     * @param self The framer instance.
+     * @param ul The upper layer.
+     */
+    void (*register_upper_layer)(struct fbp_framer_s *self, struct fbp_framer_api_s const * ul);
+
+    /**
+     * @brief Provide receive data to the framer.
+     *
+     * @param self The framer instance.
+     * @param buffer The data received, which is only valid for the
+     *      duration of the callback.
+     * @param buffer_size The size of buffer in total_bytes.
+     */
+    void (*recv)(struct fbp_framer_s *self, uint8_t const *buffer, uint32_t buffer_size);
+
+    /**
+     * @brief Reset the framer state.
+     *
+     * @param self The framer instance.
+     *
+     * The caller must initialize the ul parameter correctly.
+     */
+    void (*reset)(struct fbp_framer_s *self);
+
+    /**
+     * @brief Construct a data frame.
+     *
+     * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
+     * @param frame_id The frame id for the frame.
+     * @param metadata The message metadata
+     * @param msg The payload buffer.
+     * @param msg_size The size of msg_buffer in bytes.
+     * @return 0 or error code.
+     */
+    int32_t (*construct_data)(struct fbp_framer_s *self, uint8_t *b, uint16_t frame_id, uint16_t metadata,
+                              uint8_t const *msg, uint32_t msg_size);
+
+    /**
+     * @brief Construct a link frame.
+     *
+     * @param b The output buffer, which must be at least FBP_FRAMER_LINK_SIZE bytes.
+     * @param frame_type The link frame type.
+     * @param frame_id The frame id.
+     * @return 0 or error code.
+     */
+    int32_t (*construct_link)(struct fbp_framer_s *self, uint8_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
+
+    /// The current framer status.
     struct fbp_framer_status_s status;
 };
 
 /**
- * @brief Provide receive data to the framer.
+ * @brief Allocate and initialize a new framer instance.
  *
+ * @return The new data link instance.
+ */
+FBP_API struct fbp_framer_s * fbp_framer_initialize();
+
+/**
+ * @brief Finalize and free a framer instance.
  * @param self The framer instance.
- * @param buffer The data received, which is only valid for the
- *      duration of the callback.
- * @param buffer_size The size of buffer in total_bytes.
  */
-FBP_API void fbp_framer_ll_recv(struct fbp_framer_s *self,
-                                uint8_t const *buffer, uint32_t buffer_size);
-
-/**
- * @brief Reset the framer state.
- *
- * @param self The framer instance.
- *
- * The caller must initialize the ul parameter correctly.
- */
-FBP_API void fbp_framer_reset(struct fbp_framer_s *self);
-
-/**
- * @brief Construct a data frame.
- *
- * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
- * @param frame_id The frame id for the frame.
- * @param metadata The message metadata
- * @param msg The payload buffer.
- * @param msg_size The size of msg_buffer in bytes.
- * @return 0 or error code.
- */
-FBP_API int32_t fbp_framer_construct_data(uint8_t *b, uint16_t frame_id, uint16_t metadata,
-                                          uint8_t const *msg, uint32_t msg_size);
-
-/**
- * @brief Construct a link frame.
- *
- * @param b The output buffer, which must be at least FBP_FRAMER_LINK_SIZE bytes.
- * @param frame_type The link frame type.
- * @param frame_id The frame id.
- * @return 0 or error code.
- */
-FBP_API int32_t fbp_framer_construct_link(uint8_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
-
-/**
- * @brief Compute the difference between frame ids.
- *
- * @param a The first frame id.
- * @param b The second frame_id.
- * @return The frame id difference of a - b.
- */
-FBP_API int32_t fbp_framer_frame_id_subtract(uint16_t a, uint16_t b);
+FBP_API void fbp_framer_finalize(struct fbp_framer_s * self);
 
 /**
  * @brief Compute the CRC8 for the length field.

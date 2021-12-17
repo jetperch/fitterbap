@@ -51,6 +51,7 @@ static uint8_t PAYLOAD_MAX[] = {
 struct test_s {
     struct fbp_evm_s * evm;
     struct fbp_dl_s * dl;
+    struct fbp_framer_s * f;
     uint32_t send_available;
     int64_t now;
 };
@@ -122,6 +123,7 @@ static void expect_recv(uint16_t metadata, uint8_t *msg_buffer, uint32_t msg_siz
 static struct test_s * setup() {
     struct test_s * self = test_calloc(1, sizeof(struct test_s));
     self->evm = fbp_evm_allocate();
+    self->f = fbp_framer_initialize();
     struct fbp_evm_api_s evm_api = {
         .evm = (struct fbp_evm_s *) self,  // use wrappers
         .timestamp = ll_time_get,
@@ -150,7 +152,7 @@ static struct test_s * setup() {
 
     self->now = 0;
     self->send_available = FBP_FRAMER_MAX_SIZE;
-    self->dl = fbp_dl_initialize(&config, &evm_api, &ll);
+    self->dl = fbp_dl_initialize(&config, &evm_api, &ll, self->f);
     assert_non_null(self->dl);
     fbp_dl_register_upper_layer(self->dl, &ul);
     return self;
@@ -158,6 +160,7 @@ static struct test_s * setup() {
 
 static void teardown(struct test_s * self) {
     fbp_dl_finalize(self->dl);
+    fbp_framer_finalize(self->f);
     fbp_evm_free(self->evm);
     memset(self, 0, sizeof(*self));
     test_free(self);
@@ -185,12 +188,25 @@ static void test_initial_state(void ** state) {
     TEARDOWN();
 }
 
+static void test_frame_id_subtract(void ** state) {
+    (void) state;
+    assert_int_equal(0, fbp_dl_frame_id_subtract(0, 0));
+    assert_int_equal(10, fbp_dl_frame_id_subtract(12, 2));
+    assert_int_equal(-10, fbp_dl_frame_id_subtract(2, 12));
+    assert_int_equal(0, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(10, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, FBP_FRAMER_FRAME_ID_MAX - 10));
+    assert_int_equal(-10, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX - 10, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(1, fbp_dl_frame_id_subtract(0, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(11, fbp_dl_frame_id_subtract(10, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(-11, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, 10));
+}
+
 static void expect_send_data(struct test_s *self,
                              uint16_t frame_id, uint16_t metadata,
                              uint8_t *msg_buffer, uint32_t msg_size) {
     (void) self;
     uint8_t b[FBP_FRAMER_MAX_SIZE];
-    assert_int_equal(0, fbp_framer_construct_data(b, frame_id, metadata, msg_buffer, msg_size));
+    assert_int_equal(0, self->f->construct_data(self->f, b, frame_id, metadata, msg_buffer, msg_size));
     uint16_t frame_sz = msg_size + FBP_FRAMER_OVERHEAD_SIZE;
     expect_value(ll_send, buffer_size, frame_sz);
     expect_memory(ll_send, buffer, b, frame_sz);
@@ -206,7 +222,7 @@ static void send_and_expect(struct test_s *self,
 static void expect_send_link(struct test_s *self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     (void) self;
     uint64_t u64 = 0;
-    assert_int_equal(0, fbp_framer_construct_link((uint8_t *) &u64, frame_type, frame_id));
+    assert_int_equal(0, self->f->construct_link(self->f, (uint8_t *) &u64, frame_type, frame_id));
     expect_value(ll_send, event, frame_type);
     expect_value(ll_send, frame_id, frame_id);
 }
@@ -218,14 +234,14 @@ static void recv_eof(struct test_s *self) {
 
 static void recv_link(struct test_s *self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     uint8_t b[FBP_FRAMER_LINK_SIZE];
-    assert_int_equal(0, fbp_framer_construct_link(b, frame_type, frame_id));
+    assert_int_equal(0, self->f->construct_link(self->f, b, frame_type, frame_id));
     fbp_dl_ll_recv(self->dl, b, sizeof(b));
 }
 
 static void recv_data(struct test_s *self, uint16_t frame_id, uint16_t metadata,
                       uint8_t *msg_buffer, uint32_t msg_size) {
     uint8_t b[FBP_FRAMER_MAX_SIZE];
-    assert_int_equal(0, fbp_framer_construct_data(b, frame_id, metadata, msg_buffer, msg_size));
+    assert_int_equal(0, self->f->construct_data(self->f, b, frame_id, metadata, msg_buffer, msg_size));
     uint16_t frame_sz = msg_size + FBP_FRAMER_OVERHEAD_SIZE;
     fbp_dl_ll_recv(self->dl, b, frame_sz);
 }
@@ -488,6 +504,7 @@ static void test_reset_retry(void ** state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_initial_state),
+            cmocka_unit_test(test_frame_id_subtract),
             cmocka_unit_test(test_send_when_not_connected),
             cmocka_unit_test(test_on_invalid_send),
             cmocka_unit_test(test_on_send_cbk),

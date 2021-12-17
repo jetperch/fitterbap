@@ -52,6 +52,7 @@ FBP_CPP_GUARD_START
  * access with care as it makes your code more brittle.
  */
 struct fbp_stack_s {
+    struct fbp_framer_s * framer;
     struct fbp_dl_s * dl;
     struct fbp_evm_api_s evm_api;
     struct fbp_transport_s * transport;

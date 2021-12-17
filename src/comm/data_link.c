@@ -29,7 +29,6 @@
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/data_link.h"
-#include "fitterbap/collections/ring_buffer_msg.h"
 #include "fitterbap/collections/ring_buffer_u64.h"
 #include "fitterbap/os/task.h"
 #include "fitterbap/cdef.h"
@@ -79,6 +78,7 @@ struct rx_frame_s {
 struct fbp_dl_s {
     struct fbp_dl_ll_s ll_instance;
     struct fbp_dl_api_s ul_instance;
+    struct fbp_framer_s * framer;
     intptr_t process_task_id;
 
     uint16_t tx_frame_last_id; // the last frame that has not yet be ACKed
@@ -103,7 +103,6 @@ struct fbp_dl_s {
     int32_t event_id;
     fbp_os_mutex_t mutex;
 
-    struct fbp_framer_s rx_framer;
     struct fbp_dl_rx_status_s rx_status;
     struct fbp_dl_tx_status_s tx_status;
 };
@@ -170,18 +169,19 @@ static bool is_any_send_pending(struct fbp_dl_s * self) {
 static int32_t send_inner(struct fbp_dl_s * self,
                     uint16_t metadata,
                     uint8_t const *msg, uint32_t msg_size) {
+    struct fbp_framer_s * framer = self->framer;
     lock(self);
     uint16_t frame_id = self->tx_frame_next_id;
     uint16_t idx = frame_id & (self->tx_frame_count - 1);
     struct tx_frame_s * f = &self->tx_frames[idx];
 
-    if (fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id) >= self->tx_frame_count) {
+    if (fbp_dl_frame_id_subtract(frame_id, self->tx_frame_last_id) >= self->tx_frame_count) {
         unlock(self);
         FBP_LOGD1("fbp_dl_send(0x%02" PRIx16 ") too many frames outstanding", metadata);
         return FBP_ERROR_FULL;
     }
 
-    if (fbp_framer_construct_data(f->msg, frame_id, metadata, msg, msg_size)) {
+    if (framer->construct_data(framer, f->msg, frame_id, metadata, msg, msg_size)) {
         unlock(self);
         FBP_LOGW("fbp_framer_send invalid parameters");
         return FBP_ERROR_PARAMETER_INVALID;
@@ -318,9 +318,10 @@ static int send_link_pending(struct fbp_dl_s * self) {
 }
 
 static void send_link(struct fbp_dl_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
+    struct fbp_framer_s * framer = self->framer;
     uint64_t b;
     bool is_link_pending = (fbp_rbu64_size(&self->tx_link_buf) != 0);
-    int32_t rv = fbp_framer_construct_link((uint8_t *) &b, frame_type, frame_id);
+    int32_t rv = framer->construct_link(framer, (uint8_t *) &b, frame_type, frame_id);
     if (rv) {
         FBP_LOGW("send_link error: %d", (int) rv);
         return;
@@ -435,12 +436,12 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
             frame_id = (self->rx_next_frame_id - 1U) & FBP_FRAMER_FRAME_ID_MAX;
             send_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
         }
-    } else if (fbp_framer_frame_id_subtract(frame_id, self->rx_next_frame_id) < 0) {
+    } else if (fbp_dl_frame_id_subtract(frame_id, self->rx_next_frame_id) < 0) {
         // we already have this frame.
         // ack with most recent successfully received frame_id
         FBP_LOGD3("on_recv_data(%d) old frame next=%d", (int) frame_id, (int) self->rx_next_frame_id);
         send_link(self, FBP_FRAMER_FT_ACK_ALL, (self->rx_next_frame_id - 1) & FBP_FRAMER_FRAME_ID_MAX);
-    } else if (fbp_framer_frame_id_subtract(window_end, frame_id) <= 0) {
+    } else if (fbp_dl_frame_id_subtract(window_end, frame_id) <= 0) {
         FBP_LOGD1("on_recv_data(%d) frame too far into the future: next=%d, end=%d",
                   (int) frame_id, (int) self->rx_next_frame_id, (int) window_end);
         send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
@@ -448,7 +449,7 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
         FBP_LOGD3("on_recv_data(%d) future frame: next=%d, end=%d",
                   (int) frame_id, (int) self->rx_next_frame_id, (int) window_end);
         // future frame
-        if (fbp_framer_frame_id_subtract(frame_id, self->rx_max_frame_id) > 0) {
+        if (fbp_dl_frame_id_subtract(frame_id, self->rx_max_frame_id) > 0) {
             self->rx_max_frame_id = frame_id;
         }
 
@@ -478,7 +479,7 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
 
 static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_id, const char * src) {
     (void) src;
-    int32_t frame_delta = fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id);
+    int32_t frame_delta = fbp_dl_frame_id_subtract(frame_id, self->tx_frame_last_id);
     if (frame_delta < 0) {
         FBP_LOGD1("%s : in the past : delta=%d, recv=%d, last=%d, next=%d",
                  src, (int) frame_delta, (int) frame_id,
@@ -491,7 +492,7 @@ static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_i
         return NULL;
     }
     uint16_t frame_id_end = (self->tx_frame_next_id - 1) & FBP_FRAMER_FRAME_ID_MAX;
-    frame_delta = fbp_framer_frame_id_subtract(frame_id, frame_id_end);
+    frame_delta = fbp_dl_frame_id_subtract(frame_id, frame_id_end);
     if (frame_delta > 0) {
         FBP_LOGD1("%s : out of window : delta=%d, recv=%d, last=%d, next=%d",
                  src, (int) frame_delta, (int) frame_id,
@@ -516,7 +517,7 @@ static bool retire_tx_frame(struct fbp_dl_s * self) {
 }
 
 static void handle_ack_all(struct fbp_dl_s * self, uint16_t frame_id) {
-    int32_t frame_delta = fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id);
+    int32_t frame_delta = fbp_dl_frame_id_subtract(frame_id, self->tx_frame_last_id);
     if (frame_delta < 0) {
         return;  // frame_id is from the past, ignore
     } else if (frame_delta > self->tx_frame_count) {
@@ -524,13 +525,13 @@ static void handle_ack_all(struct fbp_dl_s * self, uint16_t frame_id) {
         return;
     }
     uint16_t frame_id_end = (self->tx_frame_next_id - 1) & FBP_FRAMER_FRAME_ID_MAX;
-    frame_delta = fbp_framer_frame_id_subtract(frame_id, frame_id_end);
+    frame_delta = fbp_dl_frame_id_subtract(frame_id, frame_id_end);
     if (frame_delta > 0) {
         FBP_LOGD1("ack_all out of window range: %d", (int) frame_delta);
         frame_id = frame_id_end; // only process what we have
     }
 
-    while (fbp_framer_frame_id_subtract(frame_id, self->tx_frame_last_id) >= 0) {
+    while (fbp_dl_frame_id_subtract(frame_id, self->tx_frame_last_id) >= 0) {
         retire_tx_frame(self);
     }
 }
@@ -604,7 +605,8 @@ static void on_framing_error(void * user_data) {
 
 void fbp_dl_ll_recv(struct fbp_dl_s * self,
                      uint8_t const * buffer, uint32_t buffer_size) {
-    fbp_framer_ll_recv(&self->rx_framer, buffer, buffer_size);
+    struct fbp_framer_s * framer = self->framer;
+    framer->recv(framer, buffer, buffer_size);
 }
 
 static int64_t process_disconnected(struct fbp_dl_s * self, int64_t now) {
@@ -625,7 +627,7 @@ static inline int64_t tmin(int64_t a, int64_t b) {
 
 static int64_t tx_timeout(struct fbp_dl_s * self, int64_t now) {
     struct tx_frame_s * f;
-    int32_t frame_count = fbp_framer_frame_id_subtract(self->tx_frame_next_id, self->tx_frame_last_id);
+    int32_t frame_count = fbp_dl_frame_id_subtract(self->tx_frame_next_id, self->tx_frame_last_id);
     int64_t next_event = INT64_MAX;
 
     for (int32_t offset = 0; offset < frame_count; ++offset) {
@@ -719,7 +721,8 @@ static uint32_t to_power_of_two(uint32_t v) {
 struct fbp_dl_s * fbp_dl_initialize(
         struct fbp_dl_config_s const * config,
         struct fbp_evm_api_s const * evm,
-        struct fbp_dl_ll_s const * ll_instance) {
+        struct fbp_dl_ll_s const * ll_instance,
+        struct fbp_framer_s * framer) {
     FBP_ASSERT(FBP_FRAMER_LINK_SIZE == sizeof(uint64_t)); // assumption for ring_buffer_u64
     FBP_LOGD1("fbp_dl_initialize");
     if (!config || !evm || !ll_instance) {
@@ -777,10 +780,15 @@ struct fbp_dl_s * fbp_dl_initialize(
 
     self->tx_timeout = config->tx_timeout;
     self->ll_instance = *ll_instance;
-    self->rx_framer.api.user_data = self;
-    self->rx_framer.api.framing_error_fn = on_framing_error;
-    self->rx_framer.api.link_fn = on_recv_link;
-    self->rx_framer.api.data_fn = on_recv_data;
+    self->framer = framer;
+
+    struct fbp_framer_api_s framer_interface = {
+            .user_data = self,
+            .data_fn = on_recv_data,
+            .link_fn = on_recv_link,
+            .framing_error_fn = on_framing_error
+    };
+    self->framer->register_upper_layer(self->framer, &framer_interface);
     self->evm = *evm;
     tx_reset(self);
 
@@ -823,7 +831,7 @@ int32_t fbp_dl_status_get(
     lock(self);
     status->version = FBP_DL_VERSION;
     status->rx = self->rx_status;
-    status->rx_framer = self->rx_framer.status;
+    status->rx_framer = self->framer->status;
     status->tx = self->tx_status;
     unlock(self);
     return 0;
@@ -832,7 +840,7 @@ int32_t fbp_dl_status_get(
 void fbp_dl_status_clear(struct fbp_dl_s * self) {
     lock(self);
     fbp_memset(&self->rx_status, 0, sizeof(self->rx_status));
-    fbp_memset(&self->rx_framer.status, 0, sizeof(self->rx_framer.status));
+    fbp_memset(&self->framer->status, 0, sizeof(self->framer->status));
     fbp_memset(&self->tx_status, 0, sizeof(self->tx_status));
     unlock(self);
 }
@@ -867,4 +875,13 @@ void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_size) {
 
 uint32_t fbp_dl_rx_window_get(struct fbp_dl_s * self) {
     return self->rx_frame_count;
+}
+
+int32_t fbp_dl_frame_id_subtract(uint16_t a, uint16_t b) {
+    uint16_t c = (a - b) & FBP_FRAMER_FRAME_ID_MAX;
+    if (c > (FBP_FRAMER_FRAME_ID_MAX / 2)) {
+        return ((int32_t) c) - (FBP_FRAMER_FRAME_ID_MAX + 1);
+    } else {
+        return (int32_t) c;
+    }
 }
