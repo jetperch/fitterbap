@@ -95,19 +95,20 @@ static void expect_link(enum fbp_framer_type_e frame_type, uint16_t frame_id) {
 }
 
 static void send_link(struct test_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
-    uint8_t b[FBP_FRAMER_LINK_SIZE];
-    assert_int_equal(0, self->f->construct_link(self->f, b, frame_type, frame_id));
-    self->f->recv(self->f, b, sizeof(b));
+    uint64_t b;
+    assert_int_equal(0, self->f->construct_link(self->f, &b, frame_type, frame_id));
+    self->f->recv(self->f, (uint8_t *) &b, sizeof(b));
     expect_link(frame_type, frame_id);
     send_eof(self->f);
 }
 
 static void send_link_with_eof(struct test_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
-    uint8_t b[FBP_FRAMER_LINK_SIZE + 1];
+    uint64_t b[2];
     assert_int_equal(0, self->f->construct_link(self->f, b, frame_type, frame_id));
-    b[FBP_FRAMER_LINK_SIZE] = FBP_FRAMER_SOF1;
+    uint8_t *p = (uint8_t *) b;
+    p[FBP_FRAMER_LINK_SIZE] = FBP_FRAMER_SOF1;
     expect_link(frame_type, frame_id);
-    self->f->recv(self->f, b, sizeof(b));
+    self->f->recv(self->f, (uint8_t *) b, FBP_FRAMER_LINK_SIZE + 1);
 }
 
 static void on_framing_error(void * user_data) {
@@ -145,7 +146,7 @@ static int setup(void ** state) {
 
 static int teardown(void ** state) {
     struct test_s *self = (struct test_s *) *state;
-    fbp_framer_finalize(self->f);
+    self->f->finalize(self->f);
     test_free(self);
     return 0;
 }

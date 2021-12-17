@@ -321,7 +321,7 @@ static void send_link(struct fbp_dl_s * self, enum fbp_framer_type_e frame_type,
     struct fbp_framer_s * framer = self->framer;
     uint64_t b;
     bool is_link_pending = (fbp_rbu64_size(&self->tx_link_buf) != 0);
-    int32_t rv = framer->construct_link(framer, (uint8_t *) &b, frame_type, frame_id);
+    int32_t rv = framer->construct_link(framer, &b, frame_type, frame_id);
     if (rv) {
         FBP_LOGW("send_link error: %d", (int) rv);
         return;

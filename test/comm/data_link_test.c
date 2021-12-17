@@ -160,7 +160,7 @@ static struct test_s * setup() {
 
 static void teardown(struct test_s * self) {
     fbp_dl_finalize(self->dl);
-    fbp_framer_finalize(self->f);
+    self->f->finalize(self->f);
     fbp_evm_free(self->evm);
     memset(self, 0, sizeof(*self));
     test_free(self);
@@ -222,7 +222,7 @@ static void send_and_expect(struct test_s *self,
 static void expect_send_link(struct test_s *self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     (void) self;
     uint64_t u64 = 0;
-    assert_int_equal(0, self->f->construct_link(self->f, (uint8_t *) &u64, frame_type, frame_id));
+    assert_int_equal(0, self->f->construct_link(self->f, &u64, frame_type, frame_id));
     expect_value(ll_send, event, frame_type);
     expect_value(ll_send, frame_id, frame_id);
 }
@@ -233,9 +233,9 @@ static void recv_eof(struct test_s *self) {
 }
 
 static void recv_link(struct test_s *self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
-    uint8_t b[FBP_FRAMER_LINK_SIZE];
-    assert_int_equal(0, self->f->construct_link(self->f, b, frame_type, frame_id));
-    fbp_dl_ll_recv(self->dl, b, sizeof(b));
+    uint64_t b;
+    assert_int_equal(0, self->f->construct_link(self->f, &b, frame_type, frame_id));
+    fbp_dl_ll_recv(self->dl, (uint8_t *) &b, sizeof(b));
 }
 
 static void recv_data(struct test_s *self, uint16_t frame_id, uint16_t metadata,

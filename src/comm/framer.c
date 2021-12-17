@@ -17,6 +17,7 @@
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/framer.h"
+#include "fitterbap/cdef.h"
 #include "fitterbap/config.h"
 #include "fitterbap/config_defaults.h"
 #include "fitterbap/ec.h"
@@ -30,6 +31,7 @@
 #error Must define FBP_CONFIG_COMM_FRAMER_CRC32 in fitterbap/config.h
 #endif
 
+FBP_STATIC_ASSERT(FBP_FRAMER_LINK_SIZE == sizeof(uint64_t), link_size);
 
 enum state_e {
     ST_SOF1,
@@ -312,7 +314,7 @@ static int32_t construct_data(
 
 static int32_t construct_link(
         struct fbp_framer_s * ext_self,
-        uint8_t * b, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
+        uint64_t * b, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     (void) ext_self;
     if ((frame_type & 0x1f) != frame_type) {
         return FBP_ERROR_PARAMETER_INVALID;
@@ -330,14 +332,11 @@ static int32_t construct_link(
         default:
             return FBP_ERROR_PARAMETER_INVALID;
     }
-    b[0] = FBP_FRAMER_SOF1;
-    b[1] = FBP_FRAMER_SOF2;
-    b[2] = (frame_type << 3) | ((frame_id >> 8) & 0x7);
-    b[3] = (uint8_t) (frame_id & 0xff);
-    b[4] = ~b[0];
-    b[5] = ~b[1];
-    b[6] = ~b[2];
-    b[7] = ~b[3];
+    uint32_t h = FBP_FRAMER_SOF1
+            | (((uint32_t) FBP_FRAMER_SOF2) << 8)
+            | (((uint32_t) (frame_type << 3) | ((frame_id >> 8) & 0x7)) << 16)
+            | (((uint32_t) (frame_id & 0xff)) << 24);
+    *b = h | (((uint64_t) ~h) << 32);
     return 0;
 }
 
@@ -345,10 +344,13 @@ uint8_t fbp_framer_length_crc(uint8_t length) {
     return length_crc(length);
 }
 
-
 static void register_upper_layer(struct fbp_framer_s *ext_self, struct fbp_framer_api_s const * ul) {
     struct framer_s * self = (struct framer_s *) ext_self;
     self->api = *ul;
+}
+
+static void finalize(struct fbp_framer_s * self) {
+    fbp_free(self);
 }
 
 /**
@@ -364,14 +366,7 @@ FBP_API struct fbp_framer_s * fbp_framer_initialize() {
     x->reset = reset;
     x->construct_data = construct_data;
     x->construct_link = construct_link;
+    x->finalize = finalize;
     reset(&self->external_self);
     return x;
-}
-
-/**
- * @brief Free a framer instance.
- * @param self The framer instance.
- */
-FBP_API void fbp_framer_finalize(struct fbp_framer_s * self) {
-    fbp_free(self);
 }

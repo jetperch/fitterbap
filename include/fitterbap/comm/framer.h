@@ -523,12 +523,18 @@ struct fbp_framer_s {
     /**
      * @brief Construct a link frame.
      *
-     * @param b The output buffer, which must be at least FBP_FRAMER_LINK_SIZE bytes.
+     * @param b The 64-bit (8-byte) output buffer.
      * @param frame_type The link frame type.
      * @param frame_id The frame id.
      * @return 0 or error code.
      */
-    int32_t (*construct_link)(struct fbp_framer_s *self, uint8_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
+    int32_t (*construct_link)(struct fbp_framer_s *self, uint64_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
+
+    /**
+     * @brief Finalize and free a framer instance.
+     * @param self The framer instance.
+     */
+    void (*finalize)(struct fbp_framer_s * self);
 
     /// The current framer status.
     struct fbp_framer_status_s status;
@@ -540,12 +546,6 @@ struct fbp_framer_s {
  * @return The new data link instance.
  */
 FBP_API struct fbp_framer_s * fbp_framer_initialize();
-
-/**
- * @brief Finalize and free a framer instance.
- * @param self The framer instance.
- */
-FBP_API void fbp_framer_finalize(struct fbp_framer_s * self);
 
 /**
  * @brief Compute the CRC8 for the length field.

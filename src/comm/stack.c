@@ -113,7 +113,7 @@ struct fbp_stack_s * fbp_stack_initialize(
 int32_t fbp_stack_finalize(struct fbp_stack_s * self) {
     if (self) {
         if (self->framer) {
-            fbp_framer_finalize(self->framer);
+            self->framer->finalize(self->framer);
             self->framer = NULL;
         }
         if (self->dl) {
