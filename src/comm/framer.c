@@ -48,7 +48,6 @@ struct framer_s {
     uint16_t length;        // the current frame length or 0
     uint8_t buf[FBP_FRAMER_MAX_SIZE + 1];  // frame + EOF
     uint16_t buf_offset;    // the size of the buffer
-    struct fbp_framer_status_s status;
 };
 
 /**
@@ -115,10 +114,10 @@ static inline uint16_t parse_data_metadata(uint8_t const * frame) {
 
 static void handle_framing_error(struct framer_s * self, uint16_t discard_size) {
     self->state = ST_SOF1;
-    self->status.ignored_bytes += discard_size;
+    self->external_self.status.ignored_bytes += discard_size;
     self->buf_offset = 0;
     if (self->is_sync) {
-        ++self->status.resync;
+        ++self->external_self.status.resync;
         self->is_sync = 0;
         if (self->external_self.api.framing_error_fn) {
             self->external_self.api.framing_error_fn(self->external_self.api.user_data);
@@ -179,7 +178,7 @@ static bool handle_frame(struct framer_s * self, const uint8_t * p) {
 static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint32_t buffer_size) {
     struct framer_s * self = (struct framer_s *) ext_self;
     FBP_LOGD3("received %d bytes", (int) buffer_size);
-    self->status.total_bytes += buffer_size;
+    self->external_self.status.total_bytes += buffer_size;
     const uint8_t * nocopy = NULL;
 
     while (buffer_size) {
@@ -195,7 +194,7 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                     handle_framing_error(self, 1);
                 } else {  // continue search
                     // optimized for speed, skip handle_framing_error() call
-                    self->status.ignored_bytes += 1;
+                    self->external_self.status.ignored_bytes += 1;
                     self->buf_offset = 0;
                 }
                 break;
@@ -207,7 +206,7 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                 } else if (self->buf[1] == FBP_FRAMER_SOF1) {
                     // allow duplicate SOF1 bytes
                     self->buf_offset = 1;
-                    ++self->status.ignored_bytes;
+                    ++self->external_self.status.ignored_bytes;
                 } else {
                     FBP_LOGD1("Expected SOF2 got 0x%02x", self->buf[1]);
                     handle_framing_error(self, 2);
@@ -282,7 +281,7 @@ static void reset(struct fbp_framer_s * ext_self) {
     self->is_sync = 0;
     self->length = 0;
     self->buf_offset = 0;
-    fbp_memset(&self->status, 0, sizeof(self->status));
+    fbp_memset(&self->external_self.status, 0, sizeof(self->external_self.status));
 }
 
 static int32_t construct_data(

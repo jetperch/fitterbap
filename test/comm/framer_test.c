@@ -153,6 +153,9 @@ static void test_ack_all(void ** state) {
     send_link(self, FBP_FRAMER_FT_ACK_ALL, 0);
     send_link(self, FBP_FRAMER_FT_ACK_ALL, 1);
     send_link(self, FBP_FRAMER_FT_ACK_ALL, FBP_FRAMER_FRAME_ID_MAX);
+    assert_int_equal((FBP_FRAMER_LINK_SIZE + 1) * 3, self->f->status.total_bytes);
+    assert_int_equal(2, self->f->status.ignored_bytes);  // duplicate EOF/SOF
+    assert_int_equal(0, self->f->status.resync);
 }
 
 static void test_ack_all_with_eof(void ** state) {
@@ -182,6 +185,9 @@ static void test_nack_framing_error(void ** state) {
 static void test_garbage(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     self->f->recv(self->f, GARBAGE1, sizeof(GARBAGE1));
+    assert_int_equal(sizeof(GARBAGE1), self->f->status.total_bytes);
+    assert_int_equal(sizeof(GARBAGE1), self->f->status.ignored_bytes);
+    assert_int_equal(0, self->f->status.resync);
 }
 
 static void test_garbage_then_ack_all(void ** state) {
@@ -195,6 +201,9 @@ static void test_sofs_garbage_sofs_link(void ** state) {
     self->f->recv(self->f, SOF1_64, sizeof(SOF1_64));
     self->f->recv(self->f, GARBAGE1, sizeof(GARBAGE1));
     send_link(self, FBP_FRAMER_FT_ACK_ALL, 1);
+    assert_int_equal(sizeof(SOF1_64) + sizeof(GARBAGE1) + FBP_FRAMER_LINK_SIZE + 1, self->f->status.total_bytes);
+    assert_int_equal(sizeof(SOF1_64) + sizeof(GARBAGE1), self->f->status.ignored_bytes);
+    assert_int_equal(0, self->f->status.resync);
 }
 
 static void test_data(void ** state) {
@@ -297,6 +306,17 @@ static void test_truncated_flush_with_sof(void ** state) {
     send_data(self, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
 }
 
+static void test_resync(void ** state) {
+    struct test_s *self = (struct test_s *) *state;
+    send_link(self, FBP_FRAMER_FT_ACK_ALL, 1);
+    expect_framing_error();
+    self->f->recv(self->f, GARBAGE1, sizeof(GARBAGE1));
+    send_link(self, FBP_FRAMER_FT_ACK_ALL, 1);
+    assert_int_equal(sizeof(GARBAGE1) + 2 * (FBP_FRAMER_LINK_SIZE + 1), self->f->status.total_bytes);
+    assert_int_equal(sizeof(GARBAGE1) + 1, self->f->status.ignored_bytes);
+    assert_int_equal(1, self->f->status.resync);
+}
+
 static uint8_t count_table_u8[] = {
         0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
         1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
@@ -372,6 +392,7 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_construct_data_checks, setup, teardown),
             cmocka_unit_test_setup_teardown(test_reset, setup, teardown),
             cmocka_unit_test_setup_teardown(test_truncated_flush_with_sof, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_resync, setup, teardown),
             cmocka_unit_test_setup_teardown(test_length_crc, setup, teardown),
     };
 
