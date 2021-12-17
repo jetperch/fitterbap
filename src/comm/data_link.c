@@ -181,14 +181,11 @@ static int32_t send_inner(struct fbp_dl_s * self,
         return FBP_ERROR_FULL;
     }
 
-    if (!fbp_framer_validate_data(frame_id, metadata, msg_size)) {
+    if (fbp_framer_construct_data(f->msg, frame_id, metadata, msg, msg_size)) {
         unlock(self);
         FBP_LOGW("fbp_framer_send invalid parameters");
         return FBP_ERROR_PARAMETER_INVALID;
     }
-
-    int32_t rv = fbp_framer_construct_data(f->msg, frame_id, metadata, msg, msg_size);
-    FBP_ASSERT(0 == rv);  // fbp_framer_validate already checked
     bool send_already_pending = is_any_send_pending(self);
 
     // queue transmit frame for send_data()
@@ -321,9 +318,6 @@ static int send_link_pending(struct fbp_dl_s * self) {
 }
 
 static void send_link(struct fbp_dl_s * self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
-    if (!fbp_framer_validate_link(frame_type, frame_id)) {
-        return;
-    }
     uint64_t b;
     bool is_link_pending = (fbp_rbu64_size(&self->tx_link_buf) != 0);
     int32_t rv = fbp_framer_construct_link((uint8_t *) &b, frame_type, frame_id);

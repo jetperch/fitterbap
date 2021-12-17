@@ -481,16 +481,6 @@ FBP_API void fbp_framer_ll_recv(struct fbp_framer_s *self,
 FBP_API void fbp_framer_reset(struct fbp_framer_s *self);
 
 /**
- * @brief Validate the fbp_framer_construct_data() parameters.
- *
- * @param frame_id The frame id for the frame.
- * @param metadata The message metadata.
- * @param msg_size The size of msg_buffer in bytes.
- * @return True if parameters are valid, otherwise false.
- */
-FBP_API bool fbp_framer_validate_data(uint16_t frame_id, uint16_t metadata, uint32_t msg_size);
-
-/**
  * @brief Construct a data frame.
  *
  * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
@@ -502,15 +492,6 @@ FBP_API bool fbp_framer_validate_data(uint16_t frame_id, uint16_t metadata, uint
  */
 FBP_API int32_t fbp_framer_construct_data(uint8_t *b, uint16_t frame_id, uint16_t metadata,
                                           uint8_t const *msg, uint32_t msg_size);
-
-/**
- * @brief Validate the fbp_framer_construct_link() parameters.
- *
- * @param frame_type The link frame type.
- * @param frame_id The frame id.
- * @return True if parameters are valid, otherwise false.
- */
-FBP_API bool fbp_framer_validate_link(enum fbp_framer_type_e frame_type, uint16_t frame_id);
 
 /**
  * @brief Construct a link frame.

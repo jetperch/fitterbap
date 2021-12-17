@@ -237,8 +237,9 @@ static void test_data_split(void ** state) {
 static void test_data_truncated_data(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     send_data(self, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
-    expect_framing_error();
     fbp_framer_ll_recv(&self->f, self->frame1, FBP_FRAMER_HEADER_SIZE + 2);
+    expect_framing_error();
+    fbp_framer_ll_recv(&self->f, self->frame1, sizeof(PAYLOAD1) + FBP_FRAMER_FOOTER_SIZE);  // will also be dropped
     send_data(self, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
 }
 
