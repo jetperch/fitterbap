@@ -125,13 +125,10 @@ static int setup(void ** state) {
     struct test_s *self = NULL;
     self = (struct test_s *) test_calloc(1, sizeof(struct test_s));
     self->f = fbp_framer_initialize();
-    struct fbp_framer_api_s api = {
-            .user_data = self,
-            .framing_error_fn = on_framing_error,
-            .link_fn = on_link,
-            .data_fn = on_data
-    };
-    self->f->register_upper_layer(self->f, &api);
+    self->f->api.user_data = self;
+    self->f->api.framing_error_fn = on_framing_error;
+    self->f->api.link_fn = on_link;
+    self->f->api.data_fn = on_data;
     self->f->construct_data(self->f, self->frame1, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
     self->f->reset(self->f);
 #if 0

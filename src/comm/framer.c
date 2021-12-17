@@ -43,7 +43,6 @@ enum state_e {
 
 struct framer_s {
     struct fbp_framer_s external_self;
-    struct fbp_framer_api_s api;
     uint8_t state;          // fbp_framer_state_e
     uint8_t is_sync;
     uint16_t length;        // the current frame length or 0
@@ -121,8 +120,8 @@ static void handle_framing_error(struct framer_s * self, uint16_t discard_size) 
     if (self->is_sync) {
         ++self->status.resync;
         self->is_sync = 0;
-        if (self->api.framing_error_fn) {
-            self->api.framing_error_fn(self->api.user_data);
+        if (self->external_self.api.framing_error_fn) {
+            self->external_self.api.framing_error_fn(self->external_self.api.user_data);
         }
     }
 }
@@ -154,8 +153,8 @@ static bool handle_frame(struct framer_s * self, const uint8_t * p) {
             uint16_t payload_length = parse_data_payload_length(p);
             FBP_LOGD3("data frame received, frame_id=%d, metadata=0x%04" PRIx32 ", %d bytes",
                       (int) frame_id, (uint32_t) metadata, (int) payload_length);
-            if (self->api.data_fn) {
-                self->api.data_fn(self->api.user_data, frame_id, metadata,
+            if (self->external_self.api.data_fn) {
+                self->external_self.api.data_fn(self->external_self.api.user_data, frame_id, metadata,
                                   (uint8_t *) (p + FBP_FRAMER_HEADER_SIZE), payload_length);
             }
         }
@@ -166,8 +165,8 @@ static bool handle_frame(struct framer_s * self, const uint8_t * p) {
             FBP_LOGD1("link check invalid");
             handle_framing_error(self, frame_sz);
             rv = false;    // state = SOF2, still sync
-        } else if (self->api.link_fn) {
-            self->api.link_fn(self->api.user_data, frame_type, frame_id);
+        } else if (self->external_self.api.link_fn) {
+            self->external_self.api.link_fn(self->external_self.api.user_data, frame_type, frame_id);
         }
     }
     self->is_sync = 1;
@@ -344,11 +343,6 @@ uint8_t fbp_framer_length_crc(uint8_t length) {
     return length_crc(length);
 }
 
-static void register_upper_layer(struct fbp_framer_s *ext_self, struct fbp_framer_api_s const * ul) {
-    struct framer_s * self = (struct framer_s *) ext_self;
-    self->api = *ul;
-}
-
 static void finalize(struct fbp_framer_s * self) {
     fbp_free(self);
 }
@@ -361,7 +355,6 @@ static void finalize(struct fbp_framer_s * self) {
 FBP_API struct fbp_framer_s * fbp_framer_initialize() {
     struct framer_s * self = fbp_alloc_clr(sizeof(struct framer_s));
     struct fbp_framer_s * x = &self->external_self;
-    x->register_upper_layer = register_upper_layer;
     x->recv = ll_recv;
     x->reset = reset;
     x->construct_data = construct_data;

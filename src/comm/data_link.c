@@ -782,13 +782,10 @@ struct fbp_dl_s * fbp_dl_initialize(
     self->ll_instance = *ll_instance;
     self->framer = framer;
 
-    struct fbp_framer_api_s framer_interface = {
-            .user_data = self,
-            .data_fn = on_recv_data,
-            .link_fn = on_recv_link,
-            .framing_error_fn = on_framing_error
-    };
-    self->framer->register_upper_layer(self->framer, &framer_interface);
+    self->framer->api.user_data = self;
+    self->framer->api.data_fn = on_recv_data;
+    self->framer->api.link_fn = on_recv_link;
+    self->framer->api.framing_error_fn = on_framing_error;
     self->evm = *evm;
     tx_reset(self);
 

@@ -481,14 +481,6 @@ struct fbp_framer_api_s {
  */
 struct fbp_framer_s {
     /**
-     * @brief Register callbacks for the upper-layer.
-     *
-     * @param self The framer instance.
-     * @param ul The upper layer.
-     */
-    void (*register_upper_layer)(struct fbp_framer_s *self, struct fbp_framer_api_s const * ul);
-
-    /**
      * @brief Provide receive data to the framer.
      *
      * @param self The framer instance.
@@ -538,6 +530,13 @@ struct fbp_framer_s {
 
     /// The current framer status.
     struct fbp_framer_status_s status;
+
+    /**
+     * @brief The framer callbacks.
+     *
+     * The data link module normally configures this at initialization.
+     */
+    struct fbp_framer_api_s api;
 };
 
 /**
