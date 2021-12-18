@@ -64,8 +64,7 @@ elseif ("${FITTERBAP_OS}" STREQUAL "WIN32")
             host/win/uart.c
             host/win/uart_thread.c
             host/win/platform.c
-            host/win/comm.c
-            host/platform_alloc.c)
+            host/win/comm.c)
 else()
     set(SOURCES_HOST "")
 endif()
