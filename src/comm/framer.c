@@ -32,7 +32,7 @@
 #endif
 
 FBP_STATIC_ASSERT(FBP_FRAMER_LINK_SIZE == sizeof(uint64_t), link_size);
-#define DEFINE_SELF() struct framer_s * self = (struct framer_s *) ext_self->user_data
+#define DEFINE_SELF() struct framer_s * self = (struct framer_s *) ext_self
 
 
 enum state_e {
@@ -44,6 +44,7 @@ enum state_e {
 };
 
 struct framer_s {
+    struct fbp_framer_s ext_self;  // must be first member to avoid FBP_CONTAINER_OF
     uint8_t state;          // fbp_framer_state_e
     uint8_t is_sync;
     uint16_t length;        // the current frame length or 0
@@ -180,7 +181,7 @@ static bool handle_frame(struct fbp_framer_s * ext_self, const uint8_t * p) {
     return rv;
 }
 
-static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint32_t buffer_size) {
+void fbp_framer_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint32_t buffer_size) {
     DEFINE_SELF();
     FBP_LOGD3("received %d bytes", (int) buffer_size);
     ext_self->status.total_bytes += buffer_size;
@@ -280,7 +281,7 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
     }
 }
 
-static void reset(struct fbp_framer_s * ext_self) {
+void fbp_framer_reset(struct fbp_framer_s * ext_self) {
     DEFINE_SELF();
     self->state = ST_SOF1;
     self->is_sync = 0;
@@ -289,7 +290,7 @@ static void reset(struct fbp_framer_s * ext_self) {
     fbp_memset(&ext_self->status, 0, sizeof(ext_self->status));
 }
 
-static int32_t construct_data(
+int32_t fbp_framer_construct_data(
         struct fbp_framer_s * ext_self,
         uint8_t * b, uint16_t frame_id, uint16_t metadata,
         uint8_t const *msg, uint32_t msg_size) {
@@ -315,7 +316,7 @@ static int32_t construct_data(
     return 0;
 }
 
-static int32_t construct_link(
+int32_t fbp_framer_construct_link(
         struct fbp_framer_s * ext_self,
         uint64_t * b, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
     (void) ext_self;
@@ -347,11 +348,7 @@ uint8_t fbp_framer_length_crc(uint8_t length) {
     return length_crc(length);
 }
 
-static void finalize(struct fbp_framer_s * self) {
-    if (self->user_data) {
-        fbp_free(self->user_data);
-        self->user_data = NULL;
-    }
+void fbp_framer_finalize(struct fbp_framer_s * self) {
     fbp_free(self);
 }
 
@@ -361,14 +358,13 @@ static void finalize(struct fbp_framer_s * self) {
  * @return The new data link instance.
  */
 FBP_API struct fbp_framer_s * fbp_framer_initialize() {
-    struct fbp_framer_s * x = fbp_alloc_clr(sizeof(struct fbp_framer_s));
     struct framer_s * self = fbp_alloc_clr(sizeof(struct framer_s));
-    x->user_data = self;
-    x->recv = ll_recv;
-    x->reset = reset;
-    x->construct_data = construct_data;
-    x->construct_link = construct_link;
-    x->finalize = finalize;
-    reset(x);
+    struct fbp_framer_s * x = &self->ext_self;
+    x->recv = fbp_framer_recv;
+    x->reset = fbp_framer_reset;
+    x->construct_data = fbp_framer_construct_data;
+    x->construct_link = fbp_framer_construct_link;
+    x->finalize = fbp_framer_finalize;
+    fbp_framer_reset(x);
     return x;
 }

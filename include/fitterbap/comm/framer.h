@@ -481,13 +481,6 @@ struct fbp_framer_api_s {
  */
 struct fbp_framer_s {
     /**
-     * @brief Arbitrary user data storage.
-     *
-     * This member is often used to store subclass data.
-     */
-    void * user_data;
-
-    /**
      * @brief Provide receive data to the framer.
      *
      * @param self The framer instance.
@@ -552,6 +545,56 @@ struct fbp_framer_s {
  * @return The new data link instance.
  */
 FBP_API struct fbp_framer_s * fbp_framer_initialize();
+
+/**
+ * @brief Provide receive data to the framer.
+ *
+ * @param self The framer instance.
+ * @param buffer The data received, which is only valid for the
+ *      duration of the callback.
+ * @param buffer_size The size of buffer in total_bytes.
+ */
+FBP_API void fbp_framer_recv(struct fbp_framer_s *self, uint8_t const *buffer, uint32_t buffer_size);
+
+/**
+ * @brief Reset the framer state.
+ *
+ * @param self The framer instance.
+ *
+ * The caller must initialize the ul parameter correctly.
+ */
+FBP_API void fbp_framer_reset(struct fbp_framer_s *self);
+
+/**
+ * @brief Construct a data frame.
+ *
+ * @param self The framer instance.
+ * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
+ * @param frame_id The frame id for the frame.
+ * @param metadata The message metadata
+ * @param msg The payload buffer.
+ * @param msg_size The size of msg_buffer in bytes.
+ * @return 0 or error code.
+ */
+FBP_API int32_t fbp_framer_construct_data(struct fbp_framer_s *self, uint8_t *b, uint16_t frame_id, uint16_t metadata,
+                                          uint8_t const *msg, uint32_t msg_size);
+
+/**
+ * @brief Construct a link frame.
+ *
+ * @param self The framer instance.
+ * @param b The 64-bit (8-byte) output buffer.
+ * @param frame_type The link frame type.
+ * @param frame_id The frame id.
+ * @return 0 or error code.
+ */
+FBP_API int32_t fbp_framer_construct_link(struct fbp_framer_s *self, uint64_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
+
+/**
+ * @brief Finalize and free a framer instance.
+ * @param self The framer instance.
+ */
+FBP_API void fbp_framer_finalize(struct fbp_framer_s * self);
 
 /**
  * @brief Compute the CRC8 for the length field.

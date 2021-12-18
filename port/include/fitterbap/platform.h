@@ -17,7 +17,7 @@
 /**
  * @file
  *
- * @brief MS Windows platform
+ * @brief Host platform common definition file.
  */
 
 #ifndef FBP_PORT_PLATFORM_H_
