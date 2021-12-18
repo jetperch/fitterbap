@@ -481,6 +481,13 @@ struct fbp_framer_api_s {
  */
 struct fbp_framer_s {
     /**
+     * @brief Arbitrary user data storage.
+     *
+     * This member is often used to store subclass data.
+     */
+    void * user_data;
+
+    /**
      * @brief Provide receive data to the framer.
      *
      * @param self The framer instance.

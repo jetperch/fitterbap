@@ -32,6 +32,8 @@
 #endif
 
 FBP_STATIC_ASSERT(FBP_FRAMER_LINK_SIZE == sizeof(uint64_t), link_size);
+#define DEFINE_SELF() struct framer_s * self = (struct framer_s *) ext_self->user_data
+
 
 enum state_e {
     ST_SOF1,
@@ -42,7 +44,6 @@ enum state_e {
 };
 
 struct framer_s {
-    struct fbp_framer_s external_self;
     uint8_t state;          // fbp_framer_state_e
     uint8_t is_sync;
     uint16_t length;        // the current frame length or 0
@@ -112,20 +113,22 @@ static inline uint16_t parse_data_metadata(uint8_t const * frame) {
     return frame[6] | (((uint16_t) frame[7]) << 8);
 }
 
-static void handle_framing_error(struct framer_s * self, uint16_t discard_size) {
+static void handle_framing_error(struct fbp_framer_s * ext_self, uint16_t discard_size) {
+    DEFINE_SELF();
     self->state = ST_SOF1;
-    self->external_self.status.ignored_bytes += discard_size;
+    ext_self->status.ignored_bytes += discard_size;
     self->buf_offset = 0;
     if (self->is_sync) {
-        ++self->external_self.status.resync;
+        ++ext_self->status.resync;
         self->is_sync = 0;
-        if (self->external_self.api.framing_error_fn) {
-            self->external_self.api.framing_error_fn(self->external_self.api.user_data);
+        if (ext_self->api.framing_error_fn) {
+            ext_self->api.framing_error_fn(ext_self->api.user_data);
         }
     }
 }
 
-static bool handle_frame(struct framer_s * self, const uint8_t * p) {
+static bool handle_frame(struct fbp_framer_s * ext_self, const uint8_t * p) {
+    DEFINE_SELF();
     uint8_t frame_type = parse_frame_type(p);
     uint16_t frame_id = parse_frame_id(p);
     uint16_t frame_sz = self->length - 1;
@@ -133,7 +136,7 @@ static bool handle_frame(struct framer_s * self, const uint8_t * p) {
 
     if (p[frame_sz] != FBP_FRAMER_SOF1) {  // check EOF (SOF of next frame)
         FBP_LOGD1("missing EOF");
-        handle_framing_error(self, self->length);
+        handle_framing_error(ext_self, self->length);
         return false;  // state = SOF1, not sync
     } else if (frame_type == FBP_FRAMER_FT_DATA) {
         // Compute frame CRC (data length CRC was already validated)
@@ -145,27 +148,29 @@ static bool handle_frame(struct framer_s * self, const uint8_t * p) {
         uint32_t crc_calc = FBP_CONFIG_COMM_FRAMER_CRC32(p + 2, frame_sz - FBP_FRAMER_FOOTER_SIZE - 2);
         if (crc_rx != crc_calc) {
             FBP_LOGD1("crc invalid");
-            handle_framing_error(self, frame_sz);
+            handle_framing_error(ext_self, frame_sz);
             rv = false;    // state = SOF2, still sync
         } else {
             uint16_t metadata = parse_data_metadata(p);
             uint16_t payload_length = parse_data_payload_length(p);
             FBP_LOGD3("data frame received, frame_id=%d, metadata=0x%04" PRIx32 ", %d bytes",
                       (int) frame_id, (uint32_t) metadata, (int) payload_length);
-            if (self->external_self.api.data_fn) {
-                self->external_self.api.data_fn(self->external_self.api.user_data, frame_id, metadata,
+            if (ext_self->api.data_fn) {
+                ext_self->api.data_fn(ext_self->api.user_data, frame_id, metadata,
                                   (uint8_t *) (p + FBP_FRAMER_HEADER_SIZE), payload_length);
             }
         }
     } else {
         FBP_LOGD3("link frame received, frame_type=0x%02x, frame_id=%d", frame_type, frame_id);
-        if ((p[0] != (uint8_t) ~p[4]) || (p[1] != (uint8_t) ~p[5]) ||
-            (p[2] != (uint8_t) ~p[6]) || (p[3] != (uint8_t) ~p[7])) {
+        uint32_t h0 = p[0] | (((uint32_t) p[1]) << 8) | (((uint32_t) p[2]) << 16) | (((uint32_t) p[3]) << 24);
+        uint32_t h1 = p[4] | (((uint32_t) p[5]) << 8) | (((uint32_t) p[6]) << 16) | (((uint32_t) p[7]) << 24);
+        h1 = ~h1;
+        if (h0 != h1) {
             FBP_LOGD1("link check invalid");
-            handle_framing_error(self, frame_sz);
+            handle_framing_error(ext_self, frame_sz);
             rv = false;    // state = SOF2, still sync
-        } else if (self->external_self.api.link_fn) {
-            self->external_self.api.link_fn(self->external_self.api.user_data, frame_type, frame_id);
+        } else if (ext_self->api.link_fn) {
+            ext_self->api.link_fn(ext_self->api.user_data, frame_type, frame_id);
         }
     }
     self->is_sync = 1;
@@ -176,9 +181,9 @@ static bool handle_frame(struct framer_s * self, const uint8_t * p) {
 }
 
 static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint32_t buffer_size) {
-    struct framer_s * self = (struct framer_s *) ext_self;
+    DEFINE_SELF();
     FBP_LOGD3("received %d bytes", (int) buffer_size);
-    self->external_self.status.total_bytes += buffer_size;
+    ext_self->status.total_bytes += buffer_size;
     const uint8_t * nocopy = NULL;
 
     while (buffer_size) {
@@ -191,10 +196,10 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                     self->state = ST_SOF2;
                 } else if (self->is_sync) {  // expected SOF, but missed
                     FBP_LOGD1("Expected SOF1 got 0x%02x", self->buf[0]);
-                    handle_framing_error(self, 1);
+                    handle_framing_error(ext_self, 1);
                 } else {  // continue search
                     // optimized for speed, skip handle_framing_error() call
-                    self->external_self.status.ignored_bytes += 1;
+                    ext_self->status.ignored_bytes += 1;
                     self->buf_offset = 0;
                 }
                 break;
@@ -206,10 +211,10 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                 } else if (self->buf[1] == FBP_FRAMER_SOF1) {
                     // allow duplicate SOF1 bytes
                     self->buf_offset = 1;
-                    ++self->external_self.status.ignored_bytes;
+                    ++ext_self->status.ignored_bytes;
                 } else {
                     FBP_LOGD1("Expected SOF2 got 0x%02x", self->buf[1]);
-                    handle_framing_error(self, 2);
+                    handle_framing_error(ext_self, 2);
                 }
                 break;
 
@@ -229,7 +234,7 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                         self->length = FBP_FRAMER_LINK_SIZE + 1;
                         break;
                     default:
-                        handle_framing_error(self, 3);
+                        handle_framing_error(ext_self, 3);
                         break;
                 }
                 break;
@@ -244,12 +249,12 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                         self->length = payload_length + FBP_FRAMER_OVERHEAD_SIZE + 1;
                         if (nocopy && ((nocopy + self->length) <= (buffer + buffer_size))) {
                             uint32_t consume_len = 2 + payload_length + FBP_FRAMER_FOOTER_SIZE + 1;
-                            handle_frame(self, nocopy);
+                            handle_frame(ext_self, nocopy);
                             buffer += consume_len;
                             buffer_size -= consume_len;
                         }
                     } else {
-                        handle_framing_error(self, 6);
+                        handle_framing_error(ext_self, 6);
                         break;
                     }
                 }
@@ -268,7 +273,7 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
                     buffer_size -= sz;
                 }
                 if (self->buf_offset >= self->length) {
-                    handle_frame(self, self->buf);
+                    handle_frame(ext_self, self->buf);
                 }
                 break;
         }
@@ -276,12 +281,12 @@ static void ll_recv(struct fbp_framer_s * ext_self, uint8_t const * buffer, uint
 }
 
 static void reset(struct fbp_framer_s * ext_self) {
-    struct framer_s * self = (struct framer_s *) ext_self;
+    DEFINE_SELF();
     self->state = ST_SOF1;
     self->is_sync = 0;
     self->length = 0;
     self->buf_offset = 0;
-    fbp_memset(&self->external_self.status, 0, sizeof(self->external_self.status));
+    fbp_memset(&ext_self->status, 0, sizeof(ext_self->status));
 }
 
 static int32_t construct_data(
@@ -343,6 +348,10 @@ uint8_t fbp_framer_length_crc(uint8_t length) {
 }
 
 static void finalize(struct fbp_framer_s * self) {
+    if (self->user_data) {
+        fbp_free(self->user_data);
+        self->user_data = NULL;
+    }
     fbp_free(self);
 }
 
@@ -352,13 +361,14 @@ static void finalize(struct fbp_framer_s * self) {
  * @return The new data link instance.
  */
 FBP_API struct fbp_framer_s * fbp_framer_initialize() {
+    struct fbp_framer_s * x = fbp_alloc_clr(sizeof(struct fbp_framer_s));
     struct framer_s * self = fbp_alloc_clr(sizeof(struct framer_s));
-    struct fbp_framer_s * x = &self->external_self;
+    x->user_data = self;
     x->recv = ll_recv;
     x->reset = reset;
     x->construct_data = construct_data;
     x->construct_link = construct_link;
     x->finalize = finalize;
-    reset(&self->external_self);
+    reset(x);
     return x;
 }
