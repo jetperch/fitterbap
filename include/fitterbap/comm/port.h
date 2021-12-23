@@ -26,6 +26,7 @@
 #include "fitterbap/common_header.h"
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/comm/data_link.h"
+#include "fitterbap/event_manager.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/topic.h"
 #include <stdint.h>

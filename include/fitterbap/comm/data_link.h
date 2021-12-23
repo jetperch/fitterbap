@@ -25,7 +25,6 @@
 
 #include "fitterbap/cmacro_inc.h"
 #include "fitterbap/comm/framer.h"
-#include "fitterbap/event_manager.h"
 #include "fitterbap/os/mutex.h"
 #include "fitterbap/version.h"
 #include <stdint.h>
@@ -180,6 +179,59 @@
  * [TimerTool](https://github.com/tebjan/TimerTool) to check.
  *
  *
+ * ## Connection Establishment and Reset
+ *
+ * This is the normal initialization case with both the local and
+ * remote starting disconnected:
+ *
+ *                  +-------+      +---------+
+ *                  | Local |      | Remote  |
+ *                  +-------+      +---------+
+ *        DISCONNECTED -|               |- DISCONNECTED
+ *                      | reset(0)      |
+ *                      |-------------->|
+ *                      |               |- CONNECTED
+ *                      |               |--> EV_CONNECTED
+ *                      |      reset(1) |
+ *                      |<--------------|
+ *           CONNECTED -|               |
+ *       EV_CONNECTED<--|               |
+ *                      |               |
+ *
+ *
+ * The reset case occurs when the local is disconnect (or transitions
+ * to disconnected) while the remote remains connected:
+ *
+ *                  +-------+      +---------+
+ *                  | Local |      | Remote  |
+ *                  +-------+      +---------+
+ *        DISCONNECTED -|               |- CONNECTED
+ *                      | reset(0)      |
+ *                      |-------------->|
+ *                      |               |- DISCONNECTED
+ *                      |               |--> EV_RESET
+ *                      |               |--> EV_DISCONNECTED
+ *                      |      reset(0) |
+ *                      |<--------------|
+ *                      |      reset(1) |
+ *                      |<--------------|
+ *                      | reset(1)      |
+ *                      |-------------->|
+ *           CONNECTED -|               |
+ *      EV_CONNECTED <--|               |
+ *                      |               |- CONNECTED
+ *                      |               |--> EV_CONNECTED
+ *                      |               |
+ *
+ *
+ * Note that when disconnected, the data link will retransmit reset(0) after
+ * a timeout.  This ensures that the sides will eventually connect.
+ *
+ * If both sides happen to send reset(0) at the same time, then the sides may
+ * have an extra cycle DISCONNECTED -> CONNECTED -> DISCONNECTED -> CONNECTED
+ * instead of just DISCONNECTED -> CONNECTED.
+ *
+ *
  * ## References
  *
  *    - Selective Repeat Automated Repeat Request (SR-ARQ)
@@ -203,7 +255,7 @@ FBP_CPP_GUARD_START
 
 
 #define FBP_DL_VERSION_MAJOR 1
-#define FBP_DL_VERSION_MINOR 0
+#define FBP_DL_VERSION_MINOR 1
 #define FBP_DL_VERSION_PATCH 0
 #define FBP_DL_VERSION  FBP_VERSION_ENCODE_U32(FBP_DL_VERSION_MAJOR, FBP_DL_VERSION_MINOR, FBP_DL_VERSION_PATCH)
 
@@ -216,7 +268,7 @@ struct fbp_dl_config_s {
     uint32_t tx_link_size;    // in frames, normally the same as rx_window_size
     uint32_t tx_window_size;  // in frames
     uint32_t rx_window_size;  // in frames
-    int64_t tx_timeout;       // transmit timeout in FBP time 34Q30.
+    int64_t tx_timeout;      // transmit timeout (units determined by user)
 };
 
 /// The data link transmit status.
@@ -311,16 +363,30 @@ typedef void (*fbp_dl_event_fn)(void *user_data, enum fbp_dl_event_e event);
 typedef void (*fbp_dl_recv_fn)(void *user_data, uint16_t metadata, uint8_t *msg, uint32_t msg_size);
 
 /**
+ * @brief The function called to request a future call to fbp_dl_process().
+ *
+ * @param user_data The arbitrary user data.
+ * @see fbp_dl_register_process_request
+ * @see fbp_dl_register_mutex
+ *
+ * This function may be used by multi-threaded implementations to set an
+ * event which wakes the main data link thread to call fbp_dl_process().
+ * This function is called from within fbp_dl_send().  For multi-threaded
+ * implementations, this callback function must be thread safe.
+ */
+typedef void (*fbp_dl_process_request_fn)(void * user_data);
+
+/**
  * @brief The API event callbacks to the upper layer.
  */
 struct fbp_dl_api_s {
     void *user_data;           ///< The arbitrary user data.
     fbp_dl_event_fn event_fn;  ///< Function called on events.
-    fbp_dl_recv_fn recv_fn;    ///< Function call on received messages.
+    fbp_dl_recv_fn recv_fn;    ///< Function called on received messages.
 };
 
 /**
- * @brief Send a message.
+ * @brief Send a message.  Thread-safe!
  *
  * @param self The instance.
  * @param metadata The arbitrary 16-bit metadata associated with the message.
@@ -328,16 +394,24 @@ struct fbp_dl_api_s {
  *      copies this buffer, so it only needs to be valid for the duration
  *      of the function call.
  * @param msg_size The size of msg_buffer in total_bytes.
- * @param timeout_ms The timeout duration in milliseconds.  Values <= 0 do not
- *      retry and fail immediately if the buffer is full.  Values > 0 will
- *      retry until success or until the timeout_ms elapses.
- * @return 0 or error code.
+ * @return 0 or error code:
+ *      - FBP_ERROR_UNAVAILABLE: link is not yet connected
+ *      - FBP_ERROR_PARAMETER_INVALID: msg_size exceeds FBP_FRAMER_PAYLOAD_MAX_SIZE
+ *      - FBP_ERROR_FULL: data link transmit buffer is currently full.
  *
- * The port send_done_cbk callback will be called when the send completes.
+ * This function is the only fbp_dl_* function that may be called outside
+ * of the main data link processing thread.  For thread-safe multi-threaded
+ * operation, the code must provide a mutex using fbp_dl_register_mutex()
+ * before calling this function from multiple threads.
+ *
+ * The code should also provide a process_request callback using
+ * fbp_dl_register_process_request().  In single-threaded operation, this
+ * should set the time to call fbp_dl_process() to the current time.
+ * For multi-threaded operation, this should unblock the
+ * main data link processing thread and call fbp_dl_process().
  */
 FBP_API int32_t fbp_dl_send(struct fbp_dl_s * self, uint16_t metadata,
-                            uint8_t const *msg, uint32_t msg_size,
-                            uint32_t timeout_ms);
+                            uint8_t const *msg, uint32_t msg_size);
 
 /**
  * @brief Provide receive data to this data link instance.
@@ -349,6 +423,16 @@ FBP_API int32_t fbp_dl_send(struct fbp_dl_s * self, uint16_t metadata,
  */
 FBP_API void fbp_dl_ll_recv(struct fbp_dl_s * self,
                             uint8_t const * buffer, uint32_t buffer_size);
+
+/**
+ * @brief Process pending transmit operations.
+ *
+ * @param self The data link instance.
+ * @param now The current time in user-defined units.
+ *      However, the units must match config.tx_timeout.
+ * @return The next time to call this function.
+ */
+int64_t fbp_dl_process(struct fbp_dl_s * self, int64_t now);
 
 /**
  * @brief Write data to the low-level driver instance.
@@ -397,14 +481,12 @@ struct fbp_dl_ll_s {
  * @brief Allocate, initialize, and start the data link layer.
  *
  * @param config The data link configuration.
- * @param evm The event manager instance.
  * @param ll_instance The lower-level driver instance.
  * @param framer The framer instance, usually from fbp_framer_initialize().
  * @return The new data link instance.
  */
 FBP_API struct fbp_dl_s * fbp_dl_initialize(
         struct fbp_dl_config_s const * config,
-        struct fbp_evm_api_s const * evm,
         struct fbp_dl_ll_s const * ll_instance,
         struct fbp_framer_s * framer);
 
@@ -458,12 +540,31 @@ FBP_API int32_t fbp_dl_status_get(
 FBP_API void fbp_dl_status_clear(struct fbp_dl_s * self);
 
 /**
- * @brief Register a send-side mutex.
+ * @brief Register a send-side mutex for multi-threaded operation.
  *
  * @param self The data link instance.
  * @param mutex The mutex instance.
+ * @see fbp_dl_register_process_request
+ *
+ * Multi-threaded implementations should also register a process request
+ * callback using fbp_dl_register_process_request().
  */
 FBP_API void fbp_dl_register_mutex(struct fbp_dl_s * self, fbp_os_mutex_t mutex);
+
+/**
+ * @brief Register a process request callback for multi-threaded operation.
+ *
+ * @param self The data link instance.
+ * @param fn The function to call when the main data link thread should
+ *      unlock and call fbp_dl_process().
+ * @param user_data The arbitrary data for fn.
+ * @see fbp_dl_register_mutex
+ *
+ * Multi-threaded implementations should also register a mutex using
+ * fbp_dl_register_mutex().
+ */
+FBP_API void fbp_dl_register_process_request(struct fbp_dl_s * self,
+        fbp_dl_process_request_fn fn, void * user_data);
 
 /**
  * @brief Get the maximum allowed TX window size.

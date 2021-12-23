@@ -292,12 +292,17 @@ void fbp_framer_reset(struct fbp_framer_s * ext_self) {
 
 int32_t fbp_framer_construct_data(
         struct fbp_framer_s * ext_self,
-        uint8_t * b, uint16_t frame_id, uint16_t metadata,
+        uint8_t * b, uint16_t * b_size,
+        uint16_t frame_id, uint16_t metadata,
         uint8_t const *msg, uint32_t msg_size) {
     (void) ext_self;
     if ((msg_size < 1) || (msg_size > 256) || (frame_id > FBP_FRAMER_FRAME_ID_MAX)) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
+    if (*b_size < (msg_size + FBP_FRAMER_OVERHEAD_SIZE)) {
+        return FBP_ERROR_TOO_SMALL;
+    }
+    *b_size = msg_size + FBP_FRAMER_OVERHEAD_SIZE;
     uint8_t length_field = msg_size - 1;
     b[0] = FBP_FRAMER_SOF1;
     b[1] = FBP_FRAMER_SOF2;

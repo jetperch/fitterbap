@@ -40,6 +40,7 @@ struct test_s {
     struct fbp_framer_s * f;
     // send truncated
     uint8_t frame1[FBP_FRAMER_MAX_SIZE];
+    uint16_t frame1_size;
 };
 
 static void on_data(void * user_data, uint16_t frame_id, uint16_t metadata,
@@ -67,7 +68,8 @@ static void send_eof(struct fbp_framer_s * self) {
 static void send_data(struct test_s * self, uint16_t frame_id, uint16_t metadata,
                       uint8_t const *msg_buffer, uint32_t msg_size) {
     uint8_t b[FBP_FRAMER_MAX_SIZE];
-    assert_int_equal(0, self->f->construct_data(self->f, b, frame_id, metadata, msg_buffer, msg_size));
+    uint16_t b_size = sizeof(b);
+    assert_int_equal(0, self->f->construct_data(self->f, b, &b_size, frame_id, metadata, msg_buffer, msg_size));
     self->f->recv(self->f, b, msg_size + FBP_FRAMER_OVERHEAD_SIZE);
     expect_data(frame_id, metadata, msg_buffer, msg_size);
     send_eof(self->f);
@@ -76,8 +78,9 @@ static void send_data(struct test_s * self, uint16_t frame_id, uint16_t metadata
 static void send_data_with_eof(struct test_s * self, uint16_t frame_id, uint16_t metadata,
                                uint8_t const *msg_buffer, uint32_t msg_size) {
     uint8_t b[FBP_FRAMER_MAX_SIZE + 1];
+    uint16_t b_size = sizeof(b);
     memset(b, FBP_FRAMER_SOF1, sizeof(b));
-    assert_int_equal(0, self->f->construct_data(self->f, b, frame_id, metadata, msg_buffer, msg_size));
+    assert_int_equal(0, self->f->construct_data(self->f, b, &b_size, frame_id, metadata, msg_buffer, msg_size));
     expect_data(frame_id, metadata, msg_buffer, msg_size);
     self->f->recv(self->f, b, msg_size + FBP_FRAMER_OVERHEAD_SIZE + 1);
 }
@@ -129,7 +132,8 @@ static int setup(void ** state) {
     self->f->api.framing_error_fn = on_framing_error;
     self->f->api.link_fn = on_link;
     self->f->api.data_fn = on_data;
-    self->f->construct_data(self->f, self->frame1, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
+    self->frame1_size = sizeof(self->frame1);
+    self->f->construct_data(self->f, self->frame1, &self->frame1_size, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
     self->f->reset(self->f);
 #if 0
     for (int i = 0; i < FBP_FRAMER_MAX_SIZE; ++i) {
@@ -212,16 +216,25 @@ static void test_data(void ** state) {
     send_data_with_eof(self, 1, 2, PAYLOAD1, sizeof(PAYLOAD1));
 }
 
+static void test_construct_data_buffer_too_small(void ** state) {
+    struct test_s *self = (struct test_s *) *state;
+    uint8_t b[FBP_FRAMER_OVERHEAD_SIZE + sizeof(PAYLOAD1)/2];
+    uint16_t b_size = sizeof(b);
+    assert_int_equal(FBP_ERROR_TOO_SMALL, self->f->construct_data(self->f, b, &b_size, 1, 2, PAYLOAD1, sizeof(PAYLOAD1)));
+}
+
 static void test_multiple_data_one_buffer(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     uint8_t msg[256];
-    uint8_t b[(FBP_FRAMER_MAX_SIZE + 1) * 256];
+    uint8_t b[(FBP_FRAMER_MAX_SIZE + 1) * 200];
     uint8_t * p = b;
+    uint16_t p_size;
     for (int i = 0; i < 256; ++i) {
         msg[i] = i;
-        assert_int_equal(0, self->f->construct_data(self->f, p, i, 0x2280 + i, msg, i + 1));
+        p_size = (b + sizeof(b)) - p;
+        assert_int_equal(0, self->f->construct_data(self->f, p, &p_size, i, 0x2280 + i, msg, i + 1));
         expect_data(i, 0x2280 + i, msg, i + 1);
-        p += FBP_FRAMER_OVERHEAD_SIZE + i + 1;
+        p += p_size;
     }
     *p++ = FBP_FRAMER_SOF1;
     self->f->recv(self->f, b, p - b);
@@ -236,9 +249,11 @@ static void test_sofs_data(void ** state) {
 static void test_data_split(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     uint8_t b[FBP_FRAMER_MAX_SIZE];
+    uint16_t b_size;
     uint16_t sz = sizeof(PAYLOAD1) + FBP_FRAMER_OVERHEAD_SIZE;
     for (uint16_t frame_id = 1; frame_id < (sz - 1); ++frame_id) {
-        assert_int_equal(0, self->f->construct_data(self->f, b, frame_id, 2, PAYLOAD1, sizeof(PAYLOAD1)));
+        b_size = sizeof(b);
+        assert_int_equal(0, self->f->construct_data(self->f, b, &b_size, frame_id, 2, PAYLOAD1, sizeof(PAYLOAD1)));
         self->f->recv(self->f, b, frame_id);
         self->f->recv(self->f, b + frame_id, sizeof(PAYLOAD1) + FBP_FRAMER_OVERHEAD_SIZE - frame_id);
         expect_data(frame_id, 2, PAYLOAD1, sizeof(PAYLOAD1));
@@ -284,9 +299,12 @@ static void test_construct_data_checks(void ** state) {
     struct test_s *self = (struct test_s *) *state;
     (void) self;
     uint8_t b[FBP_FRAMER_MAX_SIZE];
-    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, self->f->construct_data(self->f, b, FBP_FRAMER_FRAME_ID_MAX + 1, 0, PAYLOAD1, sizeof(PAYLOAD1)));
-    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, self->f->construct_data(self->f, b, 0, 0, PAYLOAD1, 0));
-    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, self->f->construct_data(self->f, b, 0, 0, PAYLOAD1, FBP_FRAMER_PAYLOAD_MAX_SIZE + 1));
+    uint16_t b_size = sizeof(b);
+    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, self->f->construct_data(self->f, b, &b_size, FBP_FRAMER_FRAME_ID_MAX + 1, 0, PAYLOAD1, sizeof(PAYLOAD1)));
+    b_size = sizeof(b);
+    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, self->f->construct_data(self->f, b, &b_size, 0, 0, PAYLOAD1, 0));
+    b_size = sizeof(b);
+    assert_int_equal(FBP_ERROR_PARAMETER_INVALID, self->f->construct_data(self->f, b, &b_size, 0, 0, PAYLOAD1, FBP_FRAMER_PAYLOAD_MAX_SIZE + 1));
 }
 
 static void test_reset(void ** state) {
@@ -382,6 +400,7 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_garbage_then_ack_all, setup, teardown),
             cmocka_unit_test_setup_teardown(test_sofs_garbage_sofs_link, setup, teardown),
             cmocka_unit_test_setup_teardown(test_data, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_construct_data_buffer_too_small, setup, teardown),
             cmocka_unit_test_setup_teardown(test_multiple_data_one_buffer, setup, teardown),
             cmocka_unit_test_setup_teardown(test_sofs_data, setup, teardown),
             cmocka_unit_test_setup_teardown(test_data_split, setup, teardown),

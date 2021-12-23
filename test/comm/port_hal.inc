@@ -292,25 +292,22 @@ int32_t fbp_transport_send(struct fbp_transport_s * self,
                            uint8_t port_id,
                            enum fbp_transport_seq_e seq,
                            uint8_t port_data,
-                           uint8_t const *msg, uint32_t msg_size,
-                           uint32_t timeout_ms) {
+                           uint8_t const *msg, uint32_t msg_size) {
     (void) self;
     check_expected(port_id);
     check_expected(seq);
     check_expected(port_data);
     check_expected(msg_size);
     check_expected_ptr(msg);
-    check_expected(timeout_ms);
-    return mock_type(int32_t);;
+    return mock_type(int32_t);
 }
 
-#define expect_send(_port_id, _port_data, _msg, _msg_size, _timeout_ms)     \
+#define expect_send(_port_id, _port_data, _msg, _msg_size)     \
     expect_value(fbp_transport_send, port_id, _port_id);                    \
     expect_value(fbp_transport_send, seq, FBP_TRANSPORT_SEQ_SINGLE);        \
     expect_value(fbp_transport_send, port_data, _port_data);                \
     expect_value(fbp_transport_send, msg_size, _msg_size);                  \
     expect_memory(fbp_transport_send, msg, _msg, _msg_size);                \
-    expect_value(fbp_transport_send, timeout_ms, _timeout_ms);              \
     will_return(fbp_transport_send, 0)
 
 #define expect_send_error(error_)                               \

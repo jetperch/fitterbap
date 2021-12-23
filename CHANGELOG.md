@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.5.0
 
-2021 Nov 24 [in progress]
+2021 Dec 23 [in progress]
 
 * Restructured platform and configuration.
   * Allow for static inline functions in platform.
@@ -22,11 +22,19 @@ This file contains the list of changes made to the Fitterbap library.
 * Added compile-time option to display frames in framer_test.
 * Fixed gcc 11.2 errors and warnings.
 * Fixed comm data link.
-  * Improved and simplified reset handling.
-  * Fixed comm send timeout 0 when full.
+  * Improved and simplified reset handling.  Added sequence diagrams.
+  * Removed comm send timeout.  Implement in app and higher levels as needed.
   * Fixed endless immediate scheduling lower level transmitter is full.
   * Improved comm framer performance - no copy when entire frame in buffer.
+  * Added process_request callback for more reliable OS integration.
+  * Improved multi-threaded performance and fixed potential deadlock.
+    Clarified that fbp_dl_send is the only thread-safe function.
+  * Added fbp_dl_process and removed fbp_evm integration to give better
+    decoupling and performance.
+  * Added explicit buffer size to framer construct_data.
+  * Fixed stream_tester.
 * Fixed python to better support PySide6.
+* Added fbp_rbu64_is_empty
 
 
 ## 0.4.1

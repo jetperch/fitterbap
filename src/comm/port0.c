@@ -214,7 +214,7 @@ static void echo_send(struct fbp_port0_s * self) {
             && ((self->echo_tx_frame_id - self->echo_rx_frame_id) < self->echo_window)) {
         self->echo_buffer[0] = self->echo_tx_frame_id++;
         if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(ECHO),
-                          (uint8_t *) self->echo_buffer, self->echo_length, 0)) {
+                          (uint8_t *) self->echo_buffer, self->echo_length)) {
             FBP_LOGD1("echo_send error");
         }
     }
@@ -318,7 +318,7 @@ static void op_status_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_
         return;
     }
     self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(STATUS),
-                  (uint8_t *) &status, sizeof(status), 0);
+                  (uint8_t *) &status, sizeof(status));
 }
 
 static void op_status_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
@@ -328,7 +328,7 @@ static void op_status_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_
 static void op_echo_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
     // Send response with same payload
     if (self->fsm.state == ST_CONNECTED) {
-        self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(ECHO), msg, msg_size, 0);
+        self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(ECHO), msg, msg_size);
     }
 }
 
@@ -358,7 +358,7 @@ static int32_t timesync_req_send(struct fbp_port0_s * self) {
         FBP_LOGW("timesync_req_send by server");
     }
     return self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(TIMESYNC),
-                         (uint8_t *) times, sizeof(times), 0);
+                         (uint8_t *) times, sizeof(times));
 }
 
 static void op_timesync_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
@@ -370,7 +370,7 @@ static void op_timesync_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t ms
     times[2] = fbp_time_utc();
     times[3] = times[2];
     if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(TIMESYNC),
-                      (uint8_t *) times, sizeof(times), 0)) {
+                      (uint8_t *) times, sizeof(times))) {
         FBP_LOGW("timestamp reply error");
     } else if (self->mode == FBP_PORT0_MODE_SERVER) {
         emit_event(self, EV_TIMESYNC_DONE);
@@ -413,7 +413,7 @@ static int32_t meta_send_next(struct fbp_port0_s * self) {
     }
 
     memcpy(msg + 1, meta, meta_sz);
-    if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(META), msg, meta_sz + 1, 0)) {
+    if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(META), msg, meta_sz + 1)) {
         tick_set(self, 1);
         return FBP_ERROR_BUSY;
     } else {
@@ -484,7 +484,7 @@ static void op_negotiate_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t m
         fbp_dl_tx_window_set(self->dl, rsp[3]);
     }
     if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(NEGOTIATE),
-                      (uint8_t *) rsp, sizeof(rsp), 0)) {
+                      (uint8_t *) rsp, sizeof(rsp))) {
         FBP_LOGW("negotiate_req send failed on %s", self->topic_prefix);
     }
     emit_event(self, EV_NEGOTIATE_DONE);
@@ -597,7 +597,7 @@ static fbp_fsm_state_t negotiate_send_req(struct fbp_fsm_s * fsm, fbp_fsm_event_
     payload[2] = fbp_dl_tx_window_max_get(self->dl);
     payload[3] = fbp_dl_rx_window_get(self->dl);
     if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(NEGOTIATE),
-                      (uint8_t *) payload, sizeof(payload), 0)) {
+                      (uint8_t *) payload, sizeof(payload))) {
         // buffer full, schedule retry
         tick_set(self, 2);
     }

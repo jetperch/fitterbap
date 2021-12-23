@@ -32,7 +32,7 @@ void fbp_topic_append(struct fbp_topic_s * topic, const char * subtopic) {
     }
     FBP_ASSERT(t < topic_end);
     *t = 0;
-    topic->length = t - topic->topic;
+    topic->length = (uint8_t) (t - topic->topic);
 }
 
 void fbp_topic_set(struct fbp_topic_s * topic, const char * str) {

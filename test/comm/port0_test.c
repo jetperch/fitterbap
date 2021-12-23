@@ -163,10 +163,8 @@ static int32_t ll_send(struct fbp_transport_s * t,
                        uint8_t port_id,
                        enum fbp_transport_seq_e seq,
                        uint8_t port_data,
-                       uint8_t const *msg, uint32_t msg_size,
-                       uint32_t timeout_ms) {
+                       uint8_t const *msg, uint32_t msg_size) {
     (void) t;
-    (void) timeout_ms;
     check_expected(port_id);
     check_expected(seq);
     check_expected(port_data);
@@ -440,18 +438,14 @@ static void test_server_timeout_in_negotiate(void ** state) {
 
 static int32_t send_p1_to_p2(struct fbp_transport_s * t,
                              uint8_t port_id, enum fbp_transport_seq_e seq, uint8_t port_data,
-                             uint8_t const *msg, uint32_t msg_size,
-                             uint32_t timeout_ms) {
-    (void) timeout_ms;
+                             uint8_t const *msg, uint32_t msg_size) {
     fbp_port0_on_recv_cbk(t->p2, port_id, seq, port_data, (uint8_t *) msg, msg_size);
     return 0;
 }
 
 static int32_t send_p2_to_p1(struct fbp_transport_s * t,
                              uint8_t port_id, enum fbp_transport_seq_e seq, uint8_t port_data,
-                             uint8_t const *msg, uint32_t msg_size,
-                             uint32_t timeout_ms) {
-    (void) timeout_ms;
+                             uint8_t const *msg, uint32_t msg_size) {
     fbp_port0_on_recv_cbk(t->p1, port_id, seq, port_data, (uint8_t *) msg, msg_size);
     return 0;
 }

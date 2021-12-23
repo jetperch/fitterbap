@@ -82,6 +82,10 @@ static inline uint32_t fbp_rbu64_size(struct fbp_rbu64_s * self) {
     return sz;
 }
 
+static inline bool fbp_rbu64_is_empty(struct fbp_rbu64_s * self) {
+    return (self->head == self->tail);
+}
+
 static inline uint32_t fbp_rbu64_empty_size(struct fbp_rbu64_s * self) {
     return self->buf_size - 1 - fbp_rbu64_size(self);
 }

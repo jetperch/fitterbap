@@ -183,7 +183,7 @@ int32_t fbp_logp_recv(void * user_data, struct fbp_logh_header_s const * header,
     *p++ = 0;
 
     return fbp_transport_send(self->transport, self->port_id, FBP_TRANSPORT_SEQ_SINGLE,
-                              0, (uint8_t *) p_start, p - p_start, 0);
+                              0, (uint8_t *) p_start, p - p_start);
 }
 
 void fbp_logp_handler_register(struct fbp_port_api_s * api, fbp_logp_publish_formatted fn, void * user_data) {

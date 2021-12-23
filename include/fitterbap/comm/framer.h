@@ -503,13 +503,16 @@ struct fbp_framer_s {
      * @brief Construct a data frame.
      *
      * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
+     * @param b_size[inout] Upon input, the maximum size of b in bytes.  This function will set
+     *      this value to the actual number of bytes in b.
      * @param frame_id The frame id for the frame.
      * @param metadata The message metadata
      * @param msg The payload buffer.
      * @param msg_size The size of msg_buffer in bytes.
      * @return 0 or error code.
      */
-    int32_t (*construct_data)(struct fbp_framer_s *self, uint8_t *b, uint16_t frame_id, uint16_t metadata,
+    int32_t (*construct_data)(struct fbp_framer_s *self, uint8_t *b, uint16_t * b_size,
+                              uint16_t frame_id, uint16_t metadata,
                               uint8_t const *msg, uint32_t msg_size);
 
     /**
@@ -570,13 +573,16 @@ FBP_API void fbp_framer_reset(struct fbp_framer_s *self);
  *
  * @param self The framer instance.
  * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
+ * @param b_size[inout] Upon input, the maximum size of b in bytes.  This function will set
+ *      this value to the actual number of bytes in b.
  * @param frame_id The frame id for the frame.
  * @param metadata The message metadata
  * @param msg The payload buffer.
  * @param msg_size The size of msg_buffer in bytes.
  * @return 0 or error code.
  */
-FBP_API int32_t fbp_framer_construct_data(struct fbp_framer_s *self, uint8_t *b, uint16_t frame_id, uint16_t metadata,
+FBP_API int32_t fbp_framer_construct_data(struct fbp_framer_s *self, uint8_t *b, uint16_t * b_size,
+                                          uint16_t frame_id, uint16_t metadata,
                                           uint8_t const *msg, uint32_t msg_size);
 
 /**

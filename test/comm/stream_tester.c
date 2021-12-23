@@ -17,13 +17,16 @@
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/comm/framer.h"
 #include "fitterbap/collections/list.h"
+#include "fitterbap/event_manager.h"
 #include "fitterbap/time.h"
 #include "fitterbap/log.h"
 #include "fitterbap/ec.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
+#define SEND_AVAILABLE (FBP_FRAMER_MAX_SIZE + 48)
 
 struct msg_s {
     uint16_t metadata;
@@ -38,7 +41,6 @@ struct host_s {
     char name;
     struct fbp_framer_s * framer;
     struct fbp_dl_s * udl;
-    struct fbp_evm_s * evm;
     struct fbp_list_s recv_expect;
     struct fbp_list_s send_queue;
     struct stream_tester_s * stream_tester;
@@ -50,7 +52,6 @@ struct stream_tester_s {
     uint64_t byte_drop_rate;
     uint64_t byte_insert_rate;
     uint64_t bit_error_rate;
-    uint64_t timeout_rate;
     int64_t now;
     struct fbp_list_s msg_free;
     struct host_s a;
@@ -102,11 +103,6 @@ void fbp_log_printf_(const char * format, ...) {
     va_end(arg);
 }
 
-static int64_t ll_time_get(struct fbp_evm_s * evm) {
-    (void) evm;
-    return s_.now;
-}
-
 static struct msg_s * msg_alloc(struct stream_tester_s * self) {
     struct msg_s * msg;
     if (fbp_list_is_empty(&self->msg_free)) {
@@ -120,6 +116,11 @@ static struct msg_s * msg_alloc(struct stream_tester_s * self) {
     return msg;
 }
 
+static void msg_free(struct stream_tester_s * self, struct msg_s * msg) {
+    fbp_list_add_tail(&self->msg_free, &msg->item);
+}
+
+
 static void ll_send(void * user_data, uint8_t const * buffer, uint32_t buffer_size) {
     struct host_s * host = (struct host_s *) user_data;
     struct msg_s * msg = msg_alloc(host->stream_tester);
@@ -132,7 +133,7 @@ static void ll_send(void * user_data, uint8_t const * buffer, uint32_t buffer_si
 static uint32_t ll_send_available(void * user_data) {
     struct host_s * host = (struct host_s *) user_data;
     (void) host;
-    return FBP_FRAMER_MAX_SIZE;  // todo support a fixed length.
+    return SEND_AVAILABLE;
 }
 
 static void on_event(void *user_data, enum fbp_dl_event_e event) {
@@ -152,7 +153,7 @@ static void on_recv(void *user_data, uint16_t metadata,
     FBP_ASSERT(metadata == msg_expect->metadata);
     FBP_ASSERT(msg_size == msg_expect->msg_size);
     FBP_ASSERT(0 == memcmp(msg, msg_expect->msg_buffer, msg_size));
-    fbp_list_add_tail(&host->stream_tester->msg_free, &msg_expect->item);
+    msg_free(host->stream_tester, msg_expect);
 }
 
 static void host_initialize(struct host_s *host, struct stream_tester_s * parent,
@@ -162,17 +163,13 @@ static void host_initialize(struct host_s *host, struct stream_tester_s * parent
     host->name = name;
     host->target = target;
     host->framer = fbp_framer_initialize();
-    host->evm = fbp_evm_allocate();
-    struct fbp_evm_api_s evm_api;
-    fbp_evm_api_get(host->evm, &evm_api);
-    evm_api.timestamp = ll_time_get;
     struct fbp_dl_ll_s ll = {
             .user_data = host,
             .send = ll_send,
             .send_available = ll_send_available,
     };
 
-    host->udl = fbp_dl_initialize(config, &evm_api, &ll, host->framer);
+    host->udl = fbp_dl_initialize(config, &ll, host->framer);
     FBP_ASSERT_ALLOC(host->udl);
     fbp_list_initialize(&host->recv_expect);
     fbp_list_initialize(&host->send_queue);
@@ -193,9 +190,10 @@ static void send(struct host_s *host) {
     for (uint16_t idx = 0; idx < msg->msg_size; ++idx) {
         msg->msg_buffer[idx] = rand() & 0xff;
     }
-    int32_t rv = fbp_dl_send(host->udl, msg->metadata, msg->msg_buffer, msg->msg_size, 100);
+    int32_t rv = fbp_dl_send(host->udl, msg->metadata, msg->msg_buffer, msg->msg_size);
     if (rv) {
         FBP_LOGW("fbp_dl_send error %d: %s", (int) rv, fbp_error_code_description(rv));
+        msg_free(host->stream_tester, msg);
     } else {
         ++host->metadata;
         fbp_list_add_tail(&host->target->recv_expect, &msg->item);
@@ -286,7 +284,7 @@ static void process_host(struct host_s * host) {
     }
 
     fbp_dl_ll_recv(host->target->udl, msg->msg_buffer, msg->msg_size);
-    fbp_list_add_tail(&host->stream_tester->msg_free, &msg->item);
+    msg_free(host->stream_tester, msg);
 }
 
 static void process(struct stream_tester_s * self) {
@@ -310,9 +308,19 @@ static void process(struct stream_tester_s * self) {
         }
 
         // process the events
-        fbp_evm_process(self->a.evm, self->now);
-        fbp_evm_process(self->b.evm, self->now);
+        fbp_dl_process(self->a.udl, self->now);
+        fbp_dl_process(self->b.udl, self->now);
     }
+}
+
+void handle_tick() {
+    struct fbp_dl_status_s a;
+    struct fbp_dl_status_s b;
+    fbp_dl_status_get(s_.a.udl, &a);
+    fbp_dl_status_get(s_.b.udl, &b);
+    printf("a_rx=%" PRId64 ", a_tx=%" PRId64 " b_rx=%" PRId64 ", b_tx=%" PRId64 "\n",
+           a.rx.data_frames, a.tx.data_frames, b.rx.data_frames, b.tx.data_frames);
+
 }
 
 int main(void) {
@@ -333,9 +341,27 @@ int main(void) {
     s_.byte_drop_rate = 2000;
     s_.byte_insert_rate = 2000;
     s_.bit_error_rate = 10000;
+    int counter = 0;
+    int64_t sys_time_now = fbp_time_rel();
+    int64_t sys_time_last = sys_time_now;
+
+    // allow sides to connect
+    for (int i = 0; i < 10; ++i) {
+        process(&s_);
+        s_.now += FBP_TIME_SECOND;
+    }
 
     while (1) {
         action(&s_);
         process(&s_);
+        ++counter;
+        if (counter > 1000) {
+            sys_time_now = fbp_time_rel();
+            if ((sys_time_now - sys_time_last) > FBP_TIME_SECOND) {
+                handle_tick();
+                sys_time_last += FBP_TIME_SECOND;
+            }
+            counter = 0;
+        }
     }
 }

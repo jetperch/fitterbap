@@ -44,7 +44,7 @@ struct fbp_stack_s * fbp_stack_initialize(
         return NULL;
     }
 
-    self->dl = fbp_dl_initialize(config, evm_api, ll_instance, self->framer);
+    self->dl = fbp_dl_initialize(config, ll_instance, self->framer);
     if (!self->dl) {
         fbp_stack_finalize(self);
         return NULL;

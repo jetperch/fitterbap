@@ -59,7 +59,7 @@ static int32_t msg_format(uint8_t * buf, struct fbp_logh_header_s * header, cons
 #define expect_msg(header_, filename_, message_) {                  \
     uint8_t msg[MSG_SZ];                                            \
     int32_t sz = msg_format(msg, header_, filename_, message_);     \
-    expect_send(2, 0, msg, sz, 0);                                  \
+    expect_send(2, 0, msg, sz);                                     \
 }
 
 static int32_t on_recv(void * user_data, const struct fbp_logh_header_s * header, const char * filename, const char * message) {

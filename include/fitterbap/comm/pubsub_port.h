@@ -25,6 +25,7 @@
 
 #include "fitterbap/common_header.h"
 #include "fitterbap/comm/transport.h"
+#include "fitterbap/comm/port.h"
 #include "fitterbap/pubsub.h"
 #include <stdint.h>
 #include <stdbool.h>
