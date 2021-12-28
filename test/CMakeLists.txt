@@ -56,7 +56,7 @@ add_test(event_manager_test ${CMAKE_CURRENT_BINARY_DIR}/event_manager_test)
 ADD_CMOCKA_TEST(fsm_test)
 ADD_CMOCKA_TEST(lfsr_test)
 
-add_executable(log_test log_test.c ../src/log.c)
+add_executable(log_test log_test.c)
 add_dependencies(log_test cmocka)
 target_link_libraries(log_test cmocka)
 add_test(log_test ${CMAKE_CURRENT_BINARY_DIR}/log_test)

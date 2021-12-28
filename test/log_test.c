@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef FBP_LOG_GLOBAL_LEVEL
+// override defaults from config.h
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_ALL
-#endif
-
-#ifndef FBP_LOG_LEVEL
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_ALL
-#endif
-
 #define FBP_LOG_PRINTF(level, format, ...) \
     my_printf("%c " format "\n", fbp_log_level_char[level], __VA_ARGS__);
 
@@ -32,6 +27,11 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "fitterbap/log.h"
+
+
+// Including the C source is a little hackish, but this approach allows
+// the override defaults above to take effect.
+#include "../src/log.c"
 
 
 void my_printf(const char * format, ...) {

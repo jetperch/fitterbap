@@ -96,8 +96,6 @@ add_dependencies(stream_tester fitterbap_objlib test_objlib)
 
 add_executable(length_check length_check.c)
 
-include_directories(../../host/include)
-
 SET_FILENAME("host.c")
 add_executable(host host.c $<TARGET_OBJECTS:fitterbap_objlib>)
 target_link_libraries(host)
