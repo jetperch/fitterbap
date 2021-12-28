@@ -551,6 +551,9 @@ int32_t send_topic_list(struct fbp_pubsubp_s * self) {
 
 uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
                               const char * topic, const struct fbp_union_s * value) {
+    int32_t rc;
+    uint32_t t_start;
+    uint32_t t_remaining;
     const char * topic_orig = topic;
     const uint8_t * msg_ptr;
     uint32_t msg_size;
@@ -663,9 +666,7 @@ uint8_t fbp_pubsubp_on_update(struct fbp_pubsubp_s *self,
     msg_size = 4 + topic_len + payload_sz;
 
 transmit:
-    int32_t rc;
-    uint32_t t_start = (uint32_t) fbp_time_rel_ms();
-    uint32_t t_remaining;
+    t_start = (uint32_t) fbp_time_rel_ms();
     while (1) {
         rc = fbp_transport_send(self->transport, self->port_id, FBP_TRANSPORT_SEQ_SINGLE,
                                 port_data, msg_ptr, msg_size);
