@@ -90,12 +90,11 @@ struct fbp_dl_s {
     uint32_t ll_size_max;     // at init, when empty
     struct fbp_dl_api_s ul_instance;
     struct fbp_framer_s * framer;
-    intptr_t process_task_id;
 
     uint16_t tx_frame_last_id; // the last frame that has not yet be ACKed
     uint16_t tx_frame_next_id; // the next frame id for sending.
-    uint16_t rx_next_frame_id; // the next frame that has not yet been received
-    uint16_t rx_max_frame_id;  // the most future stored frame id
+    uint16_t rx_frame_next_id; // the next frame that has not yet been received
+    uint16_t rx_frame_max_id;  // the most future stored frame id
 
     struct fbp_rbu64_s tx_link_buf;
 
@@ -147,7 +146,7 @@ int32_t fbp_dl_send(struct fbp_dl_s * self,
     struct tx_frame_s * f = &self->tx_frames[idx];
     if (f->state != TX_FRAME_ST_IDLE) {
         unlock(self);
-        FBP_LOGI("fbp_dl_send(0x%02" PRIx16 ") when full", metadata);
+        FBP_LOGD1("fbp_dl_send(0x%02" PRIx16 ") when full", metadata);
         return FBP_ERROR_FULL;
     }
 
@@ -244,8 +243,8 @@ static void reset_state(struct fbp_dl_s * self) {
     self->tx_frame_count = 1;  // decrease window size, need to negotiate larger
 
     // rx direction
-    self->rx_next_frame_id = 0;
-    self->rx_max_frame_id = 0;
+    self->rx_frame_next_id = 0;
+    self->rx_frame_max_id = 0;
     fbp_rbu64_clear(&self->tx_link_buf);
     for (uint16_t f = 0; f < self->rx_frame_count; ++f) {
         self->rx_frames[f].state = RX_FRAME_ST_IDLE;
@@ -270,54 +269,54 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
                          uint8_t *msg, uint32_t msg_size) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) user_data;
     uint16_t this_idx = frame_id & (self->rx_frame_count - 1U);
-    uint16_t window_end = (self->rx_next_frame_id + self->rx_frame_count) & FBP_FRAMER_FRAME_ID_MAX;
+    uint16_t window_end = (self->rx_frame_next_id + self->rx_frame_count) & FBP_FRAMER_FRAME_ID_MAX;
 
     FBP_ASSERT(frame_id == (frame_id & FBP_FRAMER_FRAME_ID_MAX));  // otherwise framer is broken
     FBP_ASSERT((0 != msg_size) && (msg_size <= FBP_FRAMER_PAYLOAD_MAX_SIZE));
 
-    if (self->rx_next_frame_id == frame_id) {
+    if (self->rx_frame_next_id == frame_id) {
         // next expected frame, recv immediately without putting into ring buffer.
         self->rx_frames[this_idx].state = RX_FRAME_ST_IDLE;
         on_recv_msg_done(self, metadata, msg, msg_size);
-        self->rx_next_frame_id = (self->rx_next_frame_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
-        if (self->rx_max_frame_id == frame_id) {
+        self->rx_frame_next_id = (self->rx_frame_next_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
+        if (self->rx_frame_max_id == frame_id) {
             FBP_LOGD2("on_recv_data(%d), ACK_ALL", (int) frame_id);
-            self->rx_max_frame_id = self->rx_next_frame_id;
+            self->rx_frame_max_id = self->rx_frame_next_id;
             send_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
         } else {
             while (1) {
-                this_idx = self->rx_next_frame_id & (self->rx_frame_count - 1U);
+                this_idx = self->rx_frame_next_id & (self->rx_frame_count - 1U);
                 struct rx_frame_s * f = &self->rx_frames[this_idx];
                 if (f->state != RX_FRAME_ST_ACK) {
                     break;
                 }
-                FBP_LOGD2("on_recv_data(%d), catch up", (int) self->rx_next_frame_id);
+                FBP_LOGD2("on_recv_data(%d), catch up", (int) self->rx_frame_next_id);
                 f->state = RX_FRAME_ST_IDLE;
                 on_recv_msg_done(self, f->metadata, f->msg, 1 + (uint16_t) f->msg_size);
-                self->rx_next_frame_id = (self->rx_next_frame_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
+                self->rx_frame_next_id = (self->rx_frame_next_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
             }
-            frame_id = (self->rx_next_frame_id - 1U) & FBP_FRAMER_FRAME_ID_MAX;
+            frame_id = (self->rx_frame_next_id - 1U) & FBP_FRAMER_FRAME_ID_MAX;
             send_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
         }
-    } else if (fbp_dl_frame_id_subtract(frame_id, self->rx_next_frame_id) < 0) {
+    } else if (fbp_dl_frame_id_subtract(frame_id, self->rx_frame_next_id) < 0) {
         // we already have this frame.
         // ack all with most recent successfully received frame_id
-        FBP_LOGD3("on_recv_data(%d) old frame next=%d", (int) frame_id, (int) self->rx_next_frame_id);
-        send_link(self, FBP_FRAMER_FT_ACK_ALL, (self->rx_next_frame_id - 1) & FBP_FRAMER_FRAME_ID_MAX);
+        FBP_LOGD3("on_recv_data(%d) old frame next=%d", (int) frame_id, (int) self->rx_frame_next_id);
+        send_link(self, FBP_FRAMER_FT_ACK_ALL, (self->rx_frame_next_id - 1) & FBP_FRAMER_FRAME_ID_MAX);
     } else if (fbp_dl_frame_id_subtract(window_end, frame_id) <= 0) {
         FBP_LOGD1("on_recv_data(%d) frame too far into the future: next=%d, end=%d",
-                  (int) frame_id, (int) self->rx_next_frame_id, (int) window_end);
+                  (int) frame_id, (int) self->rx_frame_next_id, (int) window_end);
         send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
     } else {
         FBP_LOGD3("on_recv_data(%d) future frame: next=%d, end=%d",
-                  (int) frame_id, (int) self->rx_next_frame_id, (int) window_end);
+                  (int) frame_id, (int) self->rx_frame_next_id, (int) window_end);
         // future frame
-        if (fbp_dl_frame_id_subtract(frame_id, self->rx_max_frame_id) > 0) {
-            self->rx_max_frame_id = frame_id;
+        if (fbp_dl_frame_id_subtract(frame_id, self->rx_frame_max_id) > 0) {
+            self->rx_frame_max_id = frame_id;
         }
 
         // nack missing frames not already NACK'ed
-        uint16_t next_frame_id = self->rx_next_frame_id;
+        uint16_t next_frame_id = self->rx_frame_next_id;
         while (1) {
             if (next_frame_id == frame_id) {
                 break;
@@ -340,23 +339,27 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
 }
 
 static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_id) {
-    if (((self->tx_frame_next_id - frame_id) == 0) || ((self->tx_frame_next_id - frame_id) > self->tx_frame_count)) {
-        return NULL; // in the future, likely not ok but ignore.
+    uint16_t d_tail = (frame_id - self->tx_frame_last_id) & FBP_FRAMER_FRAME_ID_MAX;
+    uint16_t d_head = (self->tx_frame_next_id - (frame_id + 1)) & FBP_FRAMER_FRAME_ID_MAX;
+    if ((d_tail < self->tx_frame_count) && (d_head < self->tx_frame_count)) {
+        uint16_t idx = frame_id & (self->tx_frame_count - 1);
+        struct tx_frame_s *f = &self->tx_frames[idx];
+        return f;
+    } else {
+        return NULL;
     }
-    if ((frame_id - self->tx_frame_last_id) > self->tx_frame_count) {
-        return NULL; // in the past, possibly ok but ignore.
-    }
-    uint16_t idx = frame_id & (self->tx_frame_count - 1);
-    struct tx_frame_s * f = &self->tx_frames[idx];
-    return f;
+}
+
+static inline bool retire_tx_frame_inner(struct fbp_dl_s * self, struct tx_frame_s * f) {
+    self->tx_frame_last_id = (self->tx_frame_last_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
+    ++self->tx_status.data_frames;
+    f->state = TX_FRAME_ST_IDLE;
 }
 
 static bool retire_tx_frame(struct fbp_dl_s * self) {
     struct tx_frame_s * f = tx_frame_get(self, self->tx_frame_last_id);
     if (f && (f->state & TX_FRAME_ST_VALID)) {
-        self->tx_frame_last_id = (self->tx_frame_last_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
-        ++self->tx_status.data_frames;
-        f->state = TX_FRAME_ST_IDLE;
+        retire_tx_frame_inner(self, f);
         return true;
     }
     return false;
@@ -364,8 +367,8 @@ static bool retire_tx_frame(struct fbp_dl_s * self) {
 
 static void handle_ack_all(struct fbp_dl_s * self, uint16_t frame_id) {
     while (1) {
-        uint16_t frame_id_delta = frame_id - self->tx_frame_last_id;
-        if (frame_id_delta <= self->tx_frame_count) {
+        uint16_t frame_id_delta = (frame_id - self->tx_frame_last_id) & FBP_FRAMER_FRAME_ID_MAX;
+        if (frame_id_delta < self->tx_frame_count) {
             retire_tx_frame(self);
         } else {
             break;
@@ -375,13 +378,15 @@ static void handle_ack_all(struct fbp_dl_s * self, uint16_t frame_id) {
 
 static void handle_ack_one(struct fbp_dl_s * self, uint16_t frame_id) {
     struct tx_frame_s *f = tx_frame_get(self, frame_id);
-    if (f && (f->state & TX_FRAME_ST_VALID)) {
+    if (!f) {
+        return;  // out of range
+    } else if (f->state & TX_FRAME_ST_VALID) {
         f->state = TX_FRAME_ST_VALID | TX_FRAME_ST_ACK;
     }
     while (1) {
         f = tx_frame_get(self, self->tx_frame_last_id);
-        if ((f->state & (TX_FRAME_ST_VALID | TX_FRAME_ST_ACK)) == (TX_FRAME_ST_VALID | TX_FRAME_ST_ACK)) {
-            retire_tx_frame(self);
+        if (f && ((f->state & (TX_FRAME_ST_VALID | TX_FRAME_ST_ACK)) == (TX_FRAME_ST_VALID | TX_FRAME_ST_ACK))) {
+            retire_tx_frame_inner(self, f);
         } else {
             break;
         }
@@ -410,9 +415,9 @@ static void handle_reset(struct fbp_dl_s * self, uint16_t frame_id) {
         case 0:  // reset request
             if (self->state == ST_CONNECTED) {
                 self->state = ST_DISCONNECTED;
+                reset_state(self);
                 event_emit(self, FBP_DL_EV_RESET_REQUEST);
                 event_emit(self, FBP_DL_EV_DISCONNECTED);
-                reset_state(self);
                 send_link(self, FBP_FRAMER_FT_RESET, 0);
             }
             send_link(self, FBP_FRAMER_FT_RESET, 1);  // always acknowledge remote reset request
@@ -443,7 +448,7 @@ static void on_recv_link(void * user_data, enum fbp_framer_type_e frame_type, ui
 
 static void on_framing_error(void * user_data) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) user_data;
-    send_link(self, FBP_FRAMER_FT_NACK_FRAMING_ERROR, self->rx_next_frame_id);
+    send_link(self, FBP_FRAMER_FT_NACK_FRAMING_ERROR, self->rx_frame_next_id);
 }
 
 void fbp_dl_ll_recv(struct fbp_dl_s * self,
@@ -524,7 +529,6 @@ static int64_t tx_transmit(struct fbp_dl_s * self, int64_t now) {
 
 int64_t fbp_dl_process(struct fbp_dl_s * self, int64_t now) {
     int64_t next_event = INT64_MAX;
-    self->process_task_id = fbp_os_current_task_id();
     if (self->state == ST_DISCONNECTED) {
         next_event = process_disconnected(self, now);
     } else if (send_link_pending(self)) {
@@ -698,7 +702,7 @@ void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_size) {
     }
     self->tx_frame_count = tx_window_size;
 
-    uint16_t frame_id = (self->tx_frame_last_id) & FBP_FRAMER_FRAME_ID_MAX;
+    uint16_t frame_id = self->tx_frame_last_id;
     uint16_t idx = frame_id & (self->tx_frame_count - 1);
     if (idx) {
         self->tx_frames[idx] = self->tx_frames[0];

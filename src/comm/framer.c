@@ -345,7 +345,9 @@ int32_t fbp_framer_construct_link(
             | (((uint32_t) FBP_FRAMER_SOF2) << 8)
             | (((uint32_t) (frame_type << 3) | ((frame_id >> 8) & 0x7)) << 16)
             | (((uint32_t) (frame_id & 0xff)) << 24);
-    *b = h | (((uint64_t) ~h) << 32);
+    uint32_t * b32 = (uint32_t *) b;
+    b32[0] = h;
+    b32[1] = ~h;
     return 0;
 }
 

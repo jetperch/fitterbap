@@ -118,7 +118,7 @@ static struct test_s * setup() {
         .tx_window_size = 16,
         .rx_window_size = 16,
         .tx_timeout = 10 * FBP_TIME_MILLISECOND,
-        .tx_link_size = 16,
+        .tx_link_size = 32,
     };
 
     struct fbp_dl_ll_s ll = {
@@ -292,7 +292,7 @@ static void test_send_data_with_ack(void ** state) {
 static void test_send_2data_with_2ack(void ** state) {
     SETUP();
     connect(self);
-    fbp_dl_tx_window_set(self->dl, 128);
+    fbp_dl_tx_window_set(self->dl, 16);
     send_and_expect(self, 0, 10, PAYLOAD1, sizeof(PAYLOAD1));
     send_and_expect(self, 1, 11, PAYLOAD2, sizeof(PAYLOAD2));
     process_now(self);
@@ -412,6 +412,63 @@ static void test_send_multiple_with_buffer_wrap(void ** state) {
     TEARDOWN();
 }
 
+static void test_send_frame_id_wrap(void ** state) {
+    SETUP();
+    uint16_t frame_id;
+    uint32_t count = FBP_FRAMER_FRAME_ID_MAX + 128;
+    connect(self);
+    for (uint32_t i = 0; i < count; ++i) {
+        frame_id = i & FBP_FRAMER_FRAME_ID_MAX;
+        send_and_expect(self, frame_id, i + 1, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+        recv_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
+        recv_eof(self);
+    }
+
+    assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
+    assert_int_equal(count, status.tx.data_frames);
+    TEARDOWN();
+}
+
+static void test_send_frame_id_wrap_out_of_order(void ** state) {
+    SETUP();
+    uint16_t tx_window_sz = 16;
+    connect(self);
+    fbp_dl_tx_window_set(self->dl, tx_window_sz);
+    for (uint32_t i = 0; i < FBP_FRAMER_FRAME_ID_MAX + tx_window_sz - 1; ++i) {
+        send_and_expect(self, i & FBP_FRAMER_FRAME_ID_MAX, i + 1, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+        if (i < FBP_FRAMER_FRAME_ID_MAX) {
+            recv_link(self, FBP_FRAMER_FT_ACK_ALL, i);
+            recv_eof(self);
+        }
+    }
+
+    for (uint32_t i = FBP_FRAMER_FRAME_ID_MAX + tx_window_sz - 2; i >= FBP_FRAMER_FRAME_ID_MAX; --i) {
+        recv_link(self, FBP_FRAMER_FT_ACK_ONE, i & FBP_FRAMER_FRAME_ID_MAX);
+        recv_eof(self);
+    }
+
+    // ensure all acked (no timeouts)
+    process_now(self);
+    self->now += 20 * FBP_TIME_MILLISECOND;
+    process_now(self);
+
+    send_and_expect(self, tx_window_sz - 2, 0x1234, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
+    expect_eof(self);
+    process_now(self);
+    recv_link(self, FBP_FRAMER_FT_ACK_ONE, tx_window_sz - 2);
+    recv_eof(self);
+
+    assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
+    assert_int_equal(FBP_FRAMER_FRAME_ID_MAX + tx_window_sz, status.tx.data_frames);
+    TEARDOWN();
+}
+
 static void test_recv_and_ack(void ** state) {
     SETUP();
     connect(self);
@@ -481,6 +538,74 @@ static void test_recv_out_of_order(void ** state) {
     TEARDOWN();
 }
 
+static void test_recv_wrap_and_out_of_order(void ** state) {
+    uint16_t tx_window_sz = 16;
+    SETUP();
+    connect(self);
+
+    for (uint32_t i = 0; i < FBP_FRAMER_FRAME_ID_MAX; ++i) {
+        expect_recv(i + 1, PAYLOAD1, sizeof(PAYLOAD1));
+        recv_data(self, i, i + 1, PAYLOAD1, sizeof(PAYLOAD1));
+        recv_eof(self);
+        expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, i);
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+    }
+
+    // receive frame one too far in the future -> NACK
+    recv_data(self, tx_window_sz - 1, 0x33, PAYLOAD1, sizeof(PAYLOAD1));
+    recv_eof(self);
+    expect_send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, tx_window_sz - 1);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+
+    // expect NACK for all skipped frames
+    for (int i = 0; i < (tx_window_sz - 1); ++i) {
+        uint16_t frame_id = (FBP_FRAMER_FRAME_ID_MAX + i) & FBP_FRAMER_FRAME_ID_MAX;
+        expect_send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
+    }
+
+    // receive data frames in reverse order, just for fun
+    for (uint16_t i = FBP_FRAMER_FRAME_ID_MAX + tx_window_sz - 1; i > FBP_FRAMER_FRAME_ID_MAX; --i) {
+        uint16_t frame_id = i & FBP_FRAMER_FRAME_ID_MAX;
+        recv_data(self, frame_id, i, PAYLOAD1, sizeof(PAYLOAD1));
+        recv_eof(self);
+        expect_send_link(self, FBP_FRAMER_FT_ACK_ONE, frame_id);
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+    }
+
+    // expect receive data in order
+    expect_recv(0xffee, PAYLOAD1, sizeof(PAYLOAD1));
+    for (uint16_t i = 0; i < tx_window_sz - 1; ++i) {
+        expect_recv(FBP_FRAMER_FRAME_ID_MAX + 1 + i, PAYLOAD1, sizeof(PAYLOAD1));
+    }
+
+    // receive next expected frame
+    recv_data(self, FBP_FRAMER_FRAME_ID_MAX, 0xffee, PAYLOAD1, sizeof(PAYLOAD1));
+    recv_eof(self);
+    expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, tx_window_sz - 2);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+
+    // Now receive next frame.
+    expect_recv(0x3344, PAYLOAD2, sizeof(PAYLOAD2));
+    recv_data(self, tx_window_sz - 1, 0x3344, PAYLOAD2, sizeof(PAYLOAD2));
+    recv_eof(self);
+    expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, tx_window_sz - 1);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+
+    assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
+    assert_int_equal(FBP_FRAMER_FRAME_ID_MAX + tx_window_sz + 1, status.rx.data_frames);
+    TEARDOWN();
+}
+
 static void test_reset_retry(void ** state) {
     SETUP();
     expect_send_link(self, FBP_FRAMER_FT_RESET, 0);
@@ -514,9 +639,12 @@ int main(void) {
             cmocka_unit_test(test_send_nack_resend_ack),
             cmocka_unit_test(test_send_data_timeout_then_ack),
             cmocka_unit_test(test_send_multiple_with_buffer_wrap),
+            cmocka_unit_test(test_send_frame_id_wrap),
+            cmocka_unit_test(test_send_frame_id_wrap_out_of_order),
             cmocka_unit_test(test_recv_and_ack),
             cmocka_unit_test(test_recv_multiple_all_acks),
             cmocka_unit_test(test_recv_out_of_order),
+            cmocka_unit_test(test_recv_wrap_and_out_of_order),
             cmocka_unit_test(test_reset_retry),
     };
 

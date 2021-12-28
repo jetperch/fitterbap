@@ -46,6 +46,7 @@ struct host_s {
     struct stream_tester_s * stream_tester;
     struct host_s * target;
     uint16_t metadata;
+    uint8_t connected;
 };
 
 struct stream_tester_s {
@@ -120,7 +121,6 @@ static void msg_free(struct stream_tester_s * self, struct msg_s * msg) {
     fbp_list_add_tail(&self->msg_free, &msg->item);
 }
 
-
 static void ll_send(void * user_data, uint8_t const * buffer, uint32_t buffer_size) {
     struct host_s * host = (struct host_s *) user_data;
     struct msg_s * msg = msg_alloc(host->stream_tester);
@@ -138,10 +138,21 @@ static uint32_t ll_send_available(void * user_data) {
 
 static void on_event(void *user_data, enum fbp_dl_event_e event) {
     struct host_s * host = (struct host_s *) user_data;
-    (void) host;
-    (void) event;
-    FBP_LOGE("on_event(%d)\n", (int) event);
-    // FBP_FATAL("on_event_fn\n");
+    if (event == FBP_DL_EV_CONNECTED) {
+        FBP_LOGI("on_event(%c, CONNECTED)", host->name);
+        host->connected = 1;
+        fbp_dl_tx_window_set(host->udl, fbp_dl_tx_window_max_get(host->udl));
+    } else if (event > FBP_DL_EV_CONNECTED) {
+        // ignore
+    } else if (event == FBP_DL_EV_DISCONNECTED) {
+        FBP_LOGW("on_event(%c, DISCONNECTED)", host->name);
+        host->connected = 0;
+        while (!fbp_list_is_empty(&host->recv_expect)) {
+            struct fbp_list_s * item = fbp_list_remove_head(&host->recv_expect);
+            struct msg_s * msg = FBP_CONTAINER_OF(item, struct msg_s, item);
+            msg_free(host->stream_tester, msg);
+        }
+    }
 }
 
 static void on_recv(void *user_data, uint16_t metadata,
@@ -191,12 +202,20 @@ static void send(struct host_s *host) {
         msg->msg_buffer[idx] = rand() & 0xff;
     }
     int32_t rv = fbp_dl_send(host->udl, msg->metadata, msg->msg_buffer, msg->msg_size);
-    if (rv) {
-        FBP_LOGW("fbp_dl_send error %d: %s", (int) rv, fbp_error_code_description(rv));
-        msg_free(host->stream_tester, msg);
-    } else {
-        ++host->metadata;
-        fbp_list_add_tail(&host->target->recv_expect, &msg->item);
+    switch (rv) {
+        case FBP_SUCCESS:
+            ++host->metadata;
+            fbp_list_add_tail(&host->target->recv_expect, &msg->item);
+            return;
+        case FBP_ERROR_FULL:
+            // discard and wait, try with a new message at another time.
+            break;
+        case FBP_ERROR_UNAVAILABLE:
+            // discard and wait until connect.
+            break;
+        default:
+            FBP_LOGW("fbp_dl_send error %d: %s", (int) rv, fbp_error_code_description(rv));
+            break;
     }
 }
 
@@ -206,9 +225,9 @@ static void action(struct stream_tester_s * self) {
     send(&self->a);
 #else
     uint8_t action = rand() & 3;
+    self->now += FBP_TIME_MICROSECOND * 100;
     switch (action) {
         case 0:
-            self->now += (rand() & 0x03) * FBP_TIME_MILLISECOND;
             break;
         case 1:
             send(&self->a);
@@ -346,10 +365,11 @@ int main(void) {
     int64_t sys_time_last = sys_time_now;
 
     // allow sides to connect
-    for (int i = 0; i < 10; ++i) {
+    while (!s_.a.connected && !s_.b.connected) {
         process(&s_);
-        s_.now += FBP_TIME_SECOND;
+        s_.now += FBP_TIME_MILLISECOND;
     }
+    FBP_LOGI("Connected");
 
     while (1) {
         action(&s_);
