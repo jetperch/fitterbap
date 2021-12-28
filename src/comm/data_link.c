@@ -350,7 +350,7 @@ static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_i
     }
 }
 
-static inline bool retire_tx_frame_inner(struct fbp_dl_s * self, struct tx_frame_s * f) {
+static inline void retire_tx_frame_inner(struct fbp_dl_s * self, struct tx_frame_s * f) {
     self->tx_frame_last_id = (self->tx_frame_last_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
     ++self->tx_status.data_frames;
     f->state = TX_FRAME_ST_IDLE;
