@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.5.0
 
-2021 Dec 23 [in progress]
+2022 Jan 6 [in progress]
 
 * Restructured platform and configuration.
   * Allow for static inline functions in platform.
@@ -24,7 +24,7 @@ This file contains the list of changes made to the Fitterbap library.
 * Fixed comm data link.
   * Improved and simplified reset handling.  Added sequence diagrams.
   * Removed comm send timeout.  Implement in app and higher levels as needed.
-  * Fixed endless immediate scheduling lower level transmitter is full.
+  * Fixed endless immediate scheduling when lower level transmitter is full.
   * Improved comm framer performance - no copy when entire frame in buffer.
   * Added process_request callback for more reliable OS integration.
   * Improved multi-threaded performance and fixed potential deadlock.
@@ -33,6 +33,10 @@ This file contains the list of changes made to the Fitterbap library.
     decoupling and performance.
   * Added explicit buffer size to framer construct_data.
   * Fixed stream_tester.
+  * Removed uart_thread and improved uart API.
+    Changed from uart_thread_tester to uart_tester.
+  * Added test/comm/comm.c
+  * Modified test/comm/host.c to work as either server or client.
 * Fixed python to better support PySide6.
 * Added fbp_rbu64_is_empty
 

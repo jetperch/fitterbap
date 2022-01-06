@@ -60,7 +60,6 @@ if sys.platform.startswith('win'):
         'src/host/win/comm.c',
         'src/host/win/platform.c',
         'src/host/win/uart.c',
-        'src/host/win/uart_thread.c',
         'src/host/platform_alloc.c',
     ]
 elif sys.platform.startswith('linux'):

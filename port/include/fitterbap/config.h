@@ -48,7 +48,7 @@ int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * f
 #endif
 #elif 1  // redefine the printf format
 #ifndef FBP_LOG_PRINTF  // allow unit tests to overwrite
-void fbp_log_printf_(const char * format, ...);
+void fbp_log_printf_(const char * format, ...) FBP_PRINTF_FORMAT;
 #define FBP_LOG_PRINTF(level, format, ...) \
    fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
 #endif
@@ -58,7 +58,7 @@ void fbp_log_printf_(const char * format, ...);
  * @brief The 32-bit CRC function to use for the comm framer.
  *
  * The signature must be:
- *   uint32_t (*fn)(uint32_t crc, uint8_t const *data, uint32_t length)
+ *   uint32_t (*fn)(uint8_t const *data, uint32_t length)
  */
 //#define FBP_CONFIG_COMM_FRAMER_CRC32 fbp_crc32
 //#define FBP_CRC_CRC32 1
@@ -73,6 +73,7 @@ void fbp_log_printf_(const char * format, ...);
 #elif _WIN32
 #include "fitterbap/host/win/config.h"
 #else
+#error "unsupported platform"
 #endif
 
 // 1 to enable floating point

@@ -250,6 +250,14 @@ static void process_host(struct host_s * host) {
     item = fbp_list_remove_head(&host->send_queue);
     msg = FBP_CONTAINER_OF(item, struct msg_s, item);
 
+    if (FBP_LOG_CHECK_STATIC(FBP_LOG_LEVEL_DEBUG3)) {
+        printf("%c [%d]: ", host->name, msg->msg_size);
+        for (uint32_t i = 0; i < msg->msg_size; ++i) {
+            printf(" %02x", msg->msg_buffer[i]);
+        }
+        printf("\n");
+    }
+
     // Permute message
     //uint64_t r_byte_ins = rand_u64() % host->stream_tester->byte_insert_rate;
     //uint64_t r_bit_error = rand_u64() % host->stream_tester->bit_error_rate;
@@ -339,7 +347,7 @@ void handle_tick() {
     fbp_dl_status_get(s_.b.udl, &b);
     printf("a_rx=%" PRId64 ", a_tx=%" PRId64 " b_rx=%" PRId64 ", b_tx=%" PRId64 "\n",
            a.rx.data_frames, a.tx.data_frames, b.rx.data_frames, b.tx.data_frames);
-
+    fflush(stdout);
 }
 
 int main(void) {
@@ -370,6 +378,7 @@ int main(void) {
         s_.now += FBP_TIME_MILLISECOND;
     }
     FBP_LOGI("Connected");
+    fflush(stdout);
 
     while (1) {
         action(&s_);

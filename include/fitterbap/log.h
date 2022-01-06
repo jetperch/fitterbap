@@ -33,9 +33,6 @@
  *
  * @brief Generic console logging with compile-time levels.
  *
- * To use this module, call fbp_log_initialize() with the appropriate
- * handler for your application.
- *
  * @{
  */
 

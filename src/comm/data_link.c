@@ -219,7 +219,7 @@ static void send_link(struct fbp_dl_s * self, enum fbp_framer_type_e frame_type,
         return;
     }
     if (!fbp_rbu64_push(&self->tx_link_buf, b)) {
-        FBP_LOGW("link buffer full");
+        FBP_LOGW("link buffer full %d %d", (int) frame_type, (int) frame_id);
     }
 }
 
@@ -358,18 +358,25 @@ static inline void retire_tx_frame_inner(struct fbp_dl_s * self, struct tx_frame
 
 static bool retire_tx_frame(struct fbp_dl_s * self) {
     struct tx_frame_s * f = tx_frame_get(self, self->tx_frame_last_id);
-    if (f && (f->state & TX_FRAME_ST_VALID)) {
+    if (!f) {
+        FBP_LOGW("retire_tx_frame not found valid: frame_id=%d", self->tx_frame_last_id);
+        return false;
+    } else if (f && (f->state & TX_FRAME_ST_VALID)) {
         retire_tx_frame_inner(self, f);
         return true;
+    } else {
+        FBP_LOGW("retire_tx_frame not valid: frame_id=%d, state=0x%02x", self->tx_frame_last_id, f->state);
+        return false;
     }
-    return false;
 }
 
 static void handle_ack_all(struct fbp_dl_s * self, uint16_t frame_id) {
     while (1) {
         uint16_t frame_id_delta = (frame_id - self->tx_frame_last_id) & FBP_FRAMER_FRAME_ID_MAX;
         if (frame_id_delta < self->tx_frame_count) {
-            retire_tx_frame(self);
+            if (!retire_tx_frame(self)) {
+                break;
+            }
         } else {
             break;
         }
@@ -537,6 +544,7 @@ int64_t fbp_dl_process(struct fbp_dl_s * self, int64_t now) {
     } else {
         next_event = tx_transmit(self, now);
     }
+    FBP_ASSERT(next_event >= now);
     return next_event;
 }
 

@@ -119,7 +119,7 @@ static void test_utc(void **state) {
     (void) state;
     int64_t t = fbp_time_utc();
     // Set to check for 2021, update on 2022 Jan 1.
-    int64_t year_offset = 2021 - 2018;
+    int64_t year_offset = 2022 - 2018;
     assert_true(t > (FBP_TIME_YEAR * year_offset));
     assert_true(t < (FBP_TIME_YEAR * (year_offset + 1)));
 }

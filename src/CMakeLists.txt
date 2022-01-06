@@ -62,7 +62,6 @@ if ("${FITTERBAP_OS}" STREQUAL "FREERTOS")
 elseif ("${FITTERBAP_OS}" STREQUAL "WIN32")
     set(SOURCES_HOST
             host/win/uart.c
-            host/win/uart_thread.c
             host/win/platform.c
             host/win/comm.c)
 else()

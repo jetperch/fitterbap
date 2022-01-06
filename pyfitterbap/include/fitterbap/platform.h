@@ -20,17 +20,16 @@
  * @brief FBP platform.
  */
 
-#ifndef FBP_PLATFORM_H_
-#define FBP_PLATFORM_H_
+#ifndef FBP_PY_PLATFORM_H_
+#define FBP_PY_PLATFORM_H_
 
-#ifdef __linux__
-#include "fitterbap/host/linux/platform.h"
-#elif _WIN32
+// todo linux & mac support
+#if defined(WIN32) || defined(_WIN32)
 #include "fitterbap/host/win/platform.h"
 #else
 #endif
 
 /** @} */
 
-#endif /* FBP_PLATFORM_H_ */
+#endif /* FBP_PY_PLATFORM_H_ */
 

@@ -109,8 +109,4 @@ FBP_INLINE_FN void fbp_os_sleep(int64_t duration) {
     fbp_os_sleep_(duration);
 }
 
-#ifndef FBP_LOG_PRINTF
-#define FBP_LOG_PRINTF(level, format, ...) fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
-#endif
-
 #endif /* FBP_HOST_WIN_PLATFORM_H_ */

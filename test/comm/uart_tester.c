@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "fitterbap/host/uart_thread.h"
+#include "fitterbap/host/uart.h"
 #include "fitterbap/cdef.h"
 #include "fitterbap/cstr.h"
 #include "fitterbap/log.h"
@@ -27,25 +27,27 @@
 #include <windows.h>
 
 // NOTE: reduce latency timer to 1 milliseconds for FTDI chips.
-#define BUF32_LENGTH  (0x10000)         // must be power of 2, 2**16 or less
-#define BUF8_LENGTH (4 * BUF32_LENGTH)
-#define BUF8_MASK (BUF8_LENGTH - 1)
+
 
 struct stats_s {
-    uint64_t tx_count;
-    uint64_t rx_count;
+    struct fbp_uart_status_s uart_status;
+    uint64_t rx_byte_error_count;
     int64_t time;
 };
 
-static uint32_t buf_u32[BUF32_LENGTH];
-static uint8_t * buf_u8 = (uint8_t *) buf_u32;
-static uint32_t tx_idx = 0;
+struct state_s {
+    uint16_t tx_lfsr;
+    uint16_t rx_lfsr;
+
+    struct fbp_uart_s * uart;
+    struct stats_s stats;
+    struct stats_s stats_prev;
+};
+
 static HANDLE ctrl_event;
-static HANDLE rx_event;
-static HANDLE tx_event;
-struct fbp_uartt_s * uart = NULL;
-volatile struct stats_s stats;
-struct stats_s stats_prev;
+static volatile bool quit_ = false;
+static struct state_s state_;
+static struct state_s * s = &state_;
 
 
 void fbp_fatal(char const * file, int line, char const * msg) {
@@ -70,40 +72,51 @@ void fbp_log_printf_(const char *format, ...) {
     va_end(arg);
 }
 
-static void uart_send() {
-    uint32_t sz = fbp_uartt_send_available(uart);
-    if ((tx_idx + sz) > BUF8_LENGTH) {
-        uint32_t sz1 = BUF8_LENGTH - tx_idx;
-        fbp_uartt_send(uart, buf_u8 + tx_idx, sz1);
-        stats.tx_count += sz1;
-        sz -= sz1;
-        tx_idx = 0;
-    }
-
-    fbp_uartt_send(uart, buf_u8 + tx_idx, sz);
-    stats.tx_count += sz;
-    tx_idx = (tx_idx + sz) & BUF8_MASK;
-}
-
 static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size) {
-    (void) user_data;
+    struct state_s * self = (struct state_s *) user_data;
     (void) buffer;
-    stats.rx_count += buffer_size;
-    // todo check data
-    SetEvent(rx_event);
+
+    uint16_t x = self->rx_lfsr;
+    uint16_t b;
+
+    for (uint32_t idx = 0; idx < buffer_size; ++idx) {
+        if (buffer[idx] != (x & 0xffU)) {
+            ++self->stats.rx_byte_error_count;
+        }
+        x = (x & 0xff00) | buffer[idx];
+        b = ((x >> 0) ^ (x >> 2) ^ (x >> 3) ^ (x >> 5)) & 1;
+        x = (x >> 1) | (b << 15);
+    }
+    self->rx_lfsr = x;
 }
 
 static void on_uart_send(void *user_data, uint8_t *buffer, uint32_t buffer_size, uint32_t remaining) {
-    (void) user_data;
+    struct state_s * self = (struct state_s *) user_data;
+    (void) self;
     (void) buffer;
     (void) buffer_size;
-    if (remaining == 0) {
-        SetEvent(tx_event);
+}
+
+static void do_send(struct state_s * self) {
+    uint8_t buffer[128];
+    uint32_t sz = fbp_uart_write_available(self->uart);
+    uint16_t x = self->tx_lfsr;
+    uint16_t b;
+    while (sz > sizeof(buffer)) {
+        for (int i = 0; i < sizeof(buffer); ++i) {
+            buffer[i] = (uint8_t) (x & 0xff);
+            b = ((x >> 0) ^ (x >> 2) ^ (x >> 3) ^ (x >> 5)) & 1;
+            x = (x >> 1) | (b << 15);
+        }
+        fbp_uart_write(self->uart, buffer, sizeof(buffer));
+        sz -= sizeof(buffer);
     }
+    self->tx_lfsr = x;
 }
 
 BOOL WINAPI CtrlHandler(DWORD fdwCtrlType) {
     (void) fdwCtrlType;
+    quit_ = true;
     SetEvent(ctrl_event);
     return TRUE;
 }
@@ -144,70 +157,69 @@ int main(int argc, char * argv[]) {
         FBP_LOGW("Could not set control handler");
     }
 
-    rx_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    FBP_ASSERT_ALLOC(rx_event);
-
-    tx_event = CreateEvent(NULL, TRUE, TRUE, NULL);
-    FBP_ASSERT_ALLOC(tx_event);
-
-    for (uint32_t i = 0; i < BUF32_LENGTH; ++i) {
-        buf_u32[i] = (i << 16) | (~i & 0xffff);
-    }
-
-    struct uart_config_s uart_config = {
+    struct fbp_uart_config_s uart_config = {
             .baudrate = baudrate,
             .send_buffer_size = 512,
             .send_buffer_count = 8,
             .recv_buffer_size = 512,
             .recv_buffer_count = 8,
             .recv_fn = on_uart_recv,
-            .recv_user_data = NULL,
+            .recv_user_data = s,
             .write_complete_fn = on_uart_send,
-            .write_complete_user_data = NULL
+            .write_complete_user_data = s
     };
 
-    uart = fbp_uartt_initialize(device_path, &uart_config);
-    if (!uart) {
+    s->uart = fbp_uart_alloc();
+    if (!s->uart) {
         FBP_LOGE("uart initialized failed");
         return 1;
     }
 
-    if (fbp_uartt_start(uart)) {
-        FBP_LOGE("fbp_uartt_start failed");
-        return 1;
+    if (fbp_uart_open(s->uart, device_path, &uart_config)) {
+        FBP_LOGE("uart fbp_uart_open failed");
+        fbp_uart_free(s->uart);
+        return 2;
     }
 
-    stats_prev.time = stats.time;
-    uart_send();
-    HANDLE wait_handles[] = {ctrl_event, rx_event, tx_event};
-    SetEvent(tx_event);
+    s->tx_lfsr = 0xffffU;
+    s->rx_lfsr = 0xffffU;
+    s->stats.time = fbp_time_rel_ms();
+    s->stats_prev.time = s->stats.time;
+    HANDLE handles[16];
+    DWORD handle_count = 0;
+    int64_t iterations = 0;
+    int64_t iterations_last = 0;
 
-    while (1) {
-        WaitForMultipleObjects(FBP_ARRAY_SIZE(wait_handles), wait_handles, false, 500);
-        if (WAIT_OBJECT_0 == WaitForSingleObject(ctrl_event, 0)) {
-            break;
-        }
-        if (WAIT_OBJECT_0 == WaitForSingleObject(tx_event, 0)) {
-            ResetEvent(tx_event);
-            uart_send();
-        }
-        if (WAIT_OBJECT_0 == WaitForSingleObject(rx_event, 0)) {
-            ResetEvent(rx_event);
-        }
+    while (!quit_) {
+        handle_count = FBP_ARRAY_SIZE(handles);
+        fbp_uart_handles(s->uart, &handle_count, handles);
+        handles[handle_count++] = ctrl_event;
+        WaitForMultipleObjects(handle_count, handles, false, 500);
 
-        stats.time = fbp_time_rel_ms();
-        if ((stats.time - stats_prev.time) > 1000) {
-            printf("tx=%I64d, rx=%I64d\n",
-                   stats.tx_count - stats_prev.tx_count,
-                   stats.rx_count - stats_prev.rx_count);
-            stats_prev = stats;
+        fbp_uart_process_write_completed(s->uart);
+        fbp_uart_process_read(s->uart);
+        do_send(s);
+        fbp_uart_process_write_pend(s->uart);
+        ++iterations;
+
+        s->stats.time = fbp_time_rel_ms();
+        if ((s->stats.time - s->stats_prev.time) > 1000) {
+            fbp_uart_status_get(s->uart, &s->stats.uart_status);
+            printf("tx=%I64d, rx=%I64d, dtx=%I64d, drx=%I64d, diter=%I64d, rx_byte_err=%I64d\n",
+                   s->stats.uart_status.write_bytes,
+                   s->stats.uart_status.read_bytes,
+                   s->stats.uart_status.write_bytes - s->stats_prev.uart_status.write_bytes,
+                   s->stats.uart_status.read_bytes - s->stats_prev.uart_status.read_bytes,
+                   iterations - iterations_last,
+                   s->stats.rx_byte_error_count);
+            s->stats_prev = s->stats;
+            iterations_last = iterations;
         }
     }
     FBP_LOGI("shutting down by user request");
 
-    fbp_uartt_finalize(uart);
-    CloseHandle(rx_event);
-    CloseHandle(tx_event);
+    fbp_uart_close(s->uart);
+    fbp_uart_free(s->uart);
     CloseHandle(ctrl_event);
     return 0;
 }

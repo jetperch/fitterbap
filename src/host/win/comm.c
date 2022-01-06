@@ -16,12 +16,13 @@
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/host/comm.h"
-#include "fitterbap/host/uart_thread.h"
+#include "fitterbap/host/uart.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/comm/stack.h"
 #include "fitterbap/os/mutex.h"
 #include "fitterbap/ec.h"
+#include "fitterbap/cdef.h"
 #include "fitterbap/log.h"
 #include "fitterbap/platform.h"
 #include "fitterbap/time.h"
@@ -37,7 +38,14 @@
 
 struct fbp_comm_s {
     struct fbp_stack_s * stack;
-    struct fbp_uartt_s * uart;
+    struct fbp_uart_s * uart;
+    struct fbp_evm_s * evm;
+    struct fbp_evm_api_s evm_api;
+
+    fbp_os_mutex_t uart_mutex;
+    HANDLE uart_signal_event;
+    int uart_quit;
+    HANDLE uart_thread;
 
     struct fbp_pubsub_s * pubsub;
     fbp_os_mutex_t pubsub_mutex;
@@ -45,21 +53,18 @@ struct fbp_comm_s {
     int pubsub_quit;
     HANDLE pubsub_thread;
 
-    struct fbp_evm_api_s evm_api;
     fbp_pubsub_subscribe_fn subscriber_fn;
     void * subscriber_user_data;
 };
 
 static void ll_send(void * user_data, uint8_t const * buffer, uint32_t buffer_size) {
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
-    if (fbp_uartt_send_available(self->uart) >= buffer_size) {
-        fbp_uartt_send(self->uart, buffer, buffer_size);
-    }
+    fbp_uart_write(self->uart, buffer, buffer_size);
 }
 
 static uint32_t ll_send_available(void * user_data) {
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
-    return fbp_uartt_send_available(self->uart);
+    return fbp_uart_write_available(self->uart);
 }
 
 static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size) {
@@ -104,6 +109,90 @@ static void on_port_recv_default(void *user_data,
         FBP_LOGW("unexpected seq %d on port %d", (int) seq, (int) port_id);
     }
     fbp_pubsub_publish(self->pubsub, topic, &fbp_union_bin(msg, msg_size), NULL, NULL);
+}
+
+static void on_schedule(void * user_data, int64_t next_time) {
+    struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
+    (void) next_time;
+    SetEvent(self->uart_signal_event);
+}
+
+static DWORD WINAPI uart_task(LPVOID lpParam) {
+    int64_t t_now;
+    int64_t t_dl;
+    int64_t t_evm;
+    int64_t t_next;
+    int64_t t_duration;
+    DWORD duration_ms = 0;
+    uint32_t handle_count;
+    HANDLE handles[16];
+    struct fbp_comm_s * self = (struct fbp_comm_s *) lpParam;
+
+    while (!self->uart_quit) {
+        handle_count = FBP_ARRAY_SIZE(handles);
+        fbp_uart_handles(self->uart, &handle_count, handles);
+        handles[handle_count++] = self->uart_signal_event;
+        WaitForMultipleObjects(handle_count, handles, FALSE, duration_ms);
+        ResetEvent(self->uart_signal_event);
+
+        t_now = fbp_time_rel();
+        fbp_uart_process_read(self->uart);
+        fbp_uart_process_write_completed(self->uart);
+        t_dl = fbp_dl_process(self->stack->dl, t_now);
+        fbp_evm_process(self->evm, fbp_time_rel());
+        fbp_uart_process_write_pend(self->uart);
+        t_evm = fbp_evm_time_next(self->evm);
+
+        t_next = fbp_time_max(t_now, fbp_time_min(t_dl, t_evm));
+        t_duration = t_next - t_now;
+        if (t_duration > FBP_TIME_SECOND) {
+            duration_ms = 1000;
+        } else {
+            duration_ms = (DWORD) FBP_TIME_TO_COUNTER(t_next - t_now, 1000);
+        }
+        duration_ms = 1;
+    }
+    return 0;
+}
+
+static int32_t uart_task_start(struct fbp_comm_s * self) {
+    if (self->uart_thread) {
+        FBP_LOGW("uart_task_start but already running");
+        return FBP_ERROR_BUSY;
+    }
+
+    self->uart_thread = CreateThread(
+            NULL,                   // default security attributes
+            0,                      // use default stack size
+            uart_task,              // thread function name
+            self,                   // argument to thread function
+            0,                      // use default creation flags
+            NULL);                  // returns the thread identifier
+    if (!self->uart_thread) {
+        return FBP_ERROR_NOT_ENOUGH_MEMORY;
+    }
+
+    if (!SetThreadPriority(self->uart_thread, THREAD_PRIORITY_TIME_CRITICAL)) {
+        FBP_LOGE("Could not elevate thread priority: %d", (int) GetLastError());
+    }
+    return 0;
+}
+
+static int32_t uart_task_stop(struct fbp_comm_s * self) {
+    int rc = 0;
+    if (self) {
+        self->uart_quit = 1;
+        SetEvent(self->uart_signal_event);
+        if (self->uart_thread) {
+            if (WAIT_OBJECT_0 != WaitForSingleObject(self->uart_thread, 1000)) {
+                FBP_LOGW("UART thread failed to shut down gracefully");
+                rc = FBP_ERROR_TIMED_OUT;
+            }
+            CloseHandle(self->uart_thread);
+            self->uart_thread = NULL;
+        }
+    }
+    return rc;
 }
 
 static DWORD WINAPI pubsub_task(LPVOID lpParam) {
@@ -157,11 +246,19 @@ static int32_t pubsub_task_stop(struct fbp_comm_s * self) {
     return rc;
 }
 
+static void on_dl_process_request(void * user_data) {
+    struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
+    SetEvent(self->uart_signal_event);
+}
+
 struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
                                         const char * device,
                                         uint32_t baudrate,
                                         fbp_pubsub_subscribe_fn cbk_fn,
                                         void * cbk_user_data) {
+    FBP_LOGI("hello?");
+    FBP_LOGI("hello? arg %s", device);
+    FBP_LOGI("fbp_comm_initialize(%s, %d)", device, (int) baudrate);
     if (!cbk_fn) {
         FBP_LOGW("Must provide cbk_fn");
         return NULL;
@@ -171,7 +268,6 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
         return NULL;
     }
 
-    FBP_LOGI("fbp_comm_initialize(%s, %d)", device, (int) baudrate);
     self->subscriber_fn = cbk_fn;
     self->subscriber_user_data = cbk_user_data;
     self->pubsub = fbp_pubsub_initialize(PUBSUB_PREFIX, PUBSUB_BUFFER_SIZE);
@@ -194,13 +290,28 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
                          FBP_PUBSUB_SFLAG_RETAIN | FBP_PUBSUB_SFLAG_RSP,
                          self->subscriber_fn, self->subscriber_user_data);
 
+    self->uart_signal_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!self->uart_signal_event) {
+        goto on_error;
+    }
+
+    self->uart_mutex = fbp_os_mutex_alloc("uart");
+    if (!self->uart_mutex) {
+        goto on_error;
+    }
+
+    self->evm = fbp_evm_allocate();
+    fbp_evm_register_schedule_callback(self->evm, on_schedule, self);
+    fbp_evm_register_mutex(self->evm, self->uart_mutex);
+    FBP_ASSERT(0 == fbp_evm_api_get(self->evm, &self->evm_api));
+
     struct fbp_dl_ll_s ll = {
             .user_data = self,
             .send = ll_send,
             .send_available = ll_send_available,
     };
 
-    struct uart_config_s uart_config = {
+    struct fbp_uart_config_s uart_config = {
             .baudrate = baudrate,
             .send_buffer_size = (FBP_FRAMER_MAX_SIZE + 4) / 2,
             .send_buffer_count = 8,
@@ -210,31 +321,31 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
             .recv_user_data = self,
     };
 
-    self->uart = fbp_uartt_initialize(device, &uart_config);
+    self->uart = fbp_uart_alloc();
     if (!self->uart) {
         goto on_error;
     }
-
-    fbp_uartt_evm_api(self->uart, &self->evm_api);
-    fbp_pubsub_register_on_publish(self->pubsub, on_publish_fn, self);
-    if (pubsub_task_start(self)) {
+    if (fbp_uart_open(self->uart, device, &uart_config)) {
         goto on_error;
     }
+
+    fbp_pubsub_register_on_publish(self->pubsub, on_publish_fn, self);
 
     self->stack = fbp_stack_initialize(config, FBP_PORT0_MODE_SERVER, STACK_PREFIX,
                                        &self->evm_api, &ll, self->pubsub, NULL);
     if (!self->stack) {
         goto on_error;
     }
+    fbp_stack_mutex_set(self->stack, self->uart_mutex);
     fbp_transport_port_register_default(self->stack->transport, NULL, on_port_recv_default, self);
+    fbp_dl_register_process_request(self->stack->dl, on_dl_process_request, self);
 
-    if (fbp_uartt_start(self->uart)) {
+    if (uart_task_start(self)) {
         goto on_error;
     }
-
-    fbp_os_mutex_t mutex;
-    fbp_uartt_mutex(self->uart, &mutex);
-    fbp_stack_mutex_set(self->stack, mutex);
+    if (pubsub_task_start(self)) {
+        goto on_error;
+    }
 
     return self;
 
@@ -246,15 +357,24 @@ on_error:
 
 void fbp_comm_finalize(struct fbp_comm_s * self) {
     if (self) {
-        fbp_uartt_stop(self->uart);
         pubsub_task_stop(self);
+        uart_task_stop(self);
         if (self->stack) {
             fbp_stack_finalize(self->stack);
             self->stack = NULL;
         }
         if (self->uart) {
-            fbp_uartt_finalize(self->uart);
+            fbp_uart_close(self->uart);
+            fbp_uart_free(self->uart);
             self->uart = NULL;
+        }
+        if (self->uart_mutex) {
+            fbp_os_mutex_free(self->uart_mutex);
+            self->uart_mutex = NULL;
+        }
+        if (self->uart_signal_event) {
+            CloseHandle(self->uart_signal_event);
+            self->uart_signal_event = NULL;
         }
         if (self->pubsub) {
             fbp_pubsub_finalize(self->pubsub);

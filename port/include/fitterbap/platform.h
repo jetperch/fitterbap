@@ -23,8 +23,11 @@
 #ifndef FBP_PORT_PLATFORM_H_
 #define FBP_PORT_PLATFORM_H_
 
-#if defined(WIN32)
+// todo linux & mac support
+#if defined(WIN32) || defined(_WIN32)
 #include "fitterbap/host/win/platform.h"
+#else
+#error "unsupported platform"
 #endif
 
 

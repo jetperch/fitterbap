@@ -51,10 +51,6 @@ cdef extern from "stdio.h":
 cdef extern from "fitterbap/platform_dependencies.h":
     void fbp_fatal(const char * file, int line, const char * msg) nogil
 
-cdef extern from "fitterbap/log.h":
-    ctypedef void(*fbp_log_printf)(const char * format, ...) nogil
-    int fbp_log_initialize(fbp_log_printf handler)
-
 # https://cython.readthedocs.io/en/latest/src/userguide/external_C_code.html#acquiring-and-releasing-the-gil
 cdef void _log_print(const char * s) with gil:
     msg = s.decode('utf-8')
@@ -68,7 +64,7 @@ cdef void _log_print(const char * s) with gil:
         record = log.makeRecord(src_file, lvl, src_file, int(src_line), msg, [], None, None, None, None)
         log.handle(record)
 
-cdef void fbp_log_printf_(const char *fmt, ...) nogil:
+cdef extern void fbp_log_printf_(const char *fmt, ...) nogil:
     cdef va_list args
     cdef char[256] s
     va_start(args, <void*> fmt)
