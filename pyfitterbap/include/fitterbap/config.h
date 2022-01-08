@@ -24,8 +24,6 @@
 #define FBP_PY_CONFIG_H_
 
 
-#define FBP_CONFIG_COMM_FRAMER_CRC32(data, length)  (0U)  // fbp_crc32(0, (data), (length))
-
 /* Set global log level */
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_ALL
 

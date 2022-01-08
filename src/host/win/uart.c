@@ -107,15 +107,6 @@ static void buf_free(struct buf_s * buf) {
     fbp_free(buf);
 }
 
-static inline void buf_reset(struct buf_s * buf) {
-    buf->size = 0;
-    buf->overlapped.Internal = 0;
-    buf->overlapped.InternalHigh = 0;
-    buf->overlapped.Offset = 0;
-    buf->overlapped.OffsetHigh = 0;
-    ResetEvent(buf->overlapped.hEvent);
-}
-
 static inline struct buf_s * buf_alloc_from_list(struct fbp_list_s * list) {
     struct buf_s * buf;
     struct fbp_list_s * item = fbp_list_remove_head(list);
@@ -123,12 +114,18 @@ static inline struct buf_s * buf_alloc_from_list(struct fbp_list_s * list) {
         return NULL;
     }
     buf = FBP_CONTAINER_OF(item, struct buf_s, item);
-    buf_reset(buf);
+    buf->size = 0;
+    buf->overlapped.Internal = 0;
+    buf->overlapped.InternalHigh = 0;
+    buf->overlapped.Offset = 0;
+    buf->overlapped.OffsetHigh = 0;
+    ResetEvent(buf->overlapped.hEvent);
     return buf;
 }
 
 static inline void buf_free_to_list(struct buf_s * buf, struct fbp_list_s * list) {
     FBP_ASSERT(buf);
+    ResetEvent(buf->overlapped.hEvent);
     fbp_list_add_tail(list, &buf->item);
 }
 

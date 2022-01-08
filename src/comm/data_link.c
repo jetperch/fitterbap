@@ -33,7 +33,7 @@
  *     then send a full-frame worth of SOF
  */
 
-#define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_DEBUG3
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/collections/ring_buffer_u64.h"
 #include "fitterbap/os/task.h"
@@ -107,7 +107,7 @@ struct fbp_dl_s {
     uint8_t tx_eof_pending;
 
     enum state_e state;
-    int64_t tx_reset_last;
+    int64_t tx_reset_next;
 
     fbp_os_mutex_t mutex;
     fbp_dl_process_request_fn process_request_fn;
@@ -229,10 +229,6 @@ static inline int64_t reset_timeout_duration(struct fbp_dl_s * self) {
 
 static void reset_state(struct fbp_dl_s * self) {
     FBP_LOGD1("reset_state");
-    if (self->state != ST_DISCONNECTED) {
-        self->state = ST_DISCONNECTED;
-        event_emit(self, FBP_DL_EV_DISCONNECTED);
-    }
 
     // tx direction
     self->tx_frame_last_id = 0;
@@ -248,6 +244,12 @@ static void reset_state(struct fbp_dl_s * self) {
     fbp_rbu64_clear(&self->tx_link_buf);
     for (uint16_t f = 0; f < self->rx_frame_count; ++f) {
         self->rx_frames[f].state = RX_FRAME_ST_IDLE;
+    }
+    self->tx_reset_next = FBP_TIME_MAX;  // assign in process_disconnected
+
+    if (self->state != ST_DISCONNECTED) {
+        self->state = ST_DISCONNECTED;
+        event_emit(self, FBP_DL_EV_DISCONNECTED);
     }
 }
 
@@ -422,12 +424,15 @@ static void handle_reset(struct fbp_dl_s * self, uint16_t frame_id) {
         case 0:  // reset request
             if (self->state == ST_CONNECTED) {
                 self->state = ST_DISCONNECTED;
-                reset_state(self);
                 event_emit(self, FBP_DL_EV_RESET_REQUEST);
-                event_emit(self, FBP_DL_EV_DISCONNECTED);
+                reset_state(self);
                 send_link(self, FBP_FRAMER_FT_RESET, 0);
+                send_link(self, FBP_FRAMER_FT_RESET, 1);
+            } else {
+                send_link(self, FBP_FRAMER_FT_RESET, 1);
+                self->state = ST_CONNECTED;
+                event_emit(self, FBP_DL_EV_CONNECTED);
             }
-            send_link(self, FBP_FRAMER_FT_RESET, 1);  // always acknowledge remote reset request
             break;
         case 1:  // reset response
             if (self->state == ST_DISCONNECTED) {
@@ -465,22 +470,18 @@ void fbp_dl_ll_recv(struct fbp_dl_s * self,
 }
 
 static int64_t process_disconnected(struct fbp_dl_s * self, int64_t now) {
-    int64_t next = self->tx_reset_last + reset_timeout_duration(self);
-    if (fbp_rbu64_is_empty(&self->tx_link_buf)) {
-        if (next <= now) {
-            send_link(self, FBP_FRAMER_FT_RESET, 0);
-            self->tx_reset_last = now;
-            next = now + reset_timeout_duration(self);
-        }
-    } else {
-        self->tx_reset_last = now;
-        next = now + reset_timeout_duration(self);
+    if (self->tx_reset_next == FBP_TIME_MAX) {
+        self->tx_reset_next = now + reset_timeout_duration(self);
+    }
+    if (fbp_rbu64_is_empty(&self->tx_link_buf) && (self->tx_reset_next <= now)) {
+        send_link(self, FBP_FRAMER_FT_RESET, 0);
+        self->tx_reset_next = now + reset_timeout_duration(self);
     }
     send_link_pending(self);
     if (self->tx_eof_pending && self->ll_instance.send_available(self->ll_instance.user_data)) {
         send_eof(self);
     }
-    return next;
+    return fbp_time_max(self->tx_reset_next, now + FBP_TIME_MILLISECOND);
 }
 
 static inline int64_t tmin(int64_t a, int64_t b) {

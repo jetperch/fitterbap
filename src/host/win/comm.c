@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
 #include "fitterbap/host/comm.h"
 #include "fitterbap/host/uart.h"
 #include "fitterbap/comm/data_link.h"
@@ -57,8 +57,33 @@ struct fbp_comm_s {
     void * subscriber_user_data;
 };
 
+static void print_buffer(const char * prefix, uint8_t const * buffer, uint32_t buffer_size) {
+    if (FBP_LOG_CHECK_STATIC(FBP_LOG_LEVEL_DEBUG1)) {
+        char line_buf[80];
+        char * p = line_buf;
+        for (uint32_t i = 0; i < buffer_size; ++i) {
+            if (0 == (i & 0xf)) {
+                if (i != 0) {
+                    FBP_LOGD1("%s:%s", prefix, line_buf);
+                }
+                line_buf[0] = 0;
+                p = line_buf;
+            }
+            int count = snprintf(p, sizeof(line_buf) - (line_buf - p), " %02x", buffer[i]);
+            p += count;
+        }
+
+        if (p != line_buf) {
+            FBP_LOGD1("%s:%s", prefix, line_buf);
+        }
+    }
+}
+
 static void ll_send(void * user_data, uint8_t const * buffer, uint32_t buffer_size) {
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
+    if (FBP_LOG_CHECK_STATIC(FBP_LOG_LEVEL_DEBUG3)) {
+        print_buffer("s", buffer, buffer_size);
+    }
     fbp_uart_write(self->uart, buffer, buffer_size);
 }
 
@@ -69,6 +94,9 @@ static uint32_t ll_send_available(void * user_data) {
 
 static void on_uart_recv(void *user_data, uint8_t *buffer, uint32_t buffer_size) {
     struct fbp_comm_s * self = (struct fbp_comm_s *) user_data;
+    if (FBP_LOG_CHECK_STATIC(FBP_LOG_LEVEL_DEBUG3)) {
+        print_buffer("r", buffer, buffer_size);
+    }
     fbp_dl_ll_recv(self->stack->dl, buffer, buffer_size);
 }
 
@@ -256,8 +284,6 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
                                         uint32_t baudrate,
                                         fbp_pubsub_subscribe_fn cbk_fn,
                                         void * cbk_user_data) {
-    FBP_LOGI("hello?");
-    FBP_LOGI("hello? arg %s", device);
     FBP_LOGI("fbp_comm_initialize(%s, %d)", device, (int) baudrate);
     if (!cbk_fn) {
         FBP_LOGW("Must provide cbk_fn");

@@ -284,7 +284,6 @@ static int teardown(void ** state) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) *state; \
     struct fbp_pubsub_s * pubsub = fbp_pubsub_initialize("h", 1024);   \
     assert_non_null(pubsub);                                           \
-    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl1);  \
     struct fbp_port0_s * p = fbp_port0_initialize(FBP_PORT0_MODE_##mode_, &self->dl1, &self->evm, self, ll_send, pubsub, "h/c0/", NULL); \
     assert_non_null(p); \
     self->p1 = p
@@ -456,11 +455,9 @@ static void setup_dual(struct fbp_transport_s * self) {
     self->pubsub2 = fbp_pubsub_initialize("d", 1024);
     assert_non_null(self->pubsub2);
 
-    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl1);
     self->p1 = fbp_port0_initialize(FBP_PORT0_MODE_SERVER, &self->dl1, &self->evm, self, send_p1_to_p2, self->pubsub1, "h/c0/", NULL); \
     assert_non_null(self->p1);
 
-    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl2);
     self->p2 = fbp_port0_initialize(FBP_PORT0_MODE_CLIENT, &self->dl2, &self->evm, self, send_p2_to_p1, self->pubsub2, "d/c0/", NULL); \
     assert_non_null(self->p2);
 }
@@ -476,9 +473,27 @@ static void teardown_dual(struct fbp_transport_s * self) {
     self->pubsub2 = NULL;
 }
 
+static uint8_t on_publish_u32(void * user_data, const char * topic, const struct fbp_union_s * value) {
+    struct fbp_transport_s * self = (struct fbp_transport_s *) user_data;
+    check_expected_ptr(topic);
+    assert_int_equal(FBP_UNION_U32, value->type);
+    uint32_t state = value->value.u32;
+    check_expected(state);
+    return 0;
+}
+
+#define expect_publish_u32(topic_, value_) \
+    expect_string(on_publish_u32, topic, topic_); \
+    expect_value(on_publish_u32, state, value_);
+
 static void test_connect(void ** state) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) *state;
     setup_dual(self);
+    fbp_pubsub_subscribe(self->pubsub1, "h/c0/0/state", 0, on_publish_u32, self);
+    fbp_pubsub_subscribe(self->pubsub2, "d/c0/0/state", 0, on_publish_u32, self);
+
+    fbp_port0_on_event_cbk(self->p1, FBP_DL_EV_CONNECTED);
+    fbp_port0_on_event_cbk(self->p2, FBP_DL_EV_CONNECTED);
 
     self->timestamp += FBP_TIME_MILLISECOND * 10;
 
@@ -497,6 +512,11 @@ static void test_connect(void ** state) {
     evm_process_next(self);
     evm_process_next(self);
     evm_process_next(self);
+
+    expect_publish_u32("h/c0/0/state", 1);
+    expect_publish_u32("d/c0/0/state", 1);
+    fbp_pubsub_process(self->pubsub1);
+    fbp_pubsub_process(self->pubsub2);
 
     teardown_dual(self);
 }

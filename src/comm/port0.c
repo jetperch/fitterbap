@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_INFO
 #include "fitterbap/comm/port0.h"
 #include "fitterbap/comm/timesync.h"
 #include "fitterbap/comm/transport.h"
@@ -79,9 +79,8 @@ static const char ECHO_LENGTH_META[] =
 
 
 enum events_e {
-    EV_TX_DISCONNECT,
-    EV_TX_CONNECT,
-    EV_RX_RESET_REQ,
+    EV_DL_DISCONNECTED,
+    EV_DL_CONNECTED,
     EV_TIMEOUT,
     EV_TICK,
     EV_NEGOTIATE_DONE,
@@ -121,6 +120,8 @@ struct fbp_port0_s {
     int64_t echo_rx_frame_id;
     int64_t echo_tx_frame_id;
     int64_t echo_buffer[FBP_FRAMER_PAYLOAD_MAX_SIZE / sizeof(int64_t)];
+
+    int32_t negotiate_rsp[4];
 };
 
 #define REQ(op)    ((0x00) | ((FBP_PORT0_OP_##op) & 0x07))
@@ -129,9 +130,8 @@ struct fbp_port0_s {
 static const char * event_to_str(struct fbp_fsm_s * self, fbp_fsm_event_t event) {
     (void) self;
     switch (event) {
-        case EV_TX_DISCONNECT: return "tx_disconnect";
-        case EV_TX_CONNECT: return "tx_connect";
-        case EV_RX_RESET_REQ: return "rx_reset_req";
+        case EV_DL_DISCONNECTED: return "dl_disconnected";
+        case EV_DL_CONNECTED: return "dl_connected";
         case EV_TIMEOUT: return "timeout";
         case EV_TICK: return "tick";
         case EV_NEGOTIATE_DONE: return "negotiate_done";
@@ -215,7 +215,9 @@ static void echo_send(struct fbp_port0_s * self) {
         self->echo_buffer[0] = self->echo_tx_frame_id++;
         if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(ECHO),
                           (uint8_t *) self->echo_buffer, self->echo_length)) {
-            FBP_LOGD1("echo_send error");
+            FBP_LOGW("echo_send error");
+            --self->echo_rx_frame_id;
+            break;
         }
     }
 }
@@ -284,18 +286,20 @@ static void publish(struct fbp_port0_s * self, const char * subtopic, const stru
 void fbp_port0_on_event_cbk(struct fbp_port0_s * self, enum fbp_dl_event_e event) {
     switch (event) {
         case FBP_DL_EV_RESET_REQUEST:
-            emit_event(self, EV_RX_RESET_REQ);
             break;
         case FBP_DL_EV_DISCONNECTED:
-            emit_event(self, EV_TX_DISCONNECT);
+            FBP_LOGI("%s disconnected", self->topic_prefix);
+            emit_event(self, EV_DL_DISCONNECTED);
             break;
         case FBP_DL_EV_CONNECTED:
-            emit_event(self, EV_TX_CONNECT);
+            FBP_LOGI("%s dl connected", self->topic_prefix);
+            emit_event(self, EV_DL_CONNECTED);
             break;
         case FBP_DL_EV_TRANSPORT_CONNECTED:
+            FBP_LOGI("%s transport connected", self->topic_prefix);
             break;
         case FBP_DL_EV_APP_CONNECTED:
-            FBP_LOGN("%s connected", self->topic_prefix);
+            FBP_LOGI("%s app connected", self->topic_prefix);
             break;
         default:
             break;
@@ -463,31 +467,44 @@ static void op_meta_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_si
         emit_event(self, EV_META_DONE);
     }
 }
-
 static void op_negotiate_req(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
     uint32_t req[4];  // version, status, down_window_size, up_window_size
-    uint32_t rsp[4] = {FBP_DL_VERSION, 0, 0, 0};
-    if (self->mode != FBP_PORT0_MODE_CLIENT) {
-        FBP_LOGE("op_negotiate_rsp, but not client on %s", self->topic_prefix);
-        rsp[1] = FBP_ERROR_NOT_SUPPORTED;
+    self->negotiate_rsp[0] = FBP_DL_VERSION;
+    self->negotiate_rsp[1] = 0;
+    self->negotiate_rsp[2] = 0;
+    self->negotiate_rsp[3] = 0;
+    bool is_good = false;
+    if (self->fsm.state != ST_NEGOTIATE) {
+        FBP_LOGW("negotiate_req in state %d", self->fsm.state);
+        self->negotiate_rsp[1] = FBP_ERROR_ABORTED;
+    } else if (self->mode != FBP_PORT0_MODE_CLIENT) {
+        FBP_LOGE("negotiate_req, but not client on %s", self->topic_prefix);
+        self->negotiate_rsp[1] = FBP_ERROR_NOT_SUPPORTED;
     } else if (msg_size < sizeof(req)) {
         FBP_LOGE("incompatible negotiate packet on %s", self->topic_prefix);
-        rsp[1] = FBP_ERROR_PARAMETER_INVALID;
+        self->negotiate_rsp[1] = FBP_ERROR_PARAMETER_INVALID;
     } else {
         memcpy(req, msg, sizeof(req));
         if (FBP_DL_VERSION_MAJOR != (req[0] >> 24)) {
             FBP_LOGE("potentially incompatible negotiate version on %s", self->topic_prefix);
-            rsp[1] = 0; // could issue warning
+            self->negotiate_rsp[1] = 0; // could issue warning
         }
-        rsp[2] = min_u32(fbp_dl_rx_window_get(self->dl), req[2]);
-        rsp[3] = min_u32(fbp_dl_tx_window_max_get(self->dl), req[3]);
-        fbp_dl_tx_window_set(self->dl, rsp[3]);
+        self->negotiate_rsp[2] = min_u32(fbp_dl_rx_window_get(self->dl), req[2]);
+        self->negotiate_rsp[3] = min_u32(fbp_dl_tx_window_max_get(self->dl), req[3]);
+        fbp_dl_tx_window_set(self->dl, self->negotiate_rsp[3]);
+        is_good = true;
     }
     if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(NEGOTIATE),
-                      (uint8_t *) rsp, sizeof(rsp))) {
+                      (uint8_t *) self->negotiate_rsp, sizeof(self->negotiate_rsp))) {
         FBP_LOGW("negotiate_req send failed on %s", self->topic_prefix);
+        if (is_good) {
+            tick_set(self, 10);  // schedule retransmit
+        }
+        is_good = false;
     }
-    emit_event(self, EV_NEGOTIATE_DONE);
+    if (is_good) {
+        emit_event(self, EV_NEGOTIATE_DONE);
+    }
 }
 
 static void op_negotiate_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_size) {
@@ -572,41 +589,53 @@ static void topic_create(struct fbp_port0_s * self, const char * subtopic, const
     topic_reset(self);
 }
 
+#define ON_ENTER(fsm) \
+    (void) event; \
+    struct fbp_port0_s * self = (struct fbp_port0_s *) fsm; \
+    FBP_LOGD1("on_enter %d", self->fsm.state);              \
+    timeout_clear(self); \
+    tick_clear(self)
+
 static fbp_fsm_state_t on_enter_disconnected(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    struct fbp_port0_s * self = (struct fbp_port0_s *) fsm;
-    timeout_set(self, 2500);
-    tick_clear(self);
+    ON_ENTER(fsm);
     publish(self, STATE_TOPIC, &fbp_union_u32_r(0));
-    fbp_dl_reset_tx_from_event(self->dl);
     return FBP_STATE_ANY;
 }
 
-static fbp_fsm_state_t on_disconnected_timeout(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
+static fbp_fsm_state_t on_timeout_to_disconnected(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     (void) event;
     struct fbp_port0_s * self = (struct fbp_port0_s *) fsm;
-    timeout_set(self, 2500);
     fbp_dl_reset_tx_from_event(self->dl);
-    return FBP_STATE_ANY;
+    return 0;
 }
 
-static fbp_fsm_state_t negotiate_send_req(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
+static fbp_fsm_state_t on_negotiate_tick(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
     (void) event;
     struct fbp_port0_s * self = (struct fbp_port0_s *) fsm;
-    uint32_t payload[4] = {FBP_DL_VERSION, 0, 0, 0};  // version, status, down_window_size, up_window_size
-    payload[2] = fbp_dl_tx_window_max_get(self->dl);
-    payload[3] = fbp_dl_rx_window_get(self->dl);
-    if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(NEGOTIATE),
-                      (uint8_t *) payload, sizeof(payload))) {
-        // buffer full, schedule retry
-        tick_set(self, 2);
+    if (self->mode == FBP_PORT0_MODE_CLIENT) {
+        // deferred from op_negotiate_req
+        if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(NEGOTIATE),
+                          (uint8_t *) self->negotiate_rsp, sizeof(self->negotiate_rsp))) {
+            FBP_LOGW("negotiate_rsp send buffer full");
+            tick_set(self, 10);
+        } else {
+            emit_event(self, EV_NEGOTIATE_DONE);
+        }
+    } else {  // FBP_PORT0_MODE_SERVER
+        uint32_t payload[4] = {FBP_DL_VERSION, 0, 0, 0};  // version, status, down_window_size, up_window_size
+        payload[2] = fbp_dl_tx_window_max_get(self->dl);
+        payload[3] = fbp_dl_rx_window_get(self->dl);
+        if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, REQ(NEGOTIATE),
+                          (uint8_t *) payload, sizeof(payload))) {
+            // buffer full, schedule retry
+            tick_set(self, 10);
+        }
     }
     return FBP_STATE_ANY;
 }
 
 static fbp_fsm_state_t on_enter_negotiate(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    struct fbp_port0_s * self = (struct fbp_port0_s *) fsm;
+    ON_ENTER(fsm);
     timeout_set(self, 1000);
     if (self->mode == FBP_PORT0_MODE_SERVER) {
         tick_set(self, 50);  // allow reset to stabilize before negotiate_send_req
@@ -643,9 +672,7 @@ static fbp_fsm_state_t on_connected_tick(struct fbp_fsm_s * fsm, fbp_fsm_event_t
 }
 
 static fbp_fsm_state_t on_enter_timesync(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    struct fbp_port0_s *self = (struct fbp_port0_s *) fsm;
-    tick_clear(self);
+    ON_ENTER(fsm);
     timeout_set(self, 1000);
     if (self->mode == FBP_PORT0_MODE_CLIENT) {
         tick_set(self, 2);  // allow queue to empty for fastest response
@@ -654,8 +681,7 @@ static fbp_fsm_state_t on_enter_timesync(struct fbp_fsm_s * fsm, fbp_fsm_event_t
 }
 
 static fbp_fsm_state_t on_enter_meta(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    struct fbp_port0_s * self = (struct fbp_port0_s *) fsm;
+    ON_ENTER(fsm);
     timeout_set(self, 1000);
     self->meta_port_id = 0;
     tick_set(self, 1);
@@ -670,15 +696,12 @@ static fbp_fsm_state_t on_meta_tick(struct fbp_fsm_s * fsm, fbp_fsm_event_t even
 }
 
 static fbp_fsm_state_t on_enter_connected(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    struct fbp_port0_s * self = (struct fbp_port0_s *) fsm;
-    timeout_clear(self);
-    tick_clear(self);
+    ON_ENTER(fsm);
     if (self->mode == FBP_PORT0_MODE_CLIENT) {
         tick_set(self, 1);
     }
-    publish(self, STATE_TOPIC, &fbp_union_u32_r(1));
     fbp_transport_event_inject(self->transport, FBP_DL_EV_TRANSPORT_CONNECTED);
+    publish(self, STATE_TOPIC, &fbp_union_u32_r(1));
     echo_send(self);
     return FBP_STATE_ANY;
 }
@@ -703,23 +726,15 @@ static fbp_fsm_state_t only_client(struct fbp_fsm_s * fsm, fbp_fsm_event_t event
     }
 }
 
-static fbp_fsm_state_t rx_reset_req_guard(struct fbp_fsm_s * fsm, fbp_fsm_event_t event) {
-    (void) event;
-    switch (fsm->state) {
-        case ST_DISCONNECTED:  return FBP_STATE_NULL;
-        case ST_NEGOTIATE:     return FBP_STATE_NULL;
-        default:               return FBP_STATE_ANY;
-    }
-}
-
 static const struct fbp_fsm_transition_s transitions[] = {  // priority encoded
     {ST_CONNECTED, FBP_STATE_NULL, EV_TICK,             on_connected_tick},
     {ST_CONNECTED, FBP_STATE_NULL, EV_TIMESYNC_DONE,    NULL},
-    {ST_DISCONNECTED, ST_NEGOTIATE, EV_TX_CONNECT,      NULL},
+    {ST_DISCONNECTED, ST_NEGOTIATE, EV_DL_CONNECTED,    NULL},
+    {ST_DISCONNECTED, FBP_STATE_NULL, EV_DL_DISCONNECTED,  NULL},
 
     {ST_NEGOTIATE, ST_TIMESYNC1, EV_NEGOTIATE_DONE,     only_client},
     {ST_NEGOTIATE, ST_META, EV_NEGOTIATE_DONE,          only_server},
-    {ST_NEGOTIATE, FBP_STATE_NULL, EV_TICK,             negotiate_send_req},
+    {ST_NEGOTIATE, FBP_STATE_NULL, EV_TICK,             on_negotiate_tick},
     {ST_META, FBP_STATE_NULL, EV_TICK,                  on_meta_tick},
     {ST_META, ST_CONNECTED, EV_META_DONE,               NULL},
 
@@ -728,11 +743,8 @@ static const struct fbp_fsm_transition_s transitions[] = {  // priority encoded
     {ST_TIMESYNC2, FBP_STATE_NULL, EV_TICK,             on_timesync_tick},
     {ST_TIMESYNC2, ST_META, EV_TIMESYNC_DONE,           NULL},
 
-    {ST_DISCONNECTED, FBP_STATE_NULL, EV_TIMEOUT,       on_disconnected_timeout},
-
-    {FBP_STATE_ANY, ST_DISCONNECTED, EV_RX_RESET_REQ,   rx_reset_req_guard},
-    {FBP_STATE_ANY, ST_DISCONNECTED, EV_TX_DISCONNECT,  NULL},
-    {FBP_STATE_ANY, ST_DISCONNECTED, EV_TIMEOUT,        NULL},
+    {FBP_STATE_ANY, ST_DISCONNECTED, EV_DL_DISCONNECTED, NULL},
+    {FBP_STATE_ANY, ST_DISCONNECTED, EV_TIMEOUT,        on_timeout_to_disconnected},
     {FBP_STATE_ANY, ST_DISCONNECTED, FBP_EVENT_RESET,   NULL},
 };
 

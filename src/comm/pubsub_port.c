@@ -689,6 +689,7 @@ transmit:
 #define ON_ENTER(fsm) \
     (void) event; \
     struct fbp_pubsubp_s * self = (struct fbp_pubsubp_s *) fsm; \
+    FBP_LOGD1("on_enter %d", self->fsm.state);                  \
     timeout_set(self, 1000); \
     tick_clear(self)
 
