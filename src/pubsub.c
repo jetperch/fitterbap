@@ -283,7 +283,7 @@ static bool subtopic_get_str(const char ** topic, char * subtopic) {
     return false;
 }
 
-struct topic_s * subtopic_find(struct topic_s * parent, const char * subtopic_str) {
+static struct topic_s * subtopic_find(struct topic_s * parent, const char * subtopic_str) {
     struct fbp_list_s * item;
     struct topic_s * topic;
     fbp_list_foreach(&parent->children, item) {
@@ -472,7 +472,7 @@ void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
     self->cbk_user_data = cbk_user_data;
 }
 
-void subscribe_traverse(struct topic_s * topic, char * topic_str, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
+static void subscribe_traverse(struct topic_s * topic, char * topic_str, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     size_t topic_str_len = strlen(topic_str);
     char * topic_str_last = topic_str + topic_str_len;
     if ((topic->value.type != FBP_UNION_NULL) && (topic->value.flags & FBP_UNION_FLAG_RETAIN)) {
@@ -550,7 +550,7 @@ int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
     return 0;
 }
 
-void unsubscribe_traverse(struct fbp_pubsub_s * self, struct topic_s * topic, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
+static void unsubscribe_traverse(struct fbp_pubsub_s * self, struct topic_s * topic, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     struct fbp_list_s * item;
     struct topic_s * subtopic;
     struct subscriber_s * subscriber;

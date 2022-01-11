@@ -43,7 +43,10 @@
 FBP_CPP_GUARD_START
 
 /// The maximum topic length, include indicator char and null terminator.
+#ifndef FBP_PUBSUB_TOPIC_LENGTH_MAX
 #define FBP_PUBSUB_TOPIC_LENGTH_MAX (32)
+#endif
+
 /// The maximum topic length between '/' separators.
 #define FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL (8)
 /// The unit separator character
