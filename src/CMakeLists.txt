@@ -29,6 +29,7 @@ set(SOURCES
         topic.c
         topic_list.c
         union.c
+        version.c
         collections/ring_buffer_msg.c
         comm/data_link.c
         comm/framer.c
