@@ -24,6 +24,7 @@
 #define FBP_VERSION_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * @ingroup fbp
