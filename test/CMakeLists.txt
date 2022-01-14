@@ -69,6 +69,7 @@ ADD_CMOCKA_TEST(time_test)
 ADD_CMOCKA_TEST(topic_test)
 ADD_CMOCKA_TEST(topic_list_test)
 ADD_CMOCKA_TEST(union_test)
+ADD_CMOCKA_TEST(version_test)
 
 # test static assert compile failures
 # http://stackoverflow.com/questions/30155619/expected-build-failure-tests-in-cmake

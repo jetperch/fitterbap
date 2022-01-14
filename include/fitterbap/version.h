@@ -40,6 +40,14 @@
 #define FBP_VERSION_PATCH 0
 
 /**
+ * \brief The maximum version string length.
+ *
+ * The actual length is 14 bytes (MMM.mmm.ppppp\x0), but round up
+ * to simplify packing.
+ */
+#define FBP_VERSION_STR_LENGTH_MAX  (16)
+
+/**
  * \brief Macro to encode version to uint32_t
  *
  * \param major The major release number (0 to 255)
@@ -78,28 +86,11 @@
 #define FBP_VERSION_ENCODE_STR(major, minor, patch) \
         FBP_VERSION__STR(major) "." FBP_VERSION__STR(minor) "." FBP_VERSION__STR(patch)
 
-/**
- * \brief Macro to recode u32 version into a string.
- */
-#define FBP_VERSION_ENCODE_U32_STR(ver_u32_)        \
-        FBP_VERSION_ENCODE_STR(                     \
-            FBP_VERSION_DECODE_U32_MAJOR(ver_u32_), \
-            FBP_VERSION_DECODE_U32_MINOR(ver_u32_), \
-            FBP_VERSION_DECODE_U32_PATCH(ver_u32_))
-
 /// The FBP version as uint32_t
 #define FBP_VERSION_U32 FBP_VERSION_ENCODE_U32(FBP_VERSION_MAJOR, FBP_VERSION_MINOR, FBP_VERSION_PATCH)
 
 /// The FBP version as "major.minor.patch" string
 #define FBP_VERSION_STR FBP_VERSION_ENCODE_STR(FBP_VERSION_MAJOR, FBP_VERSION_MINOR, FBP_VERSION_PATCH)
-
-/**
- * \brief The maximum version string length.
- *
- * The actual length is 14 bytes (MMM.mmm.ppppp\x0), but round up
- * to simplify packing.
- */
-#define FBP_VERSION_STR_LENGTH_MAX  (16)
 
 /**
  * \brief Convert a u32 encoded version as a string.
