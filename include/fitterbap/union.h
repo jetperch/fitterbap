@@ -76,18 +76,18 @@ enum fbp_union_flag_e {
 
 /// The actual value holder for fbp_union_s.
 union fbp_union_inner_u {
-    const char * str;      ///< FBP_PUBSUB_TYPE_STR, FBP_UNION_JSON
-    const uint8_t * bin;   ///< FBP_PUBSUB_TYPE_BIN
-    float f32;             ///< FBP_PUBSUB_TYPE_F32
-    double f64;            ///< FBP_PUBSUB_TYPE_F64
-    uint8_t u8;            ///< FBP_PUBSUB_TYPE_U8
-    uint16_t u16;          ///< FBP_PUBSUB_TYPE_U16
-    uint32_t u32;          ///< FBP_PUBSUB_TYPE_U32
-    uint64_t u64;          ///< FBP_PUBSUB_TYPE_U64
-    int8_t i8;             ///< FBP_PUBSUB_TYPE_I8
-    int16_t i16;           ///< FBP_PUBSUB_TYPE_I16
-    int32_t i32;           ///< FBP_PUBSUB_TYPE_I32
-    int64_t i64;           ///< FBP_PUBSUB_TYPE_I64
+    const char * str;      ///< FBP_UNION_STR, FBP_UNION_JSON
+    const uint8_t * bin;   ///< FBP_UNION_BIN
+    float f32;             ///< FBP_UNION_F32
+    double f64;            ///< FBP_UNION_F64
+    uint8_t u8;            ///< FBP_UNION_U8
+    uint16_t u16;          ///< FBP_UNION_U16
+    uint32_t u32;          ///< FBP_UNION_U32
+    uint64_t u64;          ///< FBP_UNION_U64
+    int8_t i8;             ///< FBP_UNION_I8
+    int16_t i16;           ///< FBP_UNION_I16
+    int32_t i32;           ///< FBP_UNION_I32
+    int64_t i64;           ///< FBP_UNION_I64
 };
 
 /// The value holder for all types.
@@ -168,6 +168,23 @@ FBP_API bool fbp_union_eq(const struct fbp_union_s * v1, const struct fbp_union_
  * @return 0 or error code.
  */
 FBP_API int32_t fbp_union_to_bool(const struct fbp_union_s * value, bool * rv);
+
+/**
+ * @brief Check if the union contains a pointer type.
+ *
+ * @param value The union value.
+ * @return True is the union contains a pointer type, false otherwise.
+ */
+static inline bool fbp_union_is_type_ptr(const struct fbp_union_s * value) {
+    switch (value->type) {
+        case FBP_UNION_STR:  // intentional fall-through
+        case FBP_UNION_JSON:  // intentional fall-through
+        case FBP_UNION_BIN:  // intentional fall-through
+            return true;
+        default:
+            return false;
+    }
+}
 
 FBP_CPP_GUARD_END
 
