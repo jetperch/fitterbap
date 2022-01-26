@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.5.0
 
-2022 Jan 6 [in progress]
+2022 Jan 26 [in progress]
 
 * Restructured platform and configuration.
   * Allow for static inline functions in platform.
@@ -39,6 +39,7 @@ This file contains the list of changes made to the Fitterbap library.
   * Modified test/comm/host.c to work as either server or client.
 * Fixed python to better support PySide6.
 * Added fbp_rbu64_is_empty
+* Refactored windows error handling support.
 
 
 ## 0.4.1

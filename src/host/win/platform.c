@@ -103,4 +103,3 @@ void fbp_os_sleep_(int64_t duration) {
     }
     Sleep((DWORD) FBP_TIME_TO_MILLISECONDS(duration_ms));
 }
-

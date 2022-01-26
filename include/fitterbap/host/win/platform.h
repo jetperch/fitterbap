@@ -28,6 +28,8 @@
 #include "fitterbap/log.h"
 #include <string.h>  // for memset, memcpy
 
+FBP_CPP_GUARD_START
+
 void * fbp_alloc_(fbp_size_t size_bytes);
 void fbp_free_(void * ptr);
 uint32_t fbp_time_counter_frequency_();
@@ -108,5 +110,7 @@ FBP_INLINE_FN intptr_t fbp_os_current_task_id() {
 FBP_INLINE_FN void fbp_os_sleep(int64_t duration) {
     fbp_os_sleep_(duration);
 }
+
+FBP_CPP_GUARD_END
 
 #endif /* FBP_HOST_WIN_PLATFORM_H_ */

@@ -17,6 +17,7 @@
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 
 #include "fitterbap/host/uart.h"
+#include "fitterbap/host/win/error.h"
 #include "fitterbap/cdef.h"
 #include "fitterbap/ec.h"
 #include "fitterbap/log.h"
@@ -52,46 +53,6 @@ struct fbp_uart_s {
 };
 
 static void read_pend_all(struct fbp_uart_s * self);
-
-// https://stackoverflow.com/questions/1387064/how-to-get-the-error-message-from-the-error-code-returned-by-getlasterror
-// This functions fills a caller-defined character buffer (pBuffer)
-// of max length (cchBufferLength) with the human-readable error message
-// for a Win32 error code (dwErrorCode).
-//
-// Returns TRUE if successful, or FALSE otherwise.
-// If successful, pBuffer is guaranteed to be NUL-terminated.
-// On failure, the contents of pBuffer are undefined.
-BOOL GetErrorMessage(DWORD dwErrorCode, char * pBuffer, DWORD cchBufferLength) {
-    char* p = pBuffer;
-    if (cchBufferLength == 0) {
-        return FALSE;
-    }
-    pBuffer[0] = 0;
-
-    DWORD cchMsg = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                                  NULL,  /* (not used with FORMAT_MESSAGE_FROM_SYSTEM) */
-                                  dwErrorCode,
-                                  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                  pBuffer,
-                                  cchBufferLength,
-                                  NULL);
-
-    while (*p) {
-        if ((*p == '\n') || (*p == '\r')) {
-            *p = 0;
-            break;
-        }
-        ++p;
-    }
-    return (cchMsg > 0);
-}
-
-#define WINDOWS_LOGE(format, ...) { \
-    char error_msg_[64]; \
-    DWORD error_ = GetLastError(); \
-    GetErrorMessage(error_, error_msg_, sizeof(error_msg_)); \
-    FBP_LOGE(format ": %d: %s", __VA_ARGS__, (int) error_, error_msg_); \
-}
 
 static struct buf_s * buf_alloc(uint32_t sz) {
     struct buf_s * buf = fbp_alloc_clr(sizeof(struct buf_s) + sz);
