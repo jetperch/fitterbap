@@ -33,7 +33,7 @@
  *     then send a full-frame worth of SOF
  */
 
-#define FBP_LOG_LEVEL FBP_LOG_LEVEL_DEBUG3
+#define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/collections/ring_buffer_u64.h"
 #include "fitterbap/os/task.h"
