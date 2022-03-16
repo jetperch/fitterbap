@@ -353,6 +353,16 @@ static void starts_with(void **state) {
     assert_ptr_equal(hello_world, fbp_cstr_starts_with(hello_world, 0));
 }
 
+static void ends_with(void **state) {
+    (void) state;
+    const char * hello_world = "hello_world";
+    assert_ptr_equal(hello_world + 5, fbp_cstr_ends_with(hello_world, "_world"));
+    assert_null(fbp_cstr_ends_with(hello_world, "hello"));
+    assert_null(fbp_cstr_ends_with(hello_world, "worLD"));
+    assert_null(fbp_cstr_ends_with(0, "world"));
+    assert_ptr_equal(hello_world, fbp_cstr_ends_with(hello_world, 0));
+}
+
 static void hex_chars(void ** state) {
     (void) state;
     char v_upper[] = "0123456789ABCDEF";
@@ -408,6 +418,7 @@ int main(void) {
         cmocka_unit_test(to_bool_invalid),
         cmocka_unit_test(casecmp),
         cmocka_unit_test(starts_with),
+        cmocka_unit_test(ends_with),
         cmocka_unit_test(hex_chars),
         cmocka_unit_test(hex_chars_invalid),
     };

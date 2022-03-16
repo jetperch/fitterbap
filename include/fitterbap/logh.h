@@ -194,7 +194,7 @@ FBP_API int32_t fbp_logh_process(struct fbp_logh_s * self);
  *      log messages until the queue empties.
  * @param time_fn The function that provides utc time.  NULL will
  *      use fbp_time_utc().
- * @return The log hander instance.
+ * @return The log handler instance.
  */
 FBP_API struct fbp_logh_s * fbp_logh_initialize(char origin_prefix, uint32_t msg_buffers_max,
                                                 int64_t (*time_fn)());

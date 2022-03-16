@@ -135,6 +135,34 @@ const char * fbp_cstr_starts_with(const char * s, const char * prefix) {
     }
 }
 
+const char * fbp_cstr_ends_with(const char * s, const char * prefix) {
+    if (!prefix || !*prefix || !s) {
+        return s;
+    }
+    const char * s_end = s;
+    const char * prefix_end = prefix;
+
+    while (*s_end) {
+        ++s_end;
+    }
+
+    while (*prefix_end) {
+        ++prefix_end;
+    }
+
+    if ((s_end - s) < (prefix_end - prefix)) {
+        return 0;  // s too short to match
+    }
+
+    while (prefix_end >= prefix) {
+        if (*prefix_end-- != *s_end--) {
+            return 0;
+        }
+    }
+    ++s_end;
+    return s_end;
+}
+
 int fbp_cstr_to_u32(const char * src, uint32_t * value) {
     uint32_t v = 0;
 
