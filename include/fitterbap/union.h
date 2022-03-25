@@ -46,6 +46,8 @@ enum fbp_union_e {
     FBP_UNION_STR = 1,   ///< UTF-8 string value, null terminated.
     FBP_UNION_JSON = 2,  ///< UTF-8 JSON string value, null terminated.
     FBP_UNION_BIN = 3,   ///< Raw binary value
+    FBP_UNION_RSV0 = 4,  ///< Reserved, do not use
+    FBP_UNION_RSV1 = 5,  ///< Reserved, do not use
     FBP_UNION_F32 = 6,   ///< 32-bit IEEE 754 floating point
     FBP_UNION_F64 = 7,   ///< 64-bit IEEE 754 floating point
     FBP_UNION_U8 = 8,    ///< Unsigned 8-bit integer value.
