@@ -20,11 +20,13 @@ set(SOURCES
         ec.c
         event_manager.c
         fsm.c
+        json.c
         lfsr.c
         log.c
         logh.c
         pattern_32a.c
         pubsub.c
+        pubsub_meta.c
         time.c
         topic.c
         topic_list.c

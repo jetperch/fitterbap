@@ -65,16 +65,16 @@ keys:
 - brief: A brief string description (recommended).
 - detail: A more detailed string description (optional).
 - default: The recommended default value (optional).
-- options: A list of options, which is each a list of:   
-     [value, [alt1 [, ...]]]   
-     The alternates must be given in order.  The first value
+- options: A list of options, where each option is each a flat list of:   
+     [value [, alt1 [, ...]]]   
+     The alternates must be given in preference order.  The first value
      must be the value as dtype.  The second value alt1
      (when provided) is used to automatically populate user
      interfaces, and it can be the same as value.  Additional
      values will be interpreted as equivalents.
 - range: The list of [v_min, v_max] or [v_min, v_max, v_step].  Both
   v_min and v_max are *inclusive*.  v_step defaults to 1 if omitted.
-- format: Formatting hints for the value:
+- format: Formatting hints string:
   - version: The u32 dtype should be interpreted as major8.minor8.patch16.
 - flags: A list of flags for this topic.  Options include:
   - ro: This topic cannot be updated.

@@ -120,20 +120,20 @@ struct fbp_union_s {
 #endif
 
 #define fbp_union_u8(_value) ((struct fbp_union_s){.type=FBP_UNION_U8, .op=0, .flags=0, .app=0, .value={.u8=_value}, .size=0})
-#define fbp_union_u8_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U8, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u8=_value}, .size=0})
+#define fbp_union_u8_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U8, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u64=_value}, .size=0})
 #define fbp_union_u16(_value) ((struct fbp_union_s){.type=FBP_UNION_U16, .op=0, .flags=0, .app=0, .value={.u16=_value}, .size=0})
-#define fbp_union_u16_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U16, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u16=_value}, .size=0})
+#define fbp_union_u16_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U16, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u64=_value}, .size=0})
 #define fbp_union_u32(_value) ((struct fbp_union_s){.type=FBP_UNION_U32, .op=0, .flags=0, .app=0, .value={.u32=_value}, .size=0})
-#define fbp_union_u32_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U32, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u32=_value}, .size=0})
+#define fbp_union_u32_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U32, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u64=_value}, .size=0})
 #define fbp_union_u64(_value) ((struct fbp_union_s){.type=FBP_UNION_U64, .op=0, .flags=0, .app=0, .value={.u64=_value}, .size=0})
 #define fbp_union_u64_r(_value) ((struct fbp_union_s){.type=FBP_UNION_U64, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.u64=_value}, .size=0})
 
 #define fbp_union_i8(_value) ((struct fbp_union_s){.type=FBP_UNION_I8, .op=0, .flags=0, .app=0, .value={.i8=_value}, .size=0})
-#define fbp_union_i8_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I8, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.i8=_value}, .size=0})
+#define fbp_union_i8_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I8, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.i64=_value}, .size=0})
 #define fbp_union_i16(_value) ((struct fbp_union_s){.type=FBP_UNION_I16, .op=0, .flags=0, .app=0, .value={.i16=_value}, .size=0})
-#define fbp_union_i16_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I16, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.i16=_value}, .size=0})
+#define fbp_union_i16_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I16, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.i64=_value}, .size=0})
 #define fbp_union_i32(_value) ((struct fbp_union_s){.type=FBP_UNION_I32, .op=0, .flags=0, .app=0, .value={.i32=_value}, .size=0})
-#define fbp_union_i32_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I32, .op=0, .flags= FBP_UNION_FLAG_RETAIN, .app=0, .value={.i32=_value}, .size=0})
+#define fbp_union_i32_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I32, .op=0, .flags= FBP_UNION_FLAG_RETAIN, .app=0, .value={.i64=_value}, .size=0})
 #define fbp_union_i64(_value) ((struct fbp_union_s){.type=FBP_UNION_I64, .op=0, .flags=0, .app=0, .value={.i64=_value}, .size=0})
 #define fbp_union_i64_r(_value) ((struct fbp_union_s){.type=FBP_UNION_I64, .op=0, .flags=FBP_UNION_FLAG_RETAIN, .app=0, .value={.i64=_value}, .size=0})
 
@@ -155,8 +155,57 @@ struct fbp_union_s {
  * @param v1 The first value.
  * @param v2 The second value.
  * @return True if equal, false if not equal.
+ *
+ * This check only compares the type and value.  The types and values must match
+ * exactly.  However, if ignores the additional fields
+ * [flags, op, app].  Use fbp_union_eq_strict() to also compare these fields.
+ * Use fbp_union_equiv() to more loosely check the value.
  */
 FBP_API bool fbp_union_eq(const struct fbp_union_s * v1, const struct fbp_union_s * v2);
+
+/**
+ * @brief Check if two values are equal.
+ *
+ * @param v1 The first value.
+ * @param v2 The second value.
+ * @return True if equal, false if not equal.
+ *
+ * This check strictly compares every field.
+ */
+FBP_API bool fbp_union_eq_exact(const struct fbp_union_s * v1, const struct fbp_union_s * v2);
+
+/**
+ * @brief Check if two values are equivalent.
+ *
+ * @param v1 The first value.
+ * @param v2 The second value.
+ * @return True if equal, false if not equal.
+ *
+ * This check performs type up-conversions to attempt to match the
+ * two fields.
+ */
+FBP_API bool fbp_union_equiv(const struct fbp_union_s * v1, const struct fbp_union_s * v2);
+
+/**
+ * @brief Widen to the largest-size, compatible numeric type.
+ *
+ * @param x The value to widen in place.
+ * @see fbp_union_as_type()
+ *
+ * This widening conversion preserves float, signed, and unsigned characteristics.
+ * This check performs type up-conversions to attempt to match the
+ * two fields.
+ */
+FBP_API void fbp_union_widen(struct fbp_union_s * x);
+
+/**
+ * @brief Convert value to a specific type.
+ *
+ * @param x The value to convert in place.
+ * @param type The target type.
+ * @return 0 or error code.
+ */
+FBP_API int32_t fbp_union_as_type(struct fbp_union_s * x, uint8_t type);
 
 /**
  * @brief Convert a value to a boolean.

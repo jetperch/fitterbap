@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.5.0
 
-2022 Jan 26 [in progress]
+2022 Mar 30 [in progress]
 
 * Restructured platform and configuration.
   * Allow for static inline functions in platform.
@@ -40,6 +40,10 @@ This file contains the list of changes made to the Fitterbap library.
 * Fixed python to better support PySide6.
 * Added fbp_rbu64_is_empty
 * Refactored windows error handling support.
+* Added simple json lexer/parser - no dynamic or static memory.
+* Added pubsub_meta for metadata validation.
+* Added equality and conversion functions to union type including:
+  fbp_union_eq_exact, fbp_union_equiv, fbp_union_widen, and fbp_union_as_type.
 
 
 ## 0.4.1
