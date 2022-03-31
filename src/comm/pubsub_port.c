@@ -27,7 +27,6 @@
 
 
 #define FEEDBACK_TOPIC_PREFIX "_/fb/"
-FBP_STATIC_ASSERT((int) FBP_UNION_FLAG_RETAIN == (int) FBP_PUBSUB_SFLAG_RETAIN, retain_flags_must_be_same);
 
 enum state_e {
     ST_DISCONNECTED,   // Not connected
@@ -292,8 +291,8 @@ static void on_negotiate(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e se
     emit_event(self, EV_RECV_NEGOTIATE);
 }
 
-static uint8_t port_data_to_flags(uint8_t port_data) {
-    uint8_t flags = 0;
+static uint8_t port_data_to_topic_sflags(uint8_t port_data) {
+    uint8_t flags = FBP_PUBSUB_SFLAG_PUB;
     if (port_data & FBP_PUBSUBP_PORT_DATA_RETAIN_BIT) {
         flags |= FBP_PUBSUB_SFLAG_RETAIN;
     }
@@ -343,11 +342,11 @@ static void on_topic_list(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e s
 
     FBP_LOGI("topic list: %s", (char *) msg);
     memcpy(self->topic_list.topic_list, msg, msg_size);
-    fbp_pubsub_subscribe(self->pubsub, "", FBP_PUBSUB_SFLAG_NOPUB | FBP_PUBSUB_SFLAG_REQ,
+    fbp_pubsub_subscribe(self->pubsub, "", FBP_PUBSUB_SFLAG_METADATA_REQ | FBP_PUBSUB_SFLAG_QUERY_REQ,
                          (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
     struct topic_list_cbk_s cbk = {
         .self = self,
-        .flags = port_data_to_flags(port_data)
+        .flags = port_data_to_topic_sflags(port_data)
     };
     fbp_topic_list_iterate(&self->topic_list, topic_list_cbk, &cbk);
     emit_event(self, EV_RECV);
@@ -363,7 +362,7 @@ static void on_topic_add(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e se
         FBP_LOGW("invalid topic_add");
         return;
     }
-    uint8_t flags = port_data_to_flags(port_data);
+    uint8_t flags = port_data_to_topic_sflags(port_data);
     child_topic_add(self, (char *) msg, flags);
 }
 
@@ -391,7 +390,7 @@ static void on_publish(struct fbp_pubsubp_s *self, enum fbp_transport_seq_e seq,
         FBP_LOGW("invalid seq: %d", (int) seq);
         return;
     }
-    uint8_t flags = port_data_to_flags(port_data);
+    uint8_t flags = (port_data & FBP_PUBSUBP_PORT_DATA_RETAIN_BIT) ? FBP_UNION_FLAG_RETAIN : 0;
     uint8_t msg_type = port_data & FBP_PUBSUBP_PORT_DATA_MSG_MASK;
     if (msg_type != FBP_PUBSUBP_MSG_PUBLISH) {
         FBP_LOGW("invalid port_data: %d", (int) port_data);
@@ -700,7 +699,7 @@ static inline void unsubscribe(struct fbp_pubsubp_s * self) {
 
 static void client_subscribe(struct fbp_pubsubp_s * self) {
     if (self->mode) {
-        uint8_t flags = FBP_PUBSUB_SFLAG_RSP;
+        uint8_t flags = FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_METADATA_RSP | FBP_PUBSUB_SFLAG_QUERY_RSP | FBP_PUBSUB_SFLAG_RETURN_CODE;
         if (self->source) {
             flags |= FBP_PUBSUB_SFLAG_RETAIN;
         }
@@ -763,7 +762,7 @@ static fbp_fsm_state_t on_enter_negotiate_req(struct fbp_fsm_s * fsm, fbp_fsm_ev
     self->source = 0;
     unsubscribe(self);
     if (self->mode == 0) {
-        fbp_pubsub_subscribe(self->pubsub, self->feedback_topic, 0,
+        fbp_pubsub_subscribe(self->pubsub, self->feedback_topic, FBP_PUBSUB_SFLAG_PUB,
                              (fbp_pubsub_subscribe_fn) fbp_pubsubp_on_update, self);
     }
     return on_send_tick(fsm, event);

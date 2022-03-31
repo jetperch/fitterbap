@@ -313,7 +313,9 @@ struct fbp_comm_s * fbp_comm_initialize(struct fbp_dl_config_s const * config,
     }
     fbp_pubsub_register_mutex(self->pubsub, self->pubsub_mutex);
     fbp_pubsub_subscribe(self->pubsub, "",
-                         FBP_PUBSUB_SFLAG_RETAIN | FBP_PUBSUB_SFLAG_RSP,
+                         FBP_PUBSUB_SFLAG_RETAIN | FBP_PUBSUB_SFLAG_PUB |
+                         FBP_PUBSUB_SFLAG_METADATA_RSP | FBP_PUBSUB_SFLAG_QUERY_RSP |
+                         FBP_PUBSUB_SFLAG_RETURN_CODE,
                          self->subscriber_fn, self->subscriber_user_data);
 
     self->uart_signal_event = CreateEvent(NULL, TRUE, FALSE, NULL);

@@ -489,8 +489,8 @@ static uint8_t on_publish_u32(void * user_data, const char * topic, const struct
 static void test_connect(void ** state) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) *state;
     setup_dual(self);
-    fbp_pubsub_subscribe(self->pubsub1, "h/c0/0/state", 0, on_publish_u32, self);
-    fbp_pubsub_subscribe(self->pubsub2, "d/c0/0/state", 0, on_publish_u32, self);
+    fbp_pubsub_subscribe(self->pubsub1, "h/c0/0/state", FBP_PUBSUB_SFLAG_PUB, on_publish_u32, self);
+    fbp_pubsub_subscribe(self->pubsub2, "d/c0/0/state", FBP_PUBSUB_SFLAG_PUB, on_publish_u32, self);
 
     fbp_port0_on_event_cbk(self->p1, FBP_DL_EV_CONNECTED);
     fbp_port0_on_event_cbk(self->p2, FBP_DL_EV_CONNECTED);

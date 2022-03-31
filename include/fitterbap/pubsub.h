@@ -68,14 +68,20 @@ FBP_CPP_GUARD_START
 enum fbp_pubsub_sflag_e {
     /// No flags (always 0).
     FBP_PUBSUB_SFLAG_NONE = 0,
-    /// Send retained messages to subscriber as soon as possible.
+    /// Immediately forward retained PUB and/or METADATA, depending upon FBP_PUBSUB_SFLAG_PUB and FBP_PUBSUB_SFLAG_METADATA_RSP.
     FBP_PUBSUB_SFLAG_RETAIN = (1 << 0),
-    /// Do not receive normal topic publish.
-    FBP_PUBSUB_SFLAG_NOPUB = (1 << 1),
-    /// Subscribe to receive metadata requests and queries.
-    FBP_PUBSUB_SFLAG_REQ = (1 << 2),
-    /// Subscribe to receive metadata responses and query responses.
-    FBP_PUBSUB_SFLAG_RSP = (1 << 3),
+    /// Subscribe to normal topic publish updates like "a/b/c".
+    FBP_PUBSUB_SFLAG_PUB = (1 << 1),
+    /// Subscribe to receive metadata requests like "$" and "a/b/$".
+    FBP_PUBSUB_SFLAG_METADATA_REQ = (1 << 2),
+    /// Subscribe to receive metadata responses like "a/b/c$.
+    FBP_PUBSUB_SFLAG_METADATA_RSP = (1 << 3),
+    /// Subscribe to receive query requests like "?" and "a/b/?".
+    FBP_PUBSUB_SFLAG_QUERY_REQ = (1 << 4),
+    /// Subscribe to receive query responses like "a/b/c?".
+    FBP_PUBSUB_SFLAG_QUERY_RSP = (1 << 5),
+    /// Subscribe to receive return code messages like "a/b/c#".
+    FBP_PUBSUB_SFLAG_RETURN_CODE = (1 << 6),
 };
 
 /// The opaque PubSub instance.
@@ -94,7 +100,7 @@ struct fbp_pubsub_s;
  * instance will publish a topic# error.
  */
 typedef uint8_t (*fbp_pubsub_subscribe_fn)(void * user_data,
-        const char * topic, const struct fbp_union_s * value);
+                                           const char * topic, const struct fbp_union_s * value);
 
 /**
  * @brief Function called whenever a new message is published.
@@ -167,7 +173,7 @@ FBP_API const char * fbp_pubsub_topic_prefix(struct fbp_pubsub_s * self);
  * fbp_pubsub_process() should be invoked.
  */
 FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
-        fbp_pubsub_on_publish_fn cbk_fn, void * cbk_user_data);
+                                            fbp_pubsub_on_publish_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Subscribe to a topic.
@@ -193,8 +199,8 @@ FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
  * with all topic_prefix for any PubSub instances for which they are a server.
  */
 FBP_API int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
-        uint8_t flags,
-        fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
+                                     uint8_t flags,
+                                     fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Unsubscribe from a topic.
@@ -212,7 +218,7 @@ FBP_API int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * to
  * not be called once the function returns.
  */
 FBP_API int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
-        fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
+                                       fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Unsubscribe from all topics.
@@ -230,7 +236,7 @@ FBP_API int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * 
  * not be called once the function returns.
  */
 FBP_API int32_t fbp_pubsub_unsubscribe_from_all(struct fbp_pubsub_s * self,
-        fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
+                                                fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Publish to a topic.
@@ -282,8 +288,8 @@ FBP_API int32_t fbp_pubsub_unsubscribe_from_all(struct fbp_pubsub_s * self,
  * FBP_ERROR_NOT_ENOUGH_MEMORY.  The caller can optionally wait and retry.
  */
 FBP_API int32_t fbp_pubsub_publish(struct fbp_pubsub_s * self,
-        const char * topic, const struct fbp_union_s * value,
-        fbp_pubsub_subscribe_fn src_fn, void * src_user_data);
+                                   const char * topic, const struct fbp_union_s * value,
+                                   fbp_pubsub_subscribe_fn src_fn, void * src_user_data);
 
 /**
  * @brief Convenience function to set the topic metadata.

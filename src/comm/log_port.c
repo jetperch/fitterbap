@@ -94,7 +94,7 @@ static int32_t initialize(struct fbp_port_api_s * api, const struct fbp_port_con
     fbp_topic_set(&topic, config->topic_prefix.topic);
     fbp_topic_append(&topic, LEVEL_TOPIC);
     fbp_pubsub_meta(config->pubsub, topic.topic, LEVEL_META);
-    fbp_pubsub_subscribe(config->pubsub, topic.topic, 0, on_log_level, self);
+    fbp_pubsub_subscribe(config->pubsub, topic.topic, FBP_PUBSUB_SFLAG_PUB, on_log_level, self);
     fbp_pubsub_publish(config->pubsub, topic.topic, &fbp_union_u8_r(self->level_filter), on_log_level, self);
 
     self->transport = config->transport;

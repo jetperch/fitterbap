@@ -99,7 +99,7 @@ static struct fbp_port_api_s * initialize() {
         .evm = {0, 0, 0, 0}
     };
     expect_meta("a/2/level");
-    expect_subscribe("a/2/level", 0);
+    expect_subscribe("a/2/level", FBP_PUBSUB_SFLAG_PUB);
     expect_publish_u8("a/2/level", FBP_LOGP_LEVEL);
     assert_int_equal(0, api->initialize(api, &config));
 

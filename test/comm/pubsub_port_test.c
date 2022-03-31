@@ -104,10 +104,10 @@ static void test_server_connect_initial(void ** state) {
                         (uint8_t *) &NEGOTIATE_RSP, sizeof(NEGOTIATE_RSP));
 
     char * topic_list = "a" FBP_PUBSUB_UNIT_SEP_STR "b";
-    expect_subscribe("", FBP_PUBSUB_SFLAG_NOPUB | FBP_PUBSUB_SFLAG_REQ);
-    expect_subscribe("a", 0);
+    expect_subscribe("", FBP_PUBSUB_SFLAG_METADATA_REQ | FBP_PUBSUB_SFLAG_QUERY_REQ);
+    expect_subscribe("a", FBP_PUBSUB_SFLAG_PUB);
     expect_publish_str(FBP_PUBSUB_TOPIC_ADD, "a");
-    expect_subscribe("b", 0);
+    expect_subscribe("b", FBP_PUBSUB_SFLAG_PUB);
     expect_publish_str(FBP_PUBSUB_TOPIC_ADD, "b");
     fbp_pubsubp_on_recv(self->s, PORT_ID, FBP_TRANSPORT_SEQ_SINGLE, FBP_PUBSUBP_MSG_TOPIC_LIST,
                         (uint8_t *) topic_list, sizeof(topic_list));
@@ -137,7 +137,7 @@ static void initialize_client(struct test_s * self) {
     expect_send(PORT_ID, FBP_PUBSUBP_MSG_NEGOTIATE, (uint8_t *) &NEGOTIATE_RSP, sizeof(NEGOTIATE_RSP));
     expect_query_str(FBP_PUBSUB_TOPIC_LIST, topic_list);
     expect_send(PORT_ID, FBP_PUBSUBP_MSG_TOPIC_LIST, (uint8_t *) topic_list, sizeof(topic_list));
-    expect_subscribe("", FBP_PUBSUB_SFLAG_RSP | FBP_PUBSUB_SFLAG_RETAIN);
+    expect_subscribe("", FBP_PUBSUB_SFLAG_RETAIN | FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_METADATA_RSP | FBP_PUBSUB_SFLAG_QUERY_RSP | FBP_PUBSUB_SFLAG_RETURN_CODE);
     expect_publish_u32(fbp_pubsubp_feedback_topic(self->s), 1);
     expect_unsubscribe_from_all();
     fbp_pubsubp_on_recv(self->s, PORT_ID, FBP_TRANSPORT_SEQ_SINGLE, FBP_PUBSUBP_MSG_NEGOTIATE,

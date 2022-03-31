@@ -582,7 +582,7 @@ static void topic_create(struct fbp_port0_s * self, const char * subtopic, const
     fbp_pubsub_meta(self->pubsub, self->topic_prefix, meta);
     if (src_fn) {
         fbp_pubsub_subscribe(self->pubsub, self->topic_prefix,
-                             FBP_PUBSUB_SFLAG_RETAIN,
+                             FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN,
                              src_fn, src_user_data);
     }
     fbp_pubsub_publish(self->pubsub, self->topic_prefix, value, src_fn, src_user_data);

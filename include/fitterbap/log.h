@@ -186,12 +186,11 @@ extern char const fbp_log_level_char[FBP_LOG_LEVEL_ALL + 1];
  * \param format The printf-compatible formatting string.
  * \param ... The arguments to the formatting string.
  */
-#define FBP_LOG(level, format, ...) \
-    do { \
-        if (FBP_LOG_CHECK_STATIC(level)) { \
-            FBP_LOG_PRINTF(level, format, __VA_ARGS__); \
-        } \
-    } while (0)
+#define FBP_LOG(level, format, ...) do {            \
+    if (FBP_LOG_CHECK_STATIC(level)) {              \
+        FBP_LOG_PRINTF(level, format, __VA_ARGS__); \
+    }                                               \
+} while (0)
 
 
 #ifdef _MSC_VER

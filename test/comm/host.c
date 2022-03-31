@@ -176,10 +176,10 @@ int main(int argc, char * argv[]) {
     fbp_topic_set(&topic, pubsub_prefix);
     fbp_topic_append(&topic, "en");
     fbp_pubsub_meta(h_.pubsub, topic.topic, enable_meta);
-    fbp_pubsub_subscribe(h_.pubsub, topic.topic, 0, enable_sub, &h_);
+    fbp_pubsub_subscribe(h_.pubsub, topic.topic, FBP_PUBSUB_SFLAG_PUB, enable_sub, &h_);
     fbp_pubsub_publish(h_.pubsub, topic.topic, &fbp_union_u32_r(0), NULL, NULL);
 
-    fbp_pubsub_subscribe(h_.pubsub, "", 0, pubsub_sub, &h_);
+    fbp_pubsub_subscribe(h_.pubsub, "", FBP_PUBSUB_SFLAG_PUB, pubsub_sub, &h_);
 
     struct fbp_uart_config_s uart_config = {
             .baudrate = baudrate,
