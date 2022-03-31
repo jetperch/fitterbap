@@ -40,6 +40,18 @@
  * dynamic or static memory.  The parser is SAX-like with callbacks.
  * The parser uses fbp_union_s as the callback tokens.
  *
+ * The most common way to use this JSON parser is to create a structure on the
+ * stack that is the callback user_data.  The callback then uses this state
+ * and implements a finite state machine to process the expected tokens.
+ *
+ * Alternatives include:
+ *   - https://github.com/zserge/jsmn
+ *   - https://github.com/DaveGamble/cJSON
+ *   - https://github.com/Tencent/rapidjson
+ *
+ * References:
+ *   - https://www.json.org
+ *
  * @{
  */
 
