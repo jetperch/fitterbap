@@ -78,7 +78,7 @@
  *     #define RWE FBP_RETURN_ON_ERROR
  */
 #define FBP_RETURN_ON_ERROR(x) do { \
-    int rc__ = (x); \
+    int32_t rc__ = (x); \
     if (rc__) { \
         return rc__; \
     } \

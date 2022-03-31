@@ -29,10 +29,13 @@ for small embedded microcontrollers.  Features include:
   - Asynchronous error reporting
   - State recovery in the event that any pubsub instance resets.
   - Automatic topic routing using "fitterbap/comm/pubsub_port.h".
-- Thread-safe, in-order operation.  All updates queued and processed from
-  the pubsub context.  Subscribers can safely publish topic updates from
-  the subscriber callback with recursion or stack problems.
-- Reentrant on publish using mutex.
+- Reentrant on publish.
+- Thread-safe, in-order operation.  When a mutex is provided,
+  all updates are queued and processed from the pubsub context.
+  Subscribers can safely publish topic updates from
+  the subscriber callback without recursion or stack problems.
+  When no mutex is provided, updates are processed immediately,
+  but messages are still queued to ensure in-order execution.
 - Dynamic allocation but only free in fbp_pubsub_finalize(), which is
   not normally used in an embedded microcontroller instantiations.
 - Guaranteed in-order topic traversal for retained messages based

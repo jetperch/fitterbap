@@ -507,16 +507,9 @@ static void test_connect(void ** state) {
     evm_process_next(self);
     evm_process_next(self);
     evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
-
     expect_publish_u32("h/c0/0/state", 1);
     expect_publish_u32("d/c0/0/state", 1);
-    fbp_pubsub_process(self->pubsub1);
-    fbp_pubsub_process(self->pubsub2);
+    evm_process_next(self);
 
     teardown_dual(self);
 }

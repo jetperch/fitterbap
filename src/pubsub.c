@@ -60,13 +60,14 @@ struct fbp_pubsub_s {
     fbp_pubsub_on_publish_fn cbk_fn;
     void * cbk_user_data;
     fbp_os_mutex_t mutex;
+    int32_t depth;                                      // The single-threaded reentrant depth
     struct topic_s * root_topic;
     struct fbp_list_s subscriber_free;
     struct fbp_list_s msg_pend;
     struct fbp_list_s msg_free;
 
     struct fbp_rbm_s mrb;                               // for mutable message payloads
-    uint8_t buffer[];
+    uint8_t buffer[];                                   // MUST BE LAST
 };
 
 const char RESERVED_SUFFIX[] = "/?#$'\"\\`&@%";
@@ -498,6 +499,19 @@ static int32_t msg_enqueue(struct fbp_pubsub_s * self, struct message_s * msg) {
     return 0;
 }
 
+static int32_t handle_message(struct fbp_pubsub_s * self, struct message_s * msg) {
+    int32_t rv = msg_enqueue(self, msg);
+    if (rv) {
+        return rv;
+    }
+    if (!self->mutex && (self->depth == 0)) {
+        ++self->depth;
+        fbp_pubsub_process(self);
+        --self->depth;
+    }
+    return 0;
+}
+
 int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
         uint8_t flags, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     if (!self || !cbk_fn) {
@@ -509,7 +523,6 @@ int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
     }
 
     FBP_LOGI("subscribe \"%s\"", topic);
-
     struct message_s * msg = msg_alloc(self);
     if (!topic_str_copy(msg->name, topic, NULL)) {
         msg_free(self, msg);
@@ -522,7 +535,7 @@ int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
     msg->value.flags = 0;
     msg->value.op = OP_SUBSCRIBE;
     msg->value.value.u32 = flags;
-    return msg_enqueue(self, msg);
+    return handle_message(self, msg);
 }
 
 int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
@@ -651,7 +664,7 @@ int32_t fbp_pubsub_publish(struct fbp_pubsub_s * self,
         msg->value.value.bin = buf;
         unlock(self);
     }
-    return msg_enqueue(self, msg);
+    return handle_message(self, msg);
 }
 
 int32_t fbp_pubsub_meta(struct fbp_pubsub_s * self, const char * topic, const char * meta_json) {
@@ -680,7 +693,7 @@ int32_t fbp_pubsub_meta(struct fbp_pubsub_s * self, const char * topic, const ch
         msg->value.flags = 0;
         msg->value.size = 0;
     }
-    return msg_enqueue(self, msg);
+    return handle_message(self, msg);
 }
 
 int32_t fbp_pubsub_query(struct fbp_pubsub_s * self, const char * topic, struct fbp_union_s * value) {
@@ -979,6 +992,7 @@ void fbp_pubsub_process(struct fbp_pubsub_s * self) {
         msg = FBP_CONTAINER_OF(item, struct message_s, item);
         process_one(self, msg);
 
+        // free message and any buffer
         lock(self);
         if (is_ptr_type(msg->value.type) && (0 == (msg->value.flags & FBP_UNION_FLAG_CONST))) {
             uint32_t sz = 0;
