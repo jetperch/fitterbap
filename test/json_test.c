@@ -21,7 +21,9 @@
 #include "fitterbap/json.h"
 #include "fitterbap/ec.h"
 
-#define cstr_sz(_value, _size) ((struct fbp_union_s){.type=FBP_UNION_STR, .op=0, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=_value}, .size=_size})
+// include null terminator in size!
+#define cstr_sz(_value, _size) ((struct fbp_union_s){.type=FBP_UNION_STR, .op=0, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=(_value)}, .size=(_size)})
+#define cstr(_value) cstr_sz((_value), strlen(_value) + 1)
 
 #define check_expected_ptr_value(parameter) \
     _check_expected(__func__, "value", __FILE__, __LINE__, \
@@ -59,9 +61,9 @@ static int32_t on_token(void * user_data, const struct fbp_union_s * token) {
     switch (token_->type) {                                                                         \
         case FBP_UNION_NULL:  break;                                                                \
         case FBP_UNION_STR: {                                                                       \
-            size_t len = strlen(token_->value.str);                                                 \
+            size_t len = strlen(token_->value.str) + 1; /* include null terminator */               \
             expect_value(on_token, len, len);                                                       \
-            expect_memory(on_token, value, token_->value.str, len);                                 \
+            expect_memory(on_token, value, token_->value.str, len - 1);                             \
             break;                                                                                  \
         }                                                                                           \
         case FBP_UNION_I32:  expect_value(on_token, value, token_->value.i32); break;  \
@@ -168,15 +170,18 @@ static void test_array_trailing_comma(void **state) {
 }
 
 static void test_strcmp(void **state) {
-    assert_int_equal(-2, fbp_json_strcmp(NULL, &cstr_sz("b", 1)));
-    assert_int_equal(-1, fbp_json_strcmp("", &cstr_sz("b", 1)));
-    assert_int_equal(-1, fbp_json_strcmp("a", &cstr_sz("b", 1)));
-    assert_int_equal(0, fbp_json_strcmp("b", &cstr_sz("b", 1)));
-    assert_int_equal(1, fbp_json_strcmp("c", &cstr_sz("b", 1)));
+    assert_int_equal(-2, fbp_json_strcmp(NULL, &cstr("b")));  // include null terminator in size!
+    assert_int_equal(-1, fbp_json_strcmp("", &cstr("b")));
+    assert_int_equal(-1, fbp_json_strcmp("a", &cstr("b")));
+    assert_int_equal(0, fbp_json_strcmp("b", &cstr("b")));
+    assert_int_equal(1, fbp_json_strcmp("c", &cstr("b")));
 
-    assert_int_equal(0, fbp_json_strcmp("hello", &cstr_sz("hello", 5)));
-    assert_int_equal(-1, fbp_json_strcmp("hell", &cstr_sz("hello", 5)));
-    assert_int_equal(1, fbp_json_strcmp("hello", &cstr_sz("hello", 4)));
+    assert_int_equal(0, fbp_json_strcmp("hello", &cstr("hello")));
+    assert_int_equal(-1, fbp_json_strcmp("hell", &cstr("hello")));
+
+    assert_int_equal(0, fbp_json_strcmp("hello", &cstr_sz("hello world", 6)));
+    assert_int_equal(1, fbp_json_strcmp("hello", &cstr_sz("hello world", 5)));
+    assert_int_equal(-1, fbp_json_strcmp("hello", &cstr_sz("hello world", 7)));
 }
 
 int main(void) {

@@ -28,12 +28,12 @@ bool fbp_union_eq(const struct fbp_union_s * v1, const struct fbp_union_s * v2) 
         case FBP_UNION_NULL: return true;
         case FBP_UNION_JSON: /* intentional fall-through */
         case FBP_UNION_STR: {
-            size_t sz1 = v1->size ? v1->size : strlen(v1->value.str);
-            size_t sz2 = v2->size ? v2->size : strlen(v2->value.str);
+            size_t sz1 = v1->size ? v1->size : (strlen(v1->value.str) + 1);
+            size_t sz2 = v2->size ? v2->size : (strlen(v2->value.str) + 1);
             if (sz1 != sz2) {
                 return false;
             }
-            return 0 == memcmp(v1->value.str, v2->value.str, sz1);
+            return 0 == memcmp(v1->value.str, v2->value.str, sz1 - 1);
         }
         case FBP_UNION_BIN:
             if (v1->size != v2->size) {

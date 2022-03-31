@@ -21,7 +21,7 @@
 #include "fitterbap/pubsub_meta.h"
 #include "fitterbap/ec.h"
 
-#define cstr_sz(_value, _size) ((struct fbp_union_s){.type=FBP_UNION_STR, .op=0, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=_value}, .size=_size})
+#define cstr(_value) ((struct fbp_union_s){.type=FBP_UNION_STR, .op=0, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=_value}, .size=strlen(_value) + 1})
 
 const char * META1 = "{"
     "\"dtype\": \"u8\","
@@ -57,15 +57,15 @@ static void test_value(void **state) {
     assert_int_equal(0, fbp_pubsub_meta_value(META1, &value));
     assert_true(fbp_union_eq(&fbp_union_u8(3), &value));
 
-    value = cstr_sz("three", 5);
+    value = cstr("three");
     assert_int_equal(0, fbp_pubsub_meta_value(META1, &value));
     assert_true(fbp_union_eq(&fbp_union_u8(3), &value));
 
-    value = cstr_sz("3", 1);
+    value = cstr("3");
     assert_int_equal(0, fbp_pubsub_meta_value(META1, &value));
     assert_true(fbp_union_eq(&fbp_union_u8(3), &value));
 
-    value = cstr_sz("__invalid__", 11);
+    value = cstr("__invalid__");
     assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_pubsub_meta_value(META1, &value));
 }
 

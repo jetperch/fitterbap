@@ -59,6 +59,7 @@ FBP_CPP_GUARD_START
 #define FBP_PUBSUB_TOPIC_LIST "_/topic/list"
 #define FBP_PUBSUB_TOPIC_ADD "_/topic/add"
 #define FBP_PUBSUB_TOPIC_REMOVE "_/topic/remove"
+#define FBP_PUBSUB_CONFIG_RETURN_CODE "_/cfg/rc"
 #define FBP_PUBSUB_CONN_ADD "./conn/add"            // list of topics
 #define FBP_PUBSUB_CONN_REMOVE "./conn/remove"      // list of topics
 
@@ -127,9 +128,12 @@ typedef int32_t (*fbp_pubsub_publish_fn)(
 /**
  * @brief Create and initialize a new PubSub instance.
  *
- * @param topic_prefix The topic prefix that is owned by this
+ * @param topic_prefix The topic prefixes that are owned by this
  *      pubsub instance.  This instance will reply to metadata and
- *      query requests for all topics starting with this prefix.
+ *      query requests for all topics starting with this prefixes.
+ *      If a prefix contains a trailing '/' separator, then the
+ *      separator will ignore.  Multiple prefixes should be separated
+ *      by FBP_PUBSUB_UNIT_SEP_CHR = '\x1f'.
  * @param buffer_size The buffer size for dynamic pointer messages.
  *      0 prohibits non-CONST pointer types.
  * @return The new PubSub instance.

@@ -29,7 +29,9 @@ add_executable(port0_test port0_test.c
         ../../src/collections/ring_buffer_msg.c
         ../../src/comm/port0.c
         ../../src/fsm.c
+        ../../src/json.c
         ../../src/pubsub.c
+        ../../src/pubsub_meta.c
         ../../src/union.c
         ../../src/topic_list.c
         ../../src/log.c

@@ -115,7 +115,7 @@ static int32_t parse_string(struct state_s * s, uint8_t op) {
         }
         ADVANCE(s);
     }
-    uint32_t sz = s->offset - offset_start;
+    uint32_t sz = s->offset - offset_start + 1;
     struct fbp_union_s value = {.type=FBP_UNION_STR, .op=op, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=&s->json[offset_start]}, .size=sz};
     emit(s, &value);
     s->offset++;
@@ -287,7 +287,7 @@ int32_t fbp_json_strcmp(const char * str, const struct fbp_union_s * token) {
     if (!token || (token->type != FBP_UNION_STR)) {
         return 2;
     }
-    for (uint32_t i = 0; i < token->size; ++i) {
+    for (uint32_t i = 0; i < (token->size - 1); ++i) {
         if (*str != token->value.str[i]) {
             if (!*str || (*str < token->value.str[i])) {
                 return -1;

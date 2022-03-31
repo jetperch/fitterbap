@@ -98,6 +98,18 @@ static void test_iterate(void ** state) {
     assert_eq("x\x1fy\x1fz", &l);
 }
 
+static void test_contains(void ** state) {
+    SETUP();
+    l = ((struct fbp_topic_list_s) {.topic_list="x\x1fy\x1fz"});
+    assert_true(fbp_topic_list_contains(&l, "x"));
+    assert_true(fbp_topic_list_contains(&l, "y"));
+    assert_true(fbp_topic_list_contains(&l, "z"));
+
+    assert_false(fbp_topic_list_contains(&l, "a"));
+    assert_false(fbp_topic_list_contains(&l, "xy"));
+    assert_false(fbp_topic_list_contains(&l, "x/y"));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_append),
@@ -106,6 +118,7 @@ int main(void) {
             cmocka_unit_test(test_remove_multiple),
             cmocka_unit_test(test_clear),
             cmocka_unit_test(test_iterate),
+            cmocka_unit_test(test_contains),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
