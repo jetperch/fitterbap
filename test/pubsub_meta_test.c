@@ -42,6 +42,11 @@ const char * META1 = "{"
     "]"
 "}";
 
+const char * META_NO_DEFAULT = "{"
+    "\"dtype\": \"u8\","
+    "\"brief\": \"Number selection.\""
+"}";
+
 static void test_basic(void **state) {
     (void) state;
     struct fbp_union_s value = fbp_union_null();
@@ -52,6 +57,7 @@ static void test_basic(void **state) {
 }
 
 static void test_value(void **state) {
+    (void) state;
     struct fbp_union_s value;
     value = fbp_union_u8(3);
     assert_int_equal(0, fbp_pubsub_meta_value(META1, &value));
@@ -69,10 +75,19 @@ static void test_value(void **state) {
     assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_pubsub_meta_value(META1, &value));
 }
 
+static void test_no_default(void **state) {
+    (void) state;
+    struct fbp_union_s value = fbp_union_null();
+    assert_int_equal(0, fbp_pubsub_meta_syntax_check(META_NO_DEFAULT));
+    assert_int_equal(0, fbp_pubsub_meta_default(META_NO_DEFAULT, &value));
+    assert_int_equal(FBP_UNION_NULL, value.type);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_basic),
             cmocka_unit_test(test_value),
+            cmocka_unit_test(test_no_default),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

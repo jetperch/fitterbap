@@ -903,7 +903,7 @@ static void publish_meta(struct fbp_pubsub_s * self, struct message_s * msg, siz
                 }
                 metadata_rsp_handle(t, msg->name);
 
-                struct fbp_union_s default_value;
+                struct fbp_union_s default_value = fbp_union_null();
                 if ((0 == fbp_pubsub_meta_default(t->meta, &default_value)) && (default_value.type != FBP_UNION_NULL)) {
                     struct message_s * m = msg_alloc(self);
                     fbp_cstr_copy(m->name, msg->name, sizeof(m->name));

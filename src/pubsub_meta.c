@@ -72,6 +72,7 @@ static int32_t dtype_lookup(const struct fbp_union_s * token, uint8_t * type) {
 struct default_s {
     uint8_t state;  // default_state_e
     uint8_t depth;
+    uint8_t found;
     struct fbp_union_s * value;
 };
 
@@ -84,6 +85,7 @@ static int32_t on_default(void * user_data, const struct fbp_union_s * token) {
                 rc = dtype_lookup(token, &s->value->type);
                 s->state = DEFAULT_ST_DEFAULT_SEARCH;
             } else if (s->state == DEFAULT_ST_DEFAULT_KEY) {
+                s->found = 1;
                 s->value->value.i64 = token->value.i64;
                 rc = FBP_ERROR_ABORTED;
             }
@@ -118,9 +120,17 @@ int32_t fbp_pubsub_meta_default(const char * meta, struct fbp_union_s * value) {
     struct default_s self = {
             .state = DEFAULT_ST_DTYPE_SEARCH,
             .depth = 0,
+            .found = 0,
             .value=value
     };
-    return fbp_json_parse(meta, on_default, &self);
+    int32_t rc = fbp_json_parse(meta, on_default, &self);
+    if (rc) {
+        return rc;
+    }
+    if (!self.found) {
+        value->type = FBP_UNION_NULL;
+    }
+    return 0;
 }
 
 enum value_state_e {
