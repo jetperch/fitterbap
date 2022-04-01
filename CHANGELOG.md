@@ -44,6 +44,9 @@ This file contains the list of changes made to the Fitterbap library.
 * Added pubsub_meta for metadata validation.
 * Added equality and conversion functions to union type including:
   fbp_union_eq_exact, fbp_union_equiv, fbp_union_widen, and fbp_union_as_type.
+* Modified fbp_pubsub_sflag_e values and fbp_pubsub_subscribe flags.
+* Added pubsub config option to always publish return codes, even on success.
+* Added pubsub query request/response using "?".
 
 
 ## 0.4.1

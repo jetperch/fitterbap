@@ -1,5 +1,5 @@
 <!--
-# Copyright 2020-2021 Jetperch LLC
+# Copyright 2020-2022 Jetperch LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,6 +91,15 @@ is forwarded to all matching response subscribers.  If the metadata
 request does not match this pubsub instance, it will be forwarded
 to any matching subscribers with the request flag.
 Each pubsub instance will respond to the matching topics it owns.
+
+To query all retained values, publish NULL to "?" or "topic/?", 
+which is a query request.  The PubSub instance will also forward
+the query request to any 
+query request subscribers (FBP_PUBSUB_SFLAG_QUERY_REQ flag), if the
+query request cannot be fully processed by this instance.
+The PubSub implementation will publish query responses to all
+matching topics as "t/h/n?".  The response is only sent to 
+query response subscribers (FBP_PUBSUB_SFLAG_QUERY_RSP flag). 
 
 If publishing to a topic "t/h/n" owned by a pubsub instance fails, then that
 instance will publish to "t/h/n#".  The error will be forward to any matching

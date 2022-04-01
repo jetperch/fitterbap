@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2021 Jetperch LLC
+ * Copyright 2014-2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -370,7 +370,7 @@ static void test_on_publish_cbk(void ** state) {
     fbp_pubsub_finalize(ps);
 }
 
-static void test_retained_value_query(void ** state) {
+static void test_retained_value_query_fn(void ** state) {
     (void) state;
     struct fbp_union_s value;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
@@ -379,6 +379,33 @@ static void test_retained_value_query(void ** state) {
     fbp_pubsub_process(ps);
     assert_int_equal(0, fbp_pubsub_query(ps, "s/hello/u32", &value));
     assert_int_equal(42, value.value.u32);
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_retained_value_query_req(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_QUERY_RSP, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
+    expect_pub_u32("s/hello/u32?", 42);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "?", &fbp_union_null(), NULL, NULL));
+    expect_pub_u32("s/hello/u32?", 42);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/?", &fbp_union_null(), NULL, NULL));
+
+    // and forward responses
+    assert_int_equal(0, fbp_pubsub_publish(ps, "z/good?", &fbp_union_u32_r(99), NULL, NULL));
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_retained_value_query_req_fwd(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_QUERY_REQ, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/?", &fbp_union_null(), NULL, NULL));
+    expect_pub_null("?");
+    assert_int_equal(0, fbp_pubsub_publish(ps, "?", &fbp_union_null(), NULL, NULL));
+    expect_pub_null("r/?");
+    assert_int_equal(0, fbp_pubsub_publish(ps, "r/?", &fbp_union_null(), NULL, NULL));
     fbp_pubsub_finalize(ps);
 }
 
@@ -660,7 +687,9 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_u32_dedup, setup, teardown),
             cmocka_unit_test_setup_teardown(test_subscribe_first, setup, teardown),
             cmocka_unit_test_setup_teardown(test_on_publish_cbk, setup, teardown),
-            cmocka_unit_test_setup_teardown(test_retained_value_query, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_retained_value_query_fn, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_retained_value_query_req, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_retained_value_query_req_fwd, setup, teardown),
             cmocka_unit_test_setup_teardown(test_do_not_update_same, setup, teardown),
             cmocka_unit_test_setup_teardown(test_unsubscribe, setup, teardown),
             cmocka_unit_test_setup_teardown(test_unsubscribe_from_all, setup, teardown),

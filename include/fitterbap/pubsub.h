@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Jetperch LLC
+ * Copyright 2020-2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,10 @@ FBP_CPP_GUARD_START
 #define FBP_PUBSUB_UNIT_SEP_CHR ((char) 0x1f)
 /// The unit separator as a single character string
 #define FBP_PUBSUB_UNIT_SEP_STR "\x1f"
+
+#define FBP_PUBSUB_CHAR_METADATA        '$'
+#define FBP_PUBSUB_CHAR_QUERY           '?'
+#define FBP_PUBSUB_CHAR_RETURN_CODE     '#'
 
 // Well-known topics
 #define FBP_PUBSUB_TOPIC_PREFIX "_/topic/prefix"
