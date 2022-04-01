@@ -34,6 +34,7 @@ const struct dtype_map_s dtype_map[] = {
         {"i16", FBP_UNION_I16},
         {"i32", FBP_UNION_I32},
         {"i64", FBP_UNION_I64},
+        {"bool", FBP_UNION_U8},
         {NULL, 0},
 };
 
@@ -57,7 +58,14 @@ static int32_t dtype_lookup(const struct fbp_union_s * token, uint8_t * type) {
             return 0;
         }
     }
-    FBP_LOGE("Invalid dtype");
+    char dtype[32];
+    uint32_t sz = token->size;
+    if (token->size > sizeof(dtype)) {
+        sz = sizeof(dtype);
+    }
+    memcpy(dtype, token->value.str, sz);
+    dtype[sz - 1] = 0;
+    FBP_LOGE("Invalid dtype %s", dtype);
     return FBP_ERROR_PARAMETER_INVALID;
 }
 
