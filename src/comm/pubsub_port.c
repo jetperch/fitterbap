@@ -153,7 +153,7 @@ static void construct_feedback_topic(struct fbp_pubsubp_s * self) {
     while (*feedback_prefix) {
         *feedback_topic++ = *feedback_prefix++;
     }
-    uint32_t feedback_value = (intptr_t) self;
+    uint32_t feedback_value = (uint32_t) ((intptr_t) self);
     for (int i = 0; i < 7; ++i) {  // skip least significant nibble.
         *feedback_topic++ = fbp_cstr_u4_to_hex(feedback_value >> (4 * (7 - i)));
     }
