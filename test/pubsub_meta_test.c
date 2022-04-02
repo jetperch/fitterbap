@@ -49,8 +49,12 @@ const char * META_NO_DEFAULT = "{"
 
 static void test_basic(void **state) {
     (void) state;
+    uint8_t dtype = 0;
     struct fbp_union_s value = fbp_union_null();
     assert_int_equal(0, fbp_pubsub_meta_syntax_check(META1));
+
+    assert_int_equal(0, fbp_pubsub_meta_dtype(META1, &dtype));
+    assert_int_equal(FBP_UNION_U8, dtype);
 
     assert_int_equal(0, fbp_pubsub_meta_default(META1, &value));
     assert_true(fbp_union_eq(&fbp_union_u8(2), &value));

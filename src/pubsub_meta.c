@@ -69,6 +69,47 @@ static int32_t dtype_lookup(const struct fbp_union_s * token, uint8_t * type) {
     return FBP_ERROR_PARAMETER_INVALID;
 }
 
+struct dtype_s {
+    uint8_t dtype;
+    uint8_t found;
+};
+
+static int32_t on_dtype(void * user_data, const struct fbp_union_s * token) {
+    int32_t rc = 0;
+    struct dtype_s * s = (struct dtype_s *) user_data;
+    switch (token->op) {
+        case FBP_JSON_VALUE:
+            if (s->found) {
+                rc = dtype_lookup(token, &s->dtype);
+                if (!rc) {
+                    rc = FBP_ERROR_ABORTED;
+                }
+            }
+            break;
+        case FBP_JSON_KEY:
+            if (0 == fbp_json_strcmp("dtype", token)) {
+                s->found = 1;
+            }
+            break;
+        default: break;
+    }
+    return rc;
+}
+
+int32_t fbp_pubsub_meta_dtype(const char * meta, uint8_t * dtype) {
+    struct dtype_s self = {0, 0};
+    int32_t rc = fbp_json_parse(meta, on_dtype, &self);
+    if (rc) {
+        return rc;
+    }
+    if (!self.found) {
+        return FBP_ERROR_NOT_FOUND;
+    } else if (dtype) {
+        *dtype = self.dtype;
+    }
+    return 0;
+}
+
 struct default_s {
     uint8_t state;  // default_state_e
     uint8_t depth;

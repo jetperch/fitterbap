@@ -49,6 +49,15 @@ FBP_CPP_GUARD_START
 FBP_API int32_t fbp_pubsub_meta_syntax_check(const char * meta);
 
 /**
+ * @brief Get the data type.
+ *
+ * @param meta The JSON metadata.
+ * @param dtype[out] The fbp_union_e data type.
+ * @return 0 or error code.
+ */
+FBP_API int32_t fbp_pubsub_meta_dtype(const char * meta, uint8_t * dtype);
+
+/**
  * @brief Get the default value.
  *
  * @param meta The JSON metadata.
