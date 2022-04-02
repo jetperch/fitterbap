@@ -107,6 +107,14 @@ void fbp_topic_set(struct fbp_topic_s * topic, const char * str);
  */
 void fbp_topic_append_char(struct fbp_topic_s * topic, char ch);
 
+/**
+ * @brief Remove the last character of the topic.
+ *
+ * @param topic[inout] The topic structure, which is modified in place.
+ * @return ch The character removed or 0 if no character was removed.
+ */
+char fbp_topic_remove_char(struct fbp_topic_s * topic);
+
 
 FBP_CPP_GUARD_END
 

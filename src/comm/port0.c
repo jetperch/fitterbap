@@ -417,7 +417,7 @@ static int32_t meta_send_next(struct fbp_port0_s * self) {
     }
 
     memcpy(msg + 1, meta, meta_sz);
-    if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(META), msg, meta_sz + 1)) {
+    if (self->send_fn(self->transport, 0, FBP_TRANSPORT_SEQ_SINGLE, RSP(META), msg, (uint32_t) (meta_sz + 1))) {
         tick_set(self, 1);
         return FBP_ERROR_BUSY;
     } else {

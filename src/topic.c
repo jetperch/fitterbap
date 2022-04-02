@@ -49,3 +49,22 @@ void fbp_topic_append_char(struct fbp_topic_s * topic, char ch) {
     topic->topic[topic->length++] = ch;
     topic->topic[topic->length] = 0;
 }
+
+char fbp_topic_remove_char(struct fbp_topic_s * topic) {
+    char ch = 0;
+    if (!topic->length) {
+        return ch;
+    }
+    switch (topic->topic[topic->length - 1]) {
+        case FBP_PUBSUB_CHAR_METADATA:      /** intentional fall-through */
+        case FBP_PUBSUB_CHAR_QUERY:         /** intentional fall-through */
+        case FBP_PUBSUB_CHAR_RETURN_CODE:
+            ch = topic->topic[topic->length - 1];
+            topic->topic[topic->length - 1] = 0;
+            topic->length--;
+            break;
+        default:
+            break;
+    }
+    return ch;
+}
