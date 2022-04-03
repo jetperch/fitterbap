@@ -386,6 +386,7 @@ static void test_retained_value_query_req(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
     assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_QUERY_RSP, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/nope/u32", &fbp_union_u32(42), NULL, NULL));
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
     expect_pub_u32("s/hello/u32?", 42);
     assert_int_equal(0, fbp_pubsub_publish(ps, "?", &fbp_union_null(), NULL, NULL));
