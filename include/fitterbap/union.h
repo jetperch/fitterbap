@@ -237,6 +237,25 @@ static inline bool fbp_union_is_type_ptr(const struct fbp_union_s * value) {
     }
 }
 
+/**
+ * @brief Convert the type to a user-meaningful string.
+ *
+ * @param type The fbp_union_e type.
+ * @return The user-meaningful string representation for the type.
+ */
+FBP_API const char * fbp_union_type_to_str(uint8_t type);
+
+/**
+ * @brief Convert the value to a user-meaningful string.
+ *
+ * @param value The value.
+ * @param str[out] The string to hold the value.
+ * @param str_len The maximum length of str, in bytes.
+ * @param opts The formatting options. 0=value only, 1=verbose with type and flags.
+ * @return 0 or error code.
+ */
+FBP_API int32_t fbp_union_value_to_str(const struct fbp_union_s * value, char * str, uint32_t str_len, uint32_t opts);
+
 FBP_CPP_GUARD_END
 
 /** @} */

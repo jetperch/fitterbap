@@ -17,6 +17,7 @@
 #include "fitterbap/union.h"
 #include "fitterbap/cstr.h"
 #include "fitterbap/ec.h"
+#include "tinyprintf.h"
 #include <string.h>
 
 
@@ -186,5 +187,75 @@ int32_t fbp_union_to_bool(const struct fbp_union_s * value, bool * rv) {
         case FBP_UNION_I32: *rv = value->value.i32 != 0; return 0;
         case FBP_UNION_I64: *rv = value->value.i64 != 0; return 0;
         default: *rv = false; return FBP_ERROR_PARAMETER_INVALID;
+    }
+}
+
+const char * fbp_union_type_to_str(uint8_t type) {
+    switch (type) {
+        case FBP_UNION_NULL: return "nul";
+        case FBP_UNION_STR:  return "str";
+        case FBP_UNION_JSON: return "jsn";
+        case FBP_UNION_BIN:  return "bin";
+        case FBP_UNION_RSV0: return "rsv";
+        case FBP_UNION_RSV1: return "rsv";
+        case FBP_UNION_F32:  return "f32";
+        case FBP_UNION_F64:  return "f64";
+        case FBP_UNION_U8:   return "u8 ";
+        case FBP_UNION_U16:  return "u16";
+        case FBP_UNION_U32:  return "u32";
+        case FBP_UNION_U64:  return "u64";
+        case FBP_UNION_I8:   return "i8 ";
+        case FBP_UNION_I16:  return "i16";
+        case FBP_UNION_I32:  return "i32";
+        case FBP_UNION_I64:  return "i64";
+        default: return "inv";
+    }
+}
+
+static const char * flags_to_str(uint8_t flags) {
+    switch (flags & (FBP_UNION_FLAG_RETAIN | FBP_UNION_FLAG_CONST)) {
+        case FBP_UNION_FLAG_RETAIN: return ".R ";
+        case FBP_UNION_FLAG_CONST: return ".C ";
+        case FBP_UNION_FLAG_RETAIN | FBP_UNION_FLAG_CONST: return ".RC";
+        default: return "   ";
+    }
+}
+
+int32_t fbp_union_value_to_str(const struct fbp_union_s * value, char * str, uint32_t str_len, uint32_t opts) {
+    if (str_len < 8) {
+        return FBP_ERROR_TOO_SMALL;
+    }
+    if (opts) {
+        const char * t = fbp_union_type_to_str(value->type);
+        str[0] = t[0];
+        str[1] = t[1];
+        str[2] = t[2];
+        t = flags_to_str(value->flags);
+        str[3] = t[0];
+        str[4] = t[1];
+        str[5] = t[2];
+        str[6] = ' ';
+        str[7] = 0;
+        str = &str[7];
+        str_len -= 7;
+    }
+    switch (value->type) {
+        case FBP_UNION_NULL: return 0;
+        case FBP_UNION_STR:  fbp_cstr_copy(str, value->value.str, str_len); return 0;
+        case FBP_UNION_JSON: fbp_cstr_copy(str, value->value.str, str_len); return 0;
+        case FBP_UNION_BIN:  tfp_snprintf(str, str_len, "size=%d", (int) value->size); return 0;
+        case FBP_UNION_RSV0: return 0;
+        case FBP_UNION_RSV1: return 0;
+        case FBP_UNION_F32:  return 0;
+        case FBP_UNION_F64:  return 0;
+        case FBP_UNION_U8:   tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u8); return 0;
+        case FBP_UNION_U16:  tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u16); return 0;
+        case FBP_UNION_U32:  tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u32); return 0;
+        case FBP_UNION_U64:  tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u64); return 0;
+        case FBP_UNION_I8:   tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i8); return 0;
+        case FBP_UNION_I16:  tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i16); return 0;
+        case FBP_UNION_I32:  tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i32); return 0;
+        case FBP_UNION_I64:  tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i64); return 0;
+        default: return 0;
     }
 }
