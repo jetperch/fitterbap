@@ -128,6 +128,7 @@ static int32_t on_default(void * user_data, const struct fbp_union_s * token) {
             } else if (s->state == DEFAULT_ST_DEFAULT_KEY) {
                 s->found = 1;
                 s->value->value.i64 = token->value.i64;
+                s->value->flags = FBP_UNION_FLAG_RETAIN;
                 rc = FBP_ERROR_ABORTED;
             }
             break;

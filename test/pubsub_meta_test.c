@@ -21,7 +21,7 @@
 #include "fitterbap/pubsub_meta.h"
 #include "fitterbap/ec.h"
 
-#define cstr(_value) ((struct fbp_union_s){.type=FBP_UNION_STR, .op=0, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=_value}, .size=strlen(_value) + 1})
+#define cstr(_value) ((struct fbp_union_s){.type=FBP_UNION_STR, .op=0, .flags=FBP_UNION_FLAG_CONST, .app=0, .value={.str=_value}, .size=(uint32_t) (strlen(_value) + 1)})
 
 const char * META1 = "{"
     "\"dtype\": \"u8\","
@@ -58,6 +58,7 @@ static void test_basic(void **state) {
 
     assert_int_equal(0, fbp_pubsub_meta_default(META1, &value));
     assert_true(fbp_union_eq(&fbp_union_u8(2), &value));
+    assert_true(value.flags & FBP_UNION_FLAG_RETAIN);
 }
 
 static void test_value(void **state) {
@@ -85,6 +86,7 @@ static void test_no_default(void **state) {
     assert_int_equal(0, fbp_pubsub_meta_syntax_check(META_NO_DEFAULT));
     assert_int_equal(0, fbp_pubsub_meta_default(META_NO_DEFAULT, &value));
     assert_int_equal(FBP_UNION_NULL, value.type);
+    assert_false(value.flags & FBP_UNION_FLAG_RETAIN);
 }
 
 int main(void) {
