@@ -19,6 +19,7 @@
 #include "fitterbap/ec.h"
 #include "tinyprintf.h"
 #include <string.h>
+#include <inttypes.h>
 
 
 bool fbp_union_eq(const struct fbp_union_s * v1, const struct fbp_union_s * v2) {
@@ -248,14 +249,14 @@ int32_t fbp_union_value_to_str(const struct fbp_union_s * value, char * str, uin
         case FBP_UNION_RSV1: return 0;
         case FBP_UNION_F32:  return 0;
         case FBP_UNION_F64:  return 0;
-        case FBP_UNION_U8:   tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u8); return 0;
-        case FBP_UNION_U16:  tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u16); return 0;
-        case FBP_UNION_U32:  tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u32); return 0;
-        case FBP_UNION_U64:  tfp_snprintf(str, str_len, "%u", (uint32_t) value->value.u64); return 0;
-        case FBP_UNION_I8:   tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i8); return 0;
-        case FBP_UNION_I16:  tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i16); return 0;
-        case FBP_UNION_I32:  tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i32); return 0;
-        case FBP_UNION_I64:  tfp_snprintf(str, str_len, "%d", (int32_t) value->value.i64); return 0;
+        case FBP_UNION_U8:   tfp_snprintf(str, str_len, "%" PRIu32, (uint32_t) value->value.u8); return 0;
+        case FBP_UNION_U16:  tfp_snprintf(str, str_len, "%" PRIu32, (uint32_t) value->value.u16); return 0;
+        case FBP_UNION_U32:  tfp_snprintf(str, str_len, "%" PRIu32, (uint32_t) value->value.u32); return 0;
+        case FBP_UNION_U64:  tfp_snprintf(str, str_len, "%" PRIu32, (uint32_t) value->value.u64); return 0;
+        case FBP_UNION_I8:   tfp_snprintf(str, str_len, "%" PRId32, (int32_t) value->value.i8); return 0;
+        case FBP_UNION_I16:  tfp_snprintf(str, str_len, "%" PRId32, (int32_t) value->value.i16); return 0;
+        case FBP_UNION_I32:  tfp_snprintf(str, str_len, "%" PRId32, (int32_t) value->value.i32); return 0;
+        case FBP_UNION_I64:  tfp_snprintf(str, str_len, "%" PRId32, (int32_t) value->value.i64); return 0;
         default: return 0;
     }
 }
