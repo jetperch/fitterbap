@@ -1002,7 +1002,7 @@ static void publish_query(struct fbp_pubsub_s * self, struct message_s * msg, si
     }
 }
 
-static void publish_error(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz) {
+static void publish_error(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz, bool external) {
     struct fbp_list_s * item;
     struct subscriber_s * subscriber;
     if (!name_sz || (msg->name[name_sz - 1] != FBP_PUBSUB_CHAR_RETURN_CODE)) {
@@ -1015,7 +1015,8 @@ static void publish_error(struct fbp_pubsub_s * self, struct message_s * msg, si
     while (t) {
         fbp_list_foreach(&t->subscribers, item) {
             subscriber = FBP_CONTAINER_OF(item, struct subscriber_s, item);
-            if ((subscriber->cbk_fn == msg->src_fn) && (subscriber->cbk_user_data == msg->src_user_data)) {
+            bool subscriber_match = ((subscriber->cbk_fn == msg->src_fn) && (subscriber->cbk_user_data == msg->src_user_data));
+            if (external && subscriber_match) {
                 continue;
             }
             if (subscriber->flags & FBP_PUBSUB_SFLAG_RETURN_CODE) {
@@ -1057,10 +1058,7 @@ static void publish_normal(struct fbp_pubsub_s * self, struct message_s * msg) {
                 status = FBP_ERROR_PARAMETER_INVALID;
             }
         }
-        if (!status) {
-            if (fbp_union_eq(&t->value, &msg->value)) {
-                return; // same value, skip to de-duplicate.
-            }
+        if (!status && !fbp_union_eq(&t->value, &msg->value)) {
             if (msg->value.flags & FBP_UNION_FLAG_RETAIN) {
                 if (fbp_union_is_type_ptr(&msg->value) && (0 == (msg->value.flags & FBP_UNION_FLAG_CONST))) {
                     FBP_LOGW("%s retain ptr but not const", msg->name);
@@ -1081,7 +1079,7 @@ static void publish_normal(struct fbp_pubsub_s * self, struct message_s * msg) {
         msg->name[topic_sz] = FBP_PUBSUB_CHAR_RETURN_CODE;
         msg->name[topic_sz + 1] = 0;
         msg->value = fbp_union_i32((int32_t) status);
-        publish_error(self, msg, topic_sz + 1);
+        publish_error(self, msg, topic_sz + 1, false);
     }
 }
 
@@ -1139,7 +1137,7 @@ static void process_one(struct fbp_pubsub_s * self, struct message_s * msg) {
             switch (msg->name[name_sz - 1]) {
                 case FBP_PUBSUB_CHAR_METADATA: publish_meta(self, msg, name_sz); break;
                 case FBP_PUBSUB_CHAR_QUERY: publish_query(self, msg, name_sz); break;
-                case FBP_PUBSUB_CHAR_RETURN_CODE: publish_error(self, msg, name_sz); break;
+                case FBP_PUBSUB_CHAR_RETURN_CODE: publish_error(self, msg, name_sz, true); break;
                 default: publish_normal(self, msg); break;
             }
         }
