@@ -35,6 +35,7 @@ add_executable(port0_test port0_test.c
         ../../src/union.c
         ../../src/topic_list.c
         ../../src/log.c
+        ../../third-party/tinyprintf/tinyprintf.c
         $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(port0_test test_objlib cmocka)
 target_link_libraries(port0_test cmocka)
