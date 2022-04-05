@@ -15,6 +15,7 @@
  */
 
 #include "fitterbap/pubsub_meta.h"
+#include "fitterbap/cstr.h"
 #include "fitterbap/ec.h"
 #include "fitterbap/json.h"
 
@@ -203,8 +204,18 @@ static int32_t on_value(void * user_data, const struct fbp_union_s * token) {
     switch (token->op) {
         case FBP_JSON_VALUE:
             if (s->state == VALUE_ST_DTYPE_KEY) {
-                rc = dtype_lookup(token, &s->type);
-                s->state = VALUE_ST_SEARCH;
+                if (fbp_cstr_starts_with(token->value.str, "bool")) {
+                    bool val_bool = false;
+                    rc = fbp_union_to_bool(s->value, &val_bool);
+                    if (!rc) {
+                        s->value->type = FBP_UNION_U8;
+                        s->value->value.u8 = val_bool ? 1 : 0;
+                        rc = FBP_ERROR_ABORTED;
+                    }
+                } else {
+                    rc = dtype_lookup(token, &s->type);
+                    s->state = VALUE_ST_SEARCH;
+                }
             } else if (s->state == VALUE_ST_RANGE_VAL) {
                 s->range[s->array_idx++].u64 = token->value.u64;
             } else if (s->state == VALUE_ST_OPTIONS_VAL) {

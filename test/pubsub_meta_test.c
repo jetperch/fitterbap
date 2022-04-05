@@ -47,6 +47,12 @@ const char * META_NO_DEFAULT = "{"
     "\"brief\": \"Number selection.\""
 "}";
 
+const char * META_BOOL = "{"
+    "\"dtype\": \"bool\","
+    "\"brief\": \"my bool.\","
+    "\"default\": 0"
+"}";
+
 static void test_basic(void **state) {
     (void) state;
     uint8_t dtype = 0;
@@ -89,11 +95,32 @@ static void test_no_default(void **state) {
     assert_false(value.flags & FBP_UNION_FLAG_RETAIN);
 }
 
+static void test_bool(void **state) {
+    (void) state;
+    struct fbp_union_s value = fbp_union_null();
+    assert_int_equal(0, fbp_pubsub_meta_syntax_check(META_BOOL));
+    assert_int_equal(0, fbp_pubsub_meta_default(META_BOOL, &value));
+    assert_int_equal(FBP_UNION_U8, value.type);
+    assert_int_equal(0, value.value.u8);
+    assert_true(value.flags & FBP_UNION_FLAG_RETAIN);
+
+    value = fbp_union_u32_r(1);
+    assert_int_equal(0, fbp_pubsub_meta_value(META_BOOL, &value));
+    assert_int_equal(FBP_UNION_U8, value.type);
+    assert_int_equal(1, value.value.u8);
+    assert_true(value.flags & FBP_UNION_FLAG_RETAIN);
+
+    value = fbp_union_cstr_r("true");
+    assert_int_equal(0, fbp_pubsub_meta_value(META_BOOL, &value));
+    assert_int_equal(1, value.value.u8);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_basic),
             cmocka_unit_test(test_value),
             cmocka_unit_test(test_no_default),
+            cmocka_unit_test(test_bool),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
