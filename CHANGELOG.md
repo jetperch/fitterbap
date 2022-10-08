@@ -6,7 +6,7 @@ This file contains the list of changes made to the Fitterbap library.
 
 ## 0.5.0
 
-2022 Mar 30 [in progress]
+2022 Oct 8 [in progress]
 
 * Restructured platform and configuration.
   * Allow for static inline functions in platform.
@@ -47,6 +47,7 @@ This file contains the list of changes made to the Fitterbap library.
 * Modified fbp_pubsub_sflag_e values and fbp_pubsub_subscribe flags.
 * Added pubsub config option to always publish return codes, even on success.
 * Added pubsub query request/response using "?".
+* Added FBP_DL_LINK_SEND_IMMEDIATE optional feature.
 
 
 ## 0.4.1

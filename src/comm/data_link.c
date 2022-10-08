@@ -326,6 +326,7 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
             uint16_t next_idx = next_frame_id & (self->rx_frame_count - 1U);
             if (self->rx_frames[next_idx].state == RX_FRAME_ST_IDLE) {
                 self->rx_frames[next_idx].state = RX_FRAME_ST_NACK;
+                // caution: can result in NACK spamming!  reconsider this choice?
                 send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, next_frame_id);
             }
             next_frame_id = (next_frame_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
@@ -338,6 +339,10 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
         fbp_memcpy(self->rx_frames[this_idx].msg, msg, msg_size);
         send_link(self, FBP_FRAMER_FT_ACK_ONE, frame_id);
     }
+#if FBP_DL_LINK_SEND_IMMEDIATE
+    send_link_pending(self);
+    send_ll(self, NULL, 0);
+#endif
 }
 
 static struct tx_frame_s * tx_frame_get(struct fbp_dl_s * self, uint16_t frame_id) {
