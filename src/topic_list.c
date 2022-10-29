@@ -111,3 +111,30 @@ void fbp_topic_list_iterate(struct fbp_topic_list_s * self, fbp_topic_list_cbk f
         }
     }
 }
+
+bool fbp_topic_list_contains(struct fbp_topic_list_s * self, const char * topic) {
+    if (!self || !self->topic_list[0] || !topic || !topic[0]) {
+        return false;
+    }
+    const char * s = self->topic_list;
+    const char * t = topic;
+    while (1) {
+        if (!*t && (!*s || (*s == FBP_TOPIC_LIST_SEP))) {
+            return true;
+        } else if (!*s) {
+            return false;
+        } else if (*t == *s) {
+            ++t;
+            ++s;
+        } else {
+            t = topic;
+            while (*s && (*s != FBP_TOPIC_LIST_SEP)) {
+                ++s;
+            }
+            if (*s == FBP_TOPIC_LIST_SEP) {
+                ++s;
+            }
+        }
+    }
+}
+

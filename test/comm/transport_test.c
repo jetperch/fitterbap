@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -32,20 +31,18 @@ struct fbp_dl_s {
 };
 
 static int32_t ll_send(void * user_data, uint16_t metadata,
-                     uint8_t const *msg, uint32_t msg_size, uint32_t timeout_ms) {
+                     uint8_t const *msg, uint32_t msg_size) {
     (void) user_data;
     check_expected(metadata);
     check_expected(msg_size);
     check_expected_ptr(msg);
-    check_expected(timeout_ms);
     return 0;
 }
 
 #define expect_send(_metadata, _msg_data, _msg_size, _timeout_ms)    \
     expect_value(ll_send, metadata, _metadata);    \
     expect_value(ll_send, msg_size, _msg_size );   \
-    expect_memory(ll_send, msg, _msg_data, _msg_size);  \
-    expect_value(ll_send, timeout_ms, _timeout_ms)
+    expect_memory(ll_send, msg, _msg_data, _msg_size);
 
 static int setup(void ** state) {
     (void) state;
@@ -68,10 +65,10 @@ static int teardown(void ** state) {
 static void test_send(void ** state) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) *state;
     expect_send(0x12C0, DATA1, sizeof(DATA1), 0);
-    assert_int_equal(0, fbp_transport_send(self->t, 0, FBP_TRANSPORT_SEQ_SINGLE, 0x12, DATA1, sizeof(DATA1), 0));
+    assert_int_equal(0, fbp_transport_send(self->t, 0, FBP_TRANSPORT_SEQ_SINGLE, 0x12, DATA1, sizeof(DATA1)));
     expect_send(0x34df, DATA1, sizeof(DATA1), 100);
-    assert_int_equal(0, fbp_transport_send(self->t, 0x1f, FBP_TRANSPORT_SEQ_SINGLE, 0x34, DATA1, sizeof(DATA1), 100));
-    assert_int_not_equal(0, fbp_transport_send(self->t, FBP_TRANSPORT_PORT_MAX + 1, FBP_TRANSPORT_SEQ_SINGLE, 0, DATA1, sizeof(DATA1), 0));
+    assert_int_equal(0, fbp_transport_send(self->t, 0x1f, FBP_TRANSPORT_SEQ_SINGLE, 0x34, DATA1, sizeof(DATA1)));
+    assert_int_not_equal(0, fbp_transport_send(self->t, FBP_TRANSPORT_PORT_MAX + 1, FBP_TRANSPORT_SEQ_SINGLE, 0, DATA1, sizeof(DATA1)));
 }
 
 static void on_event(void *user_data, enum fbp_dl_event_e event) {
@@ -199,7 +196,6 @@ static void test_event_inject(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_send, setup, teardown),
             cmocka_unit_test_setup_teardown(test_event, setup, teardown),

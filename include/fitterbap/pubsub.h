@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Jetperch LLC
+ * Copyright 2020-2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@
  * @brief Trivial publish-subscribe.
  */
 
-#ifndef FBP_STREAM_PUBSUB_H__
-#define FBP_STREAM_PUBSUB_H__
+#ifndef FBP_PUBSUB_H__
+#define FBP_PUBSUB_H__
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/os/mutex.h"
 #include "fitterbap/union.h"
 #include <stdint.h>
@@ -43,7 +43,10 @@
 FBP_CPP_GUARD_START
 
 /// The maximum topic length, include indicator char and null terminator.
+#ifndef FBP_PUBSUB_TOPIC_LENGTH_MAX
 #define FBP_PUBSUB_TOPIC_LENGTH_MAX (32)
+#endif
+
 /// The maximum topic length between '/' separators.
 #define FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL (8)
 /// The unit separator character
@@ -51,11 +54,16 @@ FBP_CPP_GUARD_START
 /// The unit separator as a single character string
 #define FBP_PUBSUB_UNIT_SEP_STR "\x1f"
 
+#define FBP_PUBSUB_CHAR_METADATA        '$'
+#define FBP_PUBSUB_CHAR_QUERY           '?'
+#define FBP_PUBSUB_CHAR_RETURN_CODE     '#'
+
 // Well-known topics
 #define FBP_PUBSUB_TOPIC_PREFIX "_/topic/prefix"
 #define FBP_PUBSUB_TOPIC_LIST "_/topic/list"
 #define FBP_PUBSUB_TOPIC_ADD "_/topic/add"
 #define FBP_PUBSUB_TOPIC_REMOVE "_/topic/remove"
+#define FBP_PUBSUB_CONFIG_RETURN_CODE "_/cfg/rc"
 #define FBP_PUBSUB_CONN_ADD "./conn/add"            // list of topics
 #define FBP_PUBSUB_CONN_REMOVE "./conn/remove"      // list of topics
 
@@ -64,14 +72,20 @@ FBP_CPP_GUARD_START
 enum fbp_pubsub_sflag_e {
     /// No flags (always 0).
     FBP_PUBSUB_SFLAG_NONE = 0,
-    /// Send retained messages to subscriber as soon as possible.
+    /// Immediately forward retained PUB and/or METADATA, depending upon FBP_PUBSUB_SFLAG_PUB and FBP_PUBSUB_SFLAG_METADATA_RSP.
     FBP_PUBSUB_SFLAG_RETAIN = (1 << 0),
-    /// Do not receive normal topic publish.
-    FBP_PUBSUB_SFLAG_NOPUB = (1 << 1),
-    /// Subscribe to receive metadata requests and queries.
-    FBP_PUBSUB_SFLAG_REQ = (1 << 2),
-    /// Subscribe to receive metadata responses and query responses.
-    FBP_PUBSUB_SFLAG_RSP = (1 << 3),
+    /// Subscribe to normal topic publish updates like "a/b/c".
+    FBP_PUBSUB_SFLAG_PUB = (1 << 1),
+    /// Subscribe to receive metadata requests like "$" and "a/b/$".
+    FBP_PUBSUB_SFLAG_METADATA_REQ = (1 << 2),
+    /// Subscribe to receive metadata responses like "a/b/c$.
+    FBP_PUBSUB_SFLAG_METADATA_RSP = (1 << 3),
+    /// Subscribe to receive query requests like "?" and "a/b/?".
+    FBP_PUBSUB_SFLAG_QUERY_REQ = (1 << 4),
+    /// Subscribe to receive query responses like "a/b/c?".
+    FBP_PUBSUB_SFLAG_QUERY_RSP = (1 << 5),
+    /// Subscribe to receive return code messages like "a/b/c#".
+    FBP_PUBSUB_SFLAG_RETURN_CODE = (1 << 6),
 };
 
 /// The opaque PubSub instance.
@@ -90,7 +104,7 @@ struct fbp_pubsub_s;
  * instance will publish a topic# error.
  */
 typedef uint8_t (*fbp_pubsub_subscribe_fn)(void * user_data,
-        const char * topic, const struct fbp_union_s * value);
+                                           const char * topic, const struct fbp_union_s * value);
 
 /**
  * @brief Function called whenever a new message is published.
@@ -124,9 +138,12 @@ typedef int32_t (*fbp_pubsub_publish_fn)(
 /**
  * @brief Create and initialize a new PubSub instance.
  *
- * @param topic_prefix The topic prefix that is owned by this
+ * @param topic_prefix The topic prefixes that are owned by this
  *      pubsub instance.  This instance will reply to metadata and
- *      query requests for all topics starting with this prefix.
+ *      query requests for all topics starting with this prefixes.
+ *      If a prefix contains a trailing '/' separator, then the
+ *      separator will ignore.  Multiple prefixes should be separated
+ *      by FBP_PUBSUB_UNIT_SEP_CHR = '\x1f'.
  * @param buffer_size The buffer size for dynamic pointer messages.
  *      0 prohibits non-CONST pointer types.
  * @return The new PubSub instance.
@@ -160,18 +177,14 @@ FBP_API const char * fbp_pubsub_topic_prefix(struct fbp_pubsub_s * self);
  * fbp_pubsub_process() should be invoked.
  */
 FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
-        fbp_pubsub_on_publish_fn cbk_fn, void * cbk_user_data);
+                                            fbp_pubsub_on_publish_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Subscribe to a topic.
  *
  * @param self The PubSub instance.
  * @param topic The topic to subscribe.
- * @param flags The fbp_pubsub_subscribe_flag_e flags:
- *      - FBP_PUBSUB_SFLAG_RETAIN: The cbk_fn will be called with any existing
- *        retained values.
- *      - FBP_PUBSUB_SFLAG_LINK: The cbk_fn will be treated as a link.  This
- *        subscriber will also receive metadata requests.
+ * @param flags The fbp_pubsub_sflag_e flags
  * @param cbk_fn The function to call on topic updates.
  *      Invocations are from fbp_pubsub_process().
  *      The cbk_fn is responsible for any thread resynchronization.
@@ -182,7 +195,7 @@ FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
  * If the topic does not already exist, this function will
  * automatically create it.
  *
- * Note that the FBP_PUBSUB_SFLAG_LINK flag is critical to the distributed
+ * Note that the flags are critical to implementing the distributed
  * architecture.  The system constructs the polytree architecture with
  * LINK topic subscriptions.
  * The server PubSub instance subscribes to all topics in client PubSub
@@ -190,8 +203,8 @@ FBP_API void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
  * with all topic_prefix for any PubSub instances for which they are a server.
  */
 FBP_API int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
-        uint8_t flags,
-        fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
+                                     uint8_t flags,
+                                     fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Unsubscribe from a topic.
@@ -209,7 +222,7 @@ FBP_API int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * to
  * not be called once the function returns.
  */
 FBP_API int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
-        fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
+                                       fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Unsubscribe from all topics.
@@ -227,7 +240,7 @@ FBP_API int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * 
  * not be called once the function returns.
  */
 FBP_API int32_t fbp_pubsub_unsubscribe_from_all(struct fbp_pubsub_s * self,
-        fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
+                                                fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data);
 
 /**
  * @brief Publish to a topic.
@@ -279,8 +292,8 @@ FBP_API int32_t fbp_pubsub_unsubscribe_from_all(struct fbp_pubsub_s * self,
  * FBP_ERROR_NOT_ENOUGH_MEMORY.  The caller can optionally wait and retry.
  */
 FBP_API int32_t fbp_pubsub_publish(struct fbp_pubsub_s * self,
-        const char * topic, const struct fbp_union_s * value,
-        fbp_pubsub_subscribe_fn src_fn, void * src_user_data);
+                                   const char * topic, const struct fbp_union_s * value,
+                                   fbp_pubsub_subscribe_fn src_fn, void * src_user_data);
 
 /**
  * @brief Convenience function to set the topic metadata.
@@ -336,4 +349,4 @@ FBP_CPP_GUARD_END
 
 /** @} */
 
-#endif  /* FBP_STREAM_PUBSUB_H__ */
+#endif  /* FBP_PUBSUB_H__ */

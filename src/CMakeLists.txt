@@ -12,12 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if ((${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm") AND ${CMAKE_CROSSCOMPILING})
-    SET(FITTERBAP_PLATFORM "ARM")
-else()
-    SET(FITTERBAP_PLATFORM "STDLIB")
-endif()
-
 set(SOURCES
         collections/list.c
         cli.c
@@ -26,16 +20,18 @@ set(SOURCES
         ec.c
         event_manager.c
         fsm.c
+        json.c
         lfsr.c
         log.c
         logh.c
         pattern_32a.c
-        platform.c
         pubsub.c
+        pubsub_meta.c
         time.c
         topic.c
         topic_list.c
         union.c
+        version.c
         collections/ring_buffer_msg.c
         comm/data_link.c
         comm/framer.c
@@ -50,23 +46,27 @@ set(SOURCES
         memory/buffer.c
         memory/object_pool.c
         memory/pool.c
-        ../third-party/tinyprintf/tinyprintf.c  # required by comm/log_port.c
         ${PLATFORM_SRC}
 )
 
+# Respect if TINYPRINTF has already been included, such as with RTOS build
+get_property(tinyprintf_property GLOBAL PROPERTY TINYPRINTF)
+if (NOT tinyprintf_property)
+    message(STATUS "Fitterbap add tinyprintf")
+    set(SOURCES ${SOURCES} ../third-party/tinyprintf/tinyprintf.c)
+endif()
+set_property(GLOBAL PROPERTY TINYPRINTF 1)
 
-if ("${PLATFORM}" STREQUAL "FREERTOS")
+if ("${FITTERBAP_OS}" STREQUAL "FREERTOS")
     set(SOURCES_HOST
             host/freertos/os_mutex.c
             host/freertos/os_task.c)
 
-elseif (WIN32)
+elseif ("${FITTERBAP_OS}" STREQUAL "WIN32")
     set(SOURCES_HOST
-            host/win/os_mutex.c
-            host/win/os_task.c
-            host/win/platform.c
+            host/win/error.c
             host/win/uart.c
-            host/win/uart_thread.c
+            host/win/platform.c
             host/win/comm.c)
 else()
     set(SOURCES_HOST "")
@@ -81,11 +81,3 @@ foreach(f IN LISTS SOURCES)
 endforeach()
 
 add_library(fitterbap_objlib OBJECT ${SOURCES})
-
-if(${FITTERBAP_TOPLEVEL})
-    add_library(fitterbap SHARED $<TARGET_OBJECTS:fitterbap_objlib> lib.c)
-else()
-    add_library(fitterbap STATIC $<TARGET_OBJECTS:fitterbap_objlib>)
-    add_library(fitterbap_lib OBJECT lib.c)
-endif()
-add_dependencies(fitterbap fitterbap_objlib)

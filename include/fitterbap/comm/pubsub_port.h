@@ -23,8 +23,9 @@
 #ifndef FBP_COMM_PUBSUB_PORT_H_
 #define FBP_COMM_PUBSUB_PORT_H_
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/transport.h"
+#include "fitterbap/comm/port.h"
 #include "fitterbap/pubsub.h"
 #include <stdint.h>
 #include <stdbool.h>

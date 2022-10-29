@@ -20,7 +20,6 @@
 #include <cmocka.h>
 #include "fitterbap/dbc.h"
 #include "fitterbap.h"
-#include "hal_test_impl.h"
 
 
 static void test_true(void **state) {

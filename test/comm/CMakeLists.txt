@@ -17,7 +17,7 @@ ADD_CMOCKA_TEST(framer_test)
 
 # transport_test special build to break data_link dependency
 SET_FILENAME("transport_test.c")
-add_executable(transport_test transport_test.c ../../src/comm/transport.c ../../src/platform.c ../../src/log.c $<TARGET_OBJECTS:test_objlib>)
+add_executable(transport_test transport_test.c ../../src/comm/transport.c ../../src/log.c $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(transport_test test_objlib cmocka)
 target_link_libraries(transport_test cmocka)
 add_test(transport_test ${CMAKE_CURRENT_BINARY_DIR}/transport_test)
@@ -29,11 +29,13 @@ add_executable(port0_test port0_test.c
         ../../src/collections/ring_buffer_msg.c
         ../../src/comm/port0.c
         ../../src/fsm.c
+        ../../src/json.c
         ../../src/pubsub.c
-        ../../src/platform.c
+        ../../src/pubsub_meta.c
         ../../src/union.c
         ../../src/topic_list.c
         ../../src/log.c
+        ../../third-party/tinyprintf/tinyprintf.c
         $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(port0_test test_objlib cmocka)
 target_link_libraries(port0_test cmocka)
@@ -44,7 +46,6 @@ add_test(port0_test ${CMAKE_CURRENT_BINARY_DIR}/port0_test)
 SET_FILENAME("timesync_test.c")
 add_executable(timesync_test timesync_test.c
         ../../src/comm/timesync.c
-        ../../src/platform.c
         ../../src/log.c
         $<TARGET_OBJECTS:test_objlib>)
 add_dependencies(timesync_test test_objlib cmocka)
@@ -60,7 +61,6 @@ add_executable(pubsub_port_test
         ../../src/cstr.c
         ../../src/event_manager.c
         ../../src/fsm.c
-        ../../src/platform.c
         ../../src/log.c
         ../../src/topic_list.c
         $<TARGET_OBJECTS:test_objlib>)
@@ -72,7 +72,6 @@ add_test(pubsub_port_test ${CMAKE_CURRENT_BINARY_DIR}/pubsub_port_test)
 SET_FILENAME("log_port_test.c")
 add_executable(log_port_test log_port_test.c
         ../../src/comm/log_port.c
-        ../../src/platform.c
         ../../src/event_manager.c
         ../../src/log.c
         ../../src/topic.c
@@ -86,7 +85,6 @@ add_test(log_port_test ${CMAKE_CURRENT_BINARY_DIR}/log_port_test)
 SET_FILENAME("waveform_sink_test.c")
 add_executable(waveform_sink_test waveform_sink_test.c
         ../../src/comm/wave_sink_port.c
-        ../../src/platform.c
         ../../src/event_manager.c
         ../../src/log.c
         ../../src/cstr.c
@@ -101,10 +99,17 @@ add_dependencies(stream_tester fitterbap_objlib test_objlib)
 
 add_executable(length_check length_check.c)
 
-include_directories(../../host/include)
-
 SET_FILENAME("host.c")
 add_executable(host host.c $<TARGET_OBJECTS:fitterbap_objlib>)
-target_link_libraries(host)
+target_link_libraries(host winmm)
 add_dependencies(host fitterbap_objlib test_objlib)
 
+SET_FILENAME("comm.c")
+add_executable(comm comm.c $<TARGET_OBJECTS:fitterbap_objlib>)
+target_link_libraries(comm winmm)
+add_dependencies(comm fitterbap_objlib test_objlib)
+
+SET_FILENAME("uart_tester.c")
+add_executable(uart_tester uart_tester.c $<TARGET_OBJECTS:fitterbap_objlib>)
+target_link_libraries(uart_tester)
+add_dependencies(uart_tester fitterbap_objlib test_objlib)

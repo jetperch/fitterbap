@@ -187,6 +187,16 @@ FBP_API int32_t fbp_logh_dispatch_unregister(struct fbp_logh_s * self, fbp_logh_
     return rc;
 }
 
+FBP_API void fbp_logh_dispatch_unregister_all(struct fbp_logh_s * self) {
+    self = resolve_instance(self);
+    lock(self);
+    for (int i = 0; i < FBP_LOGH_DISPATCH_MAX; ++i) {
+        self->dispatch[i].fn = NULL;
+        self->dispatch[i].user_data = NULL;
+    }
+    unlock(self);
+}
+
 FBP_API void fbp_logh_publish_register(struct fbp_logh_s * self, fbp_logh_on_publish fn, void * user_data) {
     self = resolve_instance(self);
     lock(self);
@@ -227,7 +237,7 @@ int32_t fbp_logh_process(struct fbp_logh_s * self) {
 
 struct fbp_logh_s * fbp_logh_initialize(char origin_prefix, uint32_t msg_buffers_max, int64_t (*time_fn)()) {
     struct fbp_logh_s * self = fbp_alloc_clr(sizeof(struct fbp_logh_s));
-    self->mutex = fbp_os_mutex_alloc();
+    self->mutex = fbp_os_mutex_alloc("fbp_logh");
     self->origin_prefix = origin_prefix;
     fbp_list_initialize(&self->msg_free);
     fbp_list_initialize(&self->msg_pend);

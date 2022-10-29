@@ -23,7 +23,7 @@
 #ifndef FBP_COMM_LOG_PORT_H_
 #define FBP_COMM_LOG_PORT_H_
 
-#include "fitterbap/config.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/port.h"
 #include "fitterbap/logh.h"
 

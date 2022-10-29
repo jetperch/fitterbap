@@ -128,8 +128,7 @@ int32_t fbp_transport_send(struct fbp_transport_s * self,
                            uint8_t port_id,
                            enum fbp_transport_seq_e seq,
                            uint8_t port_data,
-                           uint8_t const *msg, uint32_t msg_size,
-                           uint32_t timeout_ms) {
+                           uint8_t const *msg, uint32_t msg_size) {
     if (port_id > FBP_TRANSPORT_PORT_MAX) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
@@ -137,7 +136,7 @@ int32_t fbp_transport_send(struct fbp_transport_s * self,
         | (port_id & FBP_TRANSPORT_PORT_MAX)
         | (((uint16_t) port_data) << 8);
 
-    return self->send_fn(self->send_user_data, metadata, msg, msg_size, timeout_ms);
+    return self->send_fn(self->send_user_data, metadata, msg, msg_size);
 }
 
 const char * fbp_transport_meta_get(struct fbp_transport_s * self, uint8_t port_id) {

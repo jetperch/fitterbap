@@ -200,25 +200,55 @@ static void atoi_invalid_params(void ** state) {
     assert_int_equal(value, 3);
 }
 
-#if FBP_CSTR_FLOAT_ENABLE
+#if FBP_CONFIG_USE_CSTR_FLOAT
 static void atof_good_with_space(void ** state) {
     (void) state;
     float value = 3.0;
     assert_int_equal(0, fbp_cstr_to_f32("  4.2  ", &value));
-    assert_float_close(value, 4.2, 0.00001);
+    assert_float_equal(value, 4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  123.456  ", &value));
+    assert_float_equal(value, 123.456, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  +4.2  ", &value));
+    assert_float_equal(value, 4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -4.2  ", &value));
+    assert_float_equal(value, -4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -4.2f  ", &value));
+    assert_float_equal(value, -4.2, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -4.2F  ", &value));
+    assert_float_equal(value, -4.2, 0.00001);
 }
 
 static void atof_good_exponent_form(void ** state) {
     (void) state;
     float value = 3.0;
-    assert_int_equal(0, safestr_atof("  42.1e-1  ", &value));
-    assert_float_close(value, 4.21, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e0f  ", &value));
+    assert_float_equal(value, 42.123, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  +42.123E1F  ", &value));
+    assert_float_equal(value, 421.23, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e2  ", &value));
+    assert_float_equal(value, 4212.3, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e4  ", &value));
+    assert_float_equal(value, 42.123e4f, 1e0);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e8  ", &value));
+    assert_float_equal(value, 42.123e8f, 0.1e4);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e16  ", &value));
+    assert_float_equal(value, 42.123e16f, 0.1e12);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e32  ", &value));
+    assert_float_equal(value, 42.123e32f, 0.1e28);
+    assert_int_equal(0, fbp_cstr_to_f32("  -42.123e+2  ", &value));
+    assert_float_equal(value, -4212.3, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -42.123e-1f  ", &value));
+    assert_float_equal(value, -4.2123, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  -42.123e-2F  ", &value));
+    assert_float_equal(value, -0.42123, 0.00001);
+    assert_int_equal(0, fbp_cstr_to_f32("  42.123e-2F  ", &value));
+    assert_float_equal(value, 0.42123, 0.00001);
 }
 
 static void atof_bad(void ** state) {
     (void) state;
     float value = 3.0;
-    assert_int_equal(1, safestr_atof("  hello ", &value));
+    assert_int_equal(1, fbp_cstr_to_f32("  hello ", &value));
     assert_int_equal(value, 3.0);
 }
 #endif
@@ -323,6 +353,16 @@ static void starts_with(void **state) {
     assert_ptr_equal(hello_world, fbp_cstr_starts_with(hello_world, 0));
 }
 
+static void ends_with(void **state) {
+    (void) state;
+    const char * hello_world = "hello_world";
+    assert_ptr_equal(hello_world + 5, fbp_cstr_ends_with(hello_world, "_world"));
+    assert_null(fbp_cstr_ends_with(hello_world, "hello"));
+    assert_null(fbp_cstr_ends_with(hello_world, "worLD"));
+    assert_null(fbp_cstr_ends_with(0, "world"));
+    assert_ptr_equal(hello_world, fbp_cstr_ends_with(hello_world, 0));
+}
+
 static void hex_chars(void ** state) {
     (void) state;
     char v_upper[] = "0123456789ABCDEF";
@@ -363,7 +403,7 @@ int main(void) {
         cmocka_unit_test(atoi_bad),
         cmocka_unit_test(atoi_invalid_params),
 
-#if FBP_CSTR_FLOAT_ENABLE
+#if FBP_CONFIG_USE_CSTR_FLOAT
         cmocka_unit_test(atof_good_with_space),
         cmocka_unit_test(atof_good_exponent_form),
         cmocka_unit_test(atof_bad),
@@ -378,6 +418,7 @@ int main(void) {
         cmocka_unit_test(to_bool_invalid),
         cmocka_unit_test(casecmp),
         cmocka_unit_test(starts_with),
+        cmocka_unit_test(ends_with),
         cmocka_unit_test(hex_chars),
         cmocka_unit_test(hex_chars_invalid),
     };

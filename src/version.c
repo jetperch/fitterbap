@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2021 Jetperch LLC
+ * Copyright 2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,13 @@
  * limitations under the License.
  */
 
+#include "fitterbap/version.h"
+#include "tinyprintf.h"
 
-#include "fitterbap/os/task.h"
-#include <windows.h>
 
-intptr_t fbp_os_current_task_id() {
-    return ((intptr_t) GetCurrentThreadId());
-}
-
-void fbp_os_sleep(int64_t duration) {
-    if (duration < 0) {
-        return;
-    }
-    int64_t duration_ms = FBP_TIME_TO_MILLISECONDS(duration);
-    if (duration_ms > 0xffffffff) {
-        duration_ms = 0xffffffff;
-    }
-    Sleep((DWORD) FBP_TIME_TO_MILLISECONDS(duration_ms));
+void fbp_version_u32_to_str(uint32_t u32, char * str, size_t size) {
+    uint8_t major = FBP_VERSION_DECODE_U32_MAJOR(u32);
+    uint8_t minor = FBP_VERSION_DECODE_U32_MINOR(u32);
+    uint16_t patch = FBP_VERSION_DECODE_U32_PATCH(u32);
+    tfp_snprintf(str, size, "%d.%d.%d", (int) major, (int) minor, (int) patch);
 }

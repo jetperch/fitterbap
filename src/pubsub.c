@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Jetperch LLC
+ * Copyright 2020-2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
 #include "fitterbap/pubsub.h"
+#include "fitterbap/pubsub_meta.h"
 #include "fitterbap/collections/ring_buffer_msg.h"
 #include "fitterbap/ec.h"
 #include "fitterbap/log.h"
@@ -55,23 +56,26 @@ struct message_s {
 };
 
 struct fbp_pubsub_s {
-    char topic_prefix[FBP_PUBSUB_TOPIC_LENGTH_MAX];     // The top-level topic name for this instance
-    struct fbp_topic_list_s topic_list;
+    struct fbp_topic_list_s topic_prefix;               // The top-level topic names for this instance
+    struct fbp_topic_list_s topic_list;                 // The known top-level topic names
     fbp_pubsub_on_publish_fn cbk_fn;
     void * cbk_user_data;
     fbp_os_mutex_t mutex;
+    int8_t depth;                                      // The single-threaded reentrant depth
+    int8_t return_code;                                // 0=error only, 1=always
     struct topic_s * root_topic;
     struct fbp_list_s subscriber_free;
     struct fbp_list_s msg_pend;
     struct fbp_list_s msg_free;
 
     struct fbp_rbm_s mrb;                               // for mutable message payloads
-    uint8_t buffer[];
+    uint8_t buffer[];                                   // MUST BE LAST
 };
 
 const char RESERVED_SUFFIX[] = "/?#$'\"\\`&@%";
 
 static uint8_t publish(struct topic_s * topic, struct message_s * msg);
+static void publish_normal(struct fbp_pubsub_s * self, struct message_s * msg);
 
 static inline void lock(struct fbp_pubsub_s * self) {
     if (self->mutex) {
@@ -143,6 +147,7 @@ static bool is_reserved_char(char ch) {
 
 static bool topic_name_set(struct topic_s * topic, const char * name) {
     const char * name_orig = name;
+    (void) name_orig;  // when logging is off
     for (int i = 0; i < FBP_PUBSUB_TOPIC_LENGTH_PER_LEVEL; ++i) {
         if (*name) {
             topic->name[i] = *name++;
@@ -282,7 +287,7 @@ static bool subtopic_get_str(const char ** topic, char * subtopic) {
     return false;
 }
 
-struct topic_s * subtopic_find(struct topic_s * parent, const char * subtopic_str) {
+static struct topic_s * subtopic_find(struct topic_s * parent, const char * subtopic_str) {
     struct fbp_list_s * item;
     struct topic_s * topic;
     fbp_list_foreach(&parent->children, item) {
@@ -317,6 +322,34 @@ static struct topic_s * topic_find(struct fbp_pubsub_s * self, const char * topi
         t = subtopic;
     }
     return t;
+}
+
+/**
+ * @brief Extract the top-level base topic string.
+ *
+ * @param src The source topic string which must be null terminated and
+ *      less than FBP_PUBSUB_TOPIC_LENGTH_MAX size or shorter.
+ * @param dst The destination topic string which must be
+ *      FBP_PUBSUB_TOPIC_LENGTH_MAX size or longer.
+ * @return 0 or error code.
+ */
+static int32_t topic_str_base(const char * src, char * dst) {
+    uint32_t sz = 0;
+    while (*src) {
+        if (*src == '/') {
+            break;
+        }
+        *dst++ = *src++;
+        ++sz;
+        if (sz == FBP_PUBSUB_TOPIC_LENGTH_MAX) {
+            --dst;
+            *dst = 0;
+            FBP_LOGE("src truncated");
+            return FBP_ERROR_PARAMETER_INVALID;
+        }
+    }
+    *dst = 0;
+    return 0;
 }
 
 /**
@@ -387,37 +420,76 @@ static uint8_t on_topic_remove(void * user_data, const char * topic, const struc
     return 0;
 }
 
+static int32_t top_topic_add(void * user_data, const char * topic) {
+    char t[FBP_TOPIC_LIST_LENGTH_MAX];
+    struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) user_data;
+    size_t sz = strlen(topic);
+    if (!sz || (topic[0] == '/')) {
+        return 0;
+    }
+
+    fbp_cstr_copy(t, topic, sizeof(t));
+    if (t[sz - 1] == '/') {
+        t[sz - 1] = 0;
+    }
+    fbp_topic_list_append(&self->topic_prefix, t);
+    fbp_topic_list_append(&self->topic_list, t);
+    return 0;
+}
+
+static uint8_t on_return_code(void * user_data, const char * topic, const struct fbp_union_s * value) {
+    (void) topic;
+    struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) user_data;
+    bool v = false;
+    if (fbp_union_to_bool(value, &v)) {
+        return FBP_ERROR_PARAMETER_INVALID;
+    }
+    self->return_code = v ? 1: 0;
+    return 0;
+}
+
 struct fbp_pubsub_s * fbp_pubsub_initialize(const char * topic_prefix, uint32_t buffer_size) {
     FBP_LOGI("initialize");
     struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) fbp_alloc_clr(sizeof(struct fbp_pubsub_s) + buffer_size);
-    fbp_cstr_copy(self->topic_prefix, topic_prefix, fbp_sizeof(self->topic_prefix));
-    fbp_topic_list_clear(&self->topic_list);
-    fbp_topic_list_append(&self->topic_list, topic_prefix);
     self->root_topic = topic_alloc(self, "");
     fbp_list_initialize(&self->subscriber_free);
     fbp_list_initialize(&self->msg_pend);
     fbp_list_initialize(&self->msg_free);
     fbp_rbm_init(&self->mrb, self->buffer, buffer_size);
+    fbp_topic_list_clear(&self->topic_list);
+
+    struct fbp_topic_list_s topics;
+    fbp_cstr_copy(topics.topic_list, topic_prefix, fbp_sizeof(topics.topic_list));
+    fbp_topic_list_iterate(&topics, top_topic_add, self);
 
     struct topic_s * t;
     struct subscriber_s * sub;
     t = topic_find(self, FBP_PUBSUB_TOPIC_PREFIX, true);
     t->value.type = FBP_UNION_STR;
     t->value.flags = FBP_UNION_FLAG_RETAIN;
-    t->value.value.str = self->topic_prefix;
-    t->value.size = (uint32_t) (strlen(self->topic_prefix) + 1);
+    t->value.value.str = self->topic_prefix.topic_list;
+    t->value.size = (uint32_t) (strlen(self->topic_prefix.topic_list) + 1);
 
     topic_list_update(self, false);
 
     t = topic_find(self, FBP_PUBSUB_TOPIC_ADD, true);
     sub = subscriber_alloc(self);
+    sub->flags = FBP_PUBSUB_SFLAG_PUB;
     sub->cbk_fn = on_topic_add;
     sub->cbk_user_data = self;
     fbp_list_add_tail(&t->subscribers, &sub->item);
 
     t = topic_find(self, FBP_PUBSUB_TOPIC_REMOVE, true);
     sub = subscriber_alloc(self);
+    sub->flags = FBP_PUBSUB_SFLAG_PUB;
     sub->cbk_fn = on_topic_remove;
+    sub->cbk_user_data = self;
+    fbp_list_add_tail(&t->subscribers, &sub->item);
+
+    t = topic_find(self, FBP_PUBSUB_CONFIG_RETURN_CODE, true);
+    sub = subscriber_alloc(self);
+    sub->flags = FBP_PUBSUB_SFLAG_PUB;
+    sub->cbk_fn = on_return_code;
     sub->cbk_user_data = self;
     fbp_list_add_tail(&t->subscribers, &sub->item);
 
@@ -462,7 +534,7 @@ void fbp_pubsub_finalize(struct fbp_pubsub_s * self) {
 }
 
 const char * fbp_pubsub_topic_prefix(struct fbp_pubsub_s * self) {
-    return self->topic_prefix;
+    return self->topic_prefix.topic_list;
 }
 
 void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
@@ -471,7 +543,7 @@ void fbp_pubsub_register_on_publish(struct fbp_pubsub_s * self,
     self->cbk_user_data = cbk_user_data;
 }
 
-void subscribe_traverse(struct topic_s * topic, char * topic_str, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
+static void subscribe_traverse(struct topic_s * topic, char * topic_str, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     size_t topic_str_len = strlen(topic_str);
     char * topic_str_last = topic_str + topic_str_len;
     if ((topic->value.type != FBP_UNION_NULL) && (topic->value.flags & FBP_UNION_FLAG_RETAIN)) {
@@ -497,18 +569,30 @@ static int32_t msg_enqueue(struct fbp_pubsub_s * self, struct message_s * msg) {
     return 0;
 }
 
+static int32_t handle_message(struct fbp_pubsub_s * self, struct message_s * msg) {
+    int32_t rv = msg_enqueue(self, msg);
+    if (rv) {
+        return rv;
+    }
+    if (!self->mutex && (self->depth == 0)) {
+        ++self->depth;
+        fbp_pubsub_process(self);
+        --self->depth;
+    }
+    return 0;
+}
+
 int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
         uint8_t flags, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     if (!self || !cbk_fn) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
-    if ((flags & (FBP_PUBSUB_SFLAG_REQ | FBP_PUBSUB_SFLAG_RSP)) && topic[0]) {
+    if ((flags & (FBP_PUBSUB_SFLAG_METADATA_REQ | FBP_PUBSUB_SFLAG_METADATA_RSP)) && topic[0]) {
         FBP_LOGW("req | rsp subscribers must only subscribe to root");
         return FBP_ERROR_PARAMETER_INVALID;
     }
 
     FBP_LOGI("subscribe \"%s\"", topic);
-
     struct message_s * msg = msg_alloc(self);
     if (!topic_str_copy(msg->name, topic, NULL)) {
         msg_free(self, msg);
@@ -521,7 +605,7 @@ int32_t fbp_pubsub_subscribe(struct fbp_pubsub_s * self, const char * topic,
     msg->value.flags = 0;
     msg->value.op = OP_SUBSCRIBE;
     msg->value.value.u32 = flags;
-    return msg_enqueue(self, msg);
+    return handle_message(self, msg);
 }
 
 int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
@@ -549,7 +633,7 @@ int32_t fbp_pubsub_unsubscribe(struct fbp_pubsub_s * self, const char * topic,
     return 0;
 }
 
-void unsubscribe_traverse(struct fbp_pubsub_s * self, struct topic_s * topic, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
+static void unsubscribe_traverse(struct fbp_pubsub_s * self, struct topic_s * topic, fbp_pubsub_subscribe_fn cbk_fn, void * cbk_user_data) {
     struct fbp_list_s * item;
     struct topic_s * subtopic;
     struct subscriber_s * subscriber;
@@ -650,7 +734,7 @@ int32_t fbp_pubsub_publish(struct fbp_pubsub_s * self,
         msg->value.value.bin = buf;
         unlock(self);
     }
-    return msg_enqueue(self, msg);
+    return handle_message(self, msg);
 }
 
 int32_t fbp_pubsub_meta(struct fbp_pubsub_s * self, const char * topic, const char * meta_json) {
@@ -660,13 +744,13 @@ int32_t fbp_pubsub_meta(struct fbp_pubsub_s * self, const char * topic, const ch
         msg_free(self, msg);
         return FBP_ERROR_PARAMETER_INVALID;
     }
-    if (sz && (msg->name[sz - 1] != '$')) {
-        // Add '$'
+    if (sz && (msg->name[sz - 1] != FBP_PUBSUB_CHAR_METADATA)) {
+        // Add FBP_PUBSUB_CHAR_METADATA
         if ((sz + 2) > FBP_PUBSUB_TOPIC_LENGTH_MAX) {
             msg_free(self, msg);
             return FBP_ERROR_PARAMETER_INVALID;
         }
-        msg->name[sz] = '$';
+        msg->name[sz] = FBP_PUBSUB_CHAR_METADATA;
         msg->name[sz + 1] = 0;
     }
     if (meta_json) {
@@ -679,7 +763,7 @@ int32_t fbp_pubsub_meta(struct fbp_pubsub_s * self, const char * topic, const ch
         msg->value.flags = 0;
         msg->value.size = 0;
     }
-    return msg_enqueue(self, msg);
+    return handle_message(self, msg);
 }
 
 int32_t fbp_pubsub_query(struct fbp_pubsub_s * self, const char * topic, struct fbp_union_s * value) {
@@ -695,13 +779,13 @@ int32_t fbp_pubsub_query(struct fbp_pubsub_s * self, const char * topic, struct 
     return 0;
 }
 
-static void metadata_req_forward(struct fbp_pubsub_s * self, struct message_s * msg) {
+static void req_forward(struct fbp_pubsub_s * self, uint8_t flag_mask, struct message_s * msg) {
     struct fbp_list_s * item;
     struct subscriber_s * subscriber;
     struct topic_s * t = self->root_topic;
     fbp_list_foreach(&t->subscribers, item) {
         subscriber = FBP_CONTAINER_OF(item, struct subscriber_s, item);
-        if (subscriber->flags & FBP_PUBSUB_SFLAG_REQ) {
+        if (subscriber->flags & flag_mask) {
             if ((subscriber->cbk_fn != msg->src_fn) || (subscriber->cbk_user_data != msg->src_user_data)) {
                 subscriber->cbk_fn(subscriber->cbk_user_data, msg->name, &msg->value);
             }
@@ -709,14 +793,14 @@ static void metadata_req_forward(struct fbp_pubsub_s * self, struct message_s * 
     }
 }
 
-static void metadata_rsp_forward(struct fbp_pubsub_s * self, struct message_s * msg) {
+static void rsp_forward(struct fbp_pubsub_s * self, uint8_t flag_mask, struct message_s * msg) {
     struct fbp_list_s * item;
     struct subscriber_s * subscriber;
     struct topic_s * t = topic_find_existing_base(self, msg->name);
     while (t) {
         fbp_list_foreach(&t->subscribers, item) {
             subscriber = FBP_CONTAINER_OF(item, struct subscriber_s, item);
-            if (subscriber->flags & FBP_PUBSUB_SFLAG_RSP) {
+            if (subscriber->flags & flag_mask) {
                 if ((subscriber->cbk_fn != msg->src_fn) || (subscriber->cbk_user_data != msg->src_user_data)) {
                     subscriber->cbk_fn(subscriber->cbk_user_data, msg->name, &msg->value);
                 }
@@ -734,8 +818,8 @@ static void metadata_rsp_handle(struct topic_s * topic, char * topic_str) {
         return;
     }
     size_t idx = strlen(topic_str);
-    if ((idx == 0) || (topic_str[idx - 1] != '$')) {
-        topic_str[idx] = '$';
+    if ((idx == 0) || (topic_str[idx - 1] != FBP_PUBSUB_CHAR_METADATA)) {
+        topic_str[idx] = FBP_PUBSUB_CHAR_METADATA;
         topic_str[idx + 1] = 0;
     }
     struct fbp_union_s meta = fbp_union_cjson_r(topic->meta);
@@ -743,7 +827,7 @@ static void metadata_rsp_handle(struct topic_s * topic, char * topic_str) {
     while (topic) {
         fbp_list_foreach(&topic->subscribers, item) {
             subscriber = FBP_CONTAINER_OF(item, struct subscriber_s, item);
-            if (subscriber->flags & FBP_PUBSUB_SFLAG_RSP) {
+            if (subscriber->flags & FBP_PUBSUB_SFLAG_METADATA_RSP) {
                 //FBP_LOGD3("metadata_rsp_handle: %s, %s", topic_str, meta.value.str);
                 subscriber->cbk_fn(subscriber->cbk_user_data, topic_str, &meta);
             }
@@ -753,56 +837,58 @@ static void metadata_rsp_handle(struct topic_s * topic, char * topic_str) {
     topic_str[idx] = 0;
 }
 
-static void metadata_req_handle(struct topic_s * t, struct message_s * msg) {
+static void metadata_req_handle(struct topic_s * t, const char * topic) {
+    char t_str[FBP_TOPIC_LIST_LENGTH_MAX];
     if (!t) {
         return;
     }
-    char * topic_str = msg->name;
-    size_t topic_str_len = strlen(topic_str);
-    char * topic_str_last = topic_str + topic_str_len;
+    fbp_cstr_copy(t_str, topic, sizeof(t_str));
+    size_t topic_str_len = strlen(t_str);
+    char * topic_str_last = t_str + topic_str_len;
     struct fbp_list_s * item;
     struct topic_s * subtopic;
     fbp_list_foreach(&t->children, item) {
         subtopic = FBP_CONTAINER_OF(item, struct topic_s, item);
-        topic_str_append(topic_str, subtopic->name);
-        metadata_rsp_handle(subtopic, topic_str);
-        metadata_req_handle(subtopic, msg);
+        topic_str_append(t_str, subtopic->name);
+        metadata_rsp_handle(subtopic, t_str);
+        metadata_req_handle(subtopic, t_str);  // recursive decent
         *topic_str_last = 0;  // reset string to original
     }
 }
 
+static int32_t metadata_top_req(void * user_data, const char * topic) {
+    struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) user_data;
+    struct topic_s * t = topic_find(self, topic, false);
+    if (t) {
+        metadata_req_handle(t, topic);
+    }
+    return 0;
+}
+
 static void publish_meta(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz) {
+    char topic_prefix_str[FBP_TOPIC_LIST_LENGTH_MAX];
+    topic_str_base(msg->name, topic_prefix_str);
     struct topic_s * t;
     uint8_t dtype = msg->value.type;
-    if (name_sz == 0) {
-        FBP_LOGE("publish_meta with empty topic");
-        return;
-    } else if (msg->name[name_sz - 1] != '$') {
-        FBP_LOGE("publish_meta, but invalid topic %s", msg->name);
-        return;
-    } else if (name_sz == 1) {
+    if (name_sz == 1) {
         // metadata request root, respond with our owned topics
-        t = self->root_topic;
-        msg->name[0] = 0;
-        metadata_req_handle(t, msg);
-        msg->name[0] = '$';
-        msg->name[1] = 0;
-        metadata_req_forward(self, msg);
+        fbp_topic_list_iterate(&self->topic_prefix, metadata_top_req, self);
+        req_forward(self, FBP_PUBSUB_SFLAG_METADATA_REQ, msg);
     } else if (msg->name[name_sz - 2] == '/') {
         // metadata request topic
         msg->name[name_sz - 2] = 0;
         t = topic_find_existing_base(self, msg->name);
-        if (fbp_cstr_starts_with(msg->name, self->topic_prefix)) {
+        if (fbp_topic_list_contains(&self->topic_prefix, topic_prefix_str)) {
             // we own this topic, fulfill metadata request
-            metadata_req_handle(t, msg);
+            metadata_req_handle(t, msg->name);
         } else {
             // not for us, forward request to link subscribers
             msg->name[name_sz - 2] = '/';
-            metadata_req_forward(self, msg);
+            req_forward(self, FBP_PUBSUB_SFLAG_METADATA_REQ, msg);
         }
     } else {
         // metadata publish
-        if (fbp_cstr_starts_with(msg->name, self->topic_prefix)) {
+        if (fbp_topic_list_contains(&self->topic_prefix, topic_prefix_str)) {
             // for us, retain as needed
             msg->name[name_sz - 1] = 0;
             t = topic_find(self, msg->name, true);
@@ -816,38 +902,124 @@ static void publish_meta(struct fbp_pubsub_s * self, struct message_s * msg, siz
                     // query (cannot clear metadata)
                 }
                 metadata_rsp_handle(t, msg->name);
+
+                struct fbp_union_s default_value = fbp_union_null();
+                if ((0 == fbp_pubsub_meta_default(t->meta, &default_value)) && (default_value.type != FBP_UNION_NULL)) {
+                    struct message_s * m = msg_alloc(self);
+                    fbp_cstr_copy(m->name, msg->name, sizeof(m->name));
+                    m->value = default_value;
+                    m->value.op = OP_PUBLISH;
+                    publish_normal(self, m);
+                    msg_free(self, m);
+                }
             }
         } else {
             // not for us, forward to response subscribers
-            metadata_rsp_forward(self, msg);
+            rsp_forward(self, FBP_PUBSUB_SFLAG_METADATA_RSP, msg);
         }
     }
 }
 
-static void publish_retained(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz) {
-    (void) self;
-    (void) msg;
-    (void) name_sz;
-    // todo
-}
-
-static void publish_error(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz) {
+static void query_rsp_handle(struct topic_s * topic, char * topic_str) {
     struct fbp_list_s * item;
     struct subscriber_s * subscriber;
-    if (!name_sz || (msg->name[name_sz - 1] != '#')) {
+
+    if (!topic || (topic->value.type == FBP_UNION_NULL)) {
+        return;
+    }
+
+    size_t idx = strlen(topic_str);
+    if ((idx == 0) || (topic_str[idx - 1] != FBP_PUBSUB_CHAR_QUERY)) {
+        topic_str[idx] = FBP_PUBSUB_CHAR_QUERY;
+        topic_str[idx + 1] = 0;
+    }
+    struct fbp_union_s * value = &topic->value;
+    while (topic) {
+        fbp_list_foreach(&topic->subscribers, item) {
+            subscriber = FBP_CONTAINER_OF(item, struct subscriber_s, item);
+            if (subscriber->flags & FBP_PUBSUB_SFLAG_QUERY_RSP) {
+                //FBP_LOGD3("metadata_rsp_handle: %s, %s", topic_str, meta.value.str);
+                subscriber->cbk_fn(subscriber->cbk_user_data, topic_str, value);
+            }
+        }
+        topic = topic->parent;
+    }
+    topic_str[idx] = 0;
+}
+
+static void query_req_handle(struct topic_s * t, const char * topic) {
+    char t_str[FBP_TOPIC_LIST_LENGTH_MAX];
+    if (!t) {
+        return;
+    }
+    fbp_cstr_copy(t_str, topic, sizeof(t_str));
+    size_t topic_str_len = strlen(t_str);
+    char * topic_str_last = t_str + topic_str_len;
+    struct fbp_list_s * item;
+    struct topic_s * subtopic;
+    fbp_list_foreach(&t->children, item) {
+        subtopic = FBP_CONTAINER_OF(item, struct topic_s, item);
+        topic_str_append(t_str, subtopic->name);
+        query_rsp_handle(subtopic, t_str);
+        query_req_handle(subtopic, t_str);  // recursive decent
+        *topic_str_last = 0;  // reset string to original
+    }
+}
+
+static int32_t query_top_req(void * user_data, const char * topic) {
+    struct fbp_pubsub_s * self = (struct fbp_pubsub_s *) user_data;
+    struct topic_s * t = topic_find(self, topic, false);
+    if (t) {
+        query_req_handle(t, topic);
+    }
+    return 0;
+}
+
+static void publish_query(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz) {
+    char topic_prefix_str[FBP_TOPIC_LIST_LENGTH_MAX];
+    topic_str_base(msg->name, topic_prefix_str);
+    struct topic_s * t;
+    if (name_sz == 1) {
+        // query request root, respond with our owned topics
+        fbp_topic_list_iterate(&self->topic_prefix, query_top_req, self);
+        req_forward(self, FBP_PUBSUB_SFLAG_QUERY_REQ, msg);
+    } else if (msg->name[name_sz - 2] == '/') {
+        // query request topic
+        msg->name[name_sz - 2] = 0;
+        t = topic_find_existing_base(self, msg->name);
+        if (fbp_topic_list_contains(&self->topic_prefix, topic_prefix_str)) {
+            // we own this topic, fulfill metadata request
+            query_req_handle(t, msg->name);
+        } else {
+            // not for us, forward request to link subscribers
+            msg->name[name_sz - 2] = '/';
+            req_forward(self, FBP_PUBSUB_SFLAG_QUERY_REQ, msg);
+        }
+    } else {  // query response
+        if (fbp_topic_list_contains(&self->topic_prefix, topic_prefix_str)) {
+            rsp_forward(self, FBP_PUBSUB_SFLAG_QUERY_RSP, msg);
+        }
+    }
+}
+
+static void publish_error(struct fbp_pubsub_s * self, struct message_s * msg, size_t name_sz, bool external) {
+    struct fbp_list_s * item;
+    struct subscriber_s * subscriber;
+    if (!name_sz || (msg->name[name_sz - 1] != FBP_PUBSUB_CHAR_RETURN_CODE)) {
         FBP_LOGW("invalid publish_error: %s", msg->name);
     }
     msg->name[name_sz - 1] = 0;
     struct topic_s * t = topic_find_existing_base(self, msg->name);
-    msg->name[name_sz - 1] = '#';
+    msg->name[name_sz - 1] = FBP_PUBSUB_CHAR_RETURN_CODE;
 
     while (t) {
         fbp_list_foreach(&t->subscribers, item) {
             subscriber = FBP_CONTAINER_OF(item, struct subscriber_s, item);
-            if ((subscriber->cbk_fn == msg->src_fn) && (subscriber->cbk_user_data == msg->src_user_data)) {
+            bool subscriber_match = ((subscriber->cbk_fn == msg->src_fn) && (subscriber->cbk_user_data == msg->src_user_data));
+            if (external && subscriber_match) {
                 continue;
             }
-            if (subscriber->flags & FBP_PUBSUB_SFLAG_RSP) {
+            if (subscriber->flags & FBP_PUBSUB_SFLAG_RETURN_CODE) {
                 subscriber->cbk_fn(subscriber->cbk_user_data, msg->name, &msg->value);
             }
         }
@@ -865,12 +1037,11 @@ static uint8_t publish(struct topic_s * topic, struct message_s * msg) {
             if ((msg->src_fn == subscriber->cbk_fn) && (msg->src_user_data == subscriber->cbk_user_data)) {
                 continue;
             }
-            if (subscriber->flags & FBP_PUBSUB_SFLAG_NOPUB) {
-                continue;
-            }
-            uint8_t rv = subscriber->cbk_fn(subscriber->cbk_user_data, msg->name, &msg->value);
-            if (!status && rv) {
-                status = rv;
+            if (subscriber->flags & FBP_PUBSUB_SFLAG_PUB) {
+                uint8_t rv = subscriber->cbk_fn(subscriber->cbk_user_data, msg->name, &msg->value);
+                if (!status && rv) {
+                    status = rv;
+                }
             }
         }
         topic = topic->parent;
@@ -880,23 +1051,42 @@ static uint8_t publish(struct topic_s * topic, struct message_s * msg) {
 
 static void publish_normal(struct fbp_pubsub_s * self, struct message_s * msg) {
     uint8_t status = 0;
+    bool do_publish = true;
     struct topic_s * t = topic_find(self, msg->name, true);
     if (t) {
-        // todo map alternate values to actual value using metadata
-        if (fbp_union_eq(&t->value, &msg->value) && (t->value.flags & FBP_UNION_FLAG_RETAIN)) {
-            return; // same value, skip to de-duplicate.
+        if (t->meta) {  // validate values using metadata
+            if (fbp_pubsub_meta_value(t->meta, &msg->value)) {
+                status = FBP_ERROR_PARAMETER_INVALID;
+            }
         }
-        t->value = msg->value;
-        status = publish(t, msg);
+        if (!status) {
+            if (msg->value.flags & FBP_UNION_FLAG_RETAIN) {
+                if (fbp_union_eq(&t->value, &msg->value)) {
+                    do_publish = false;
+                } else {
+                    if (fbp_union_is_type_ptr(&msg->value) && (0 == (msg->value.flags & FBP_UNION_FLAG_CONST))) {
+                        FBP_LOGW("%s retain ptr but not const", msg->name);
+                    }
+                    t->value = msg->value;
+                }
+            } else {
+                t->value = fbp_union_null();
+            }
+            if (do_publish) {
+                status = publish(t, msg);
+            }
+        }
     }
-    if (status) { // error
+
+    char topic_str[FBP_TOPIC_LIST_LENGTH_MAX];
+    topic_str_base(msg->name, topic_str);
+    if (status || (self->return_code && fbp_topic_list_contains(&self->topic_prefix, topic_str))) {
+        // send return code message
         size_t topic_sz = strlen(msg->name);
-        msg->name[topic_sz] = '#';
+        msg->name[topic_sz] = FBP_PUBSUB_CHAR_RETURN_CODE;
         msg->name[topic_sz + 1] = 0;
-        msg->value.type = FBP_UNION_U32;
-        msg->value.flags = 0;
-        msg->value.value.u32 = status;
-        publish_error(self, msg, topic_sz + 1);
+        msg->value = fbp_union_i32((int32_t) status);
+        publish_error(self, msg, topic_sz + 1, false);
     }
 }
 
@@ -927,8 +1117,12 @@ static void process_one(struct fbp_pubsub_s * self, struct message_s * msg) {
         case FBP_UNION_STR: break;
         case FBP_UNION_JSON: break;
         case FBP_UNION_BIN: break;
-        case FBP_UNION_F32: break;
+#if FBP_CONFIG_USE_FLOAT32
+         case FBP_UNION_F32: break;
+#endif
+#if FBP_CONFIG_USE_FLOAT64
         case FBP_UNION_F64: break;
+#endif
         case FBP_UNION_U8: break;
         case FBP_UNION_U16: break;
         case FBP_UNION_U32: break;
@@ -948,9 +1142,9 @@ static void process_one(struct fbp_pubsub_s * self, struct message_s * msg) {
             FBP_LOGW("publish to root not allowed");
         } else {
             switch (msg->name[name_sz - 1]) {
-                case '$': publish_meta(self, msg, name_sz); break;
-                case '?': publish_retained(self, msg, name_sz); break;
-                case '#': publish_error(self, msg, name_sz); break;
+                case FBP_PUBSUB_CHAR_METADATA: publish_meta(self, msg, name_sz); break;
+                case FBP_PUBSUB_CHAR_QUERY: publish_query(self, msg, name_sz); break;
+                case FBP_PUBSUB_CHAR_RETURN_CODE: publish_error(self, msg, name_sz, true); break;
                 default: publish_normal(self, msg); break;
             }
         }
@@ -974,6 +1168,7 @@ void fbp_pubsub_process(struct fbp_pubsub_s * self) {
         msg = FBP_CONTAINER_OF(item, struct message_s, item);
         process_one(self, msg);
 
+        // free message and any buffer
         lock(self);
         if (is_ptr_type(msg->value.type) && (0 == (msg->value.flags & FBP_UNION_FLAG_CONST))) {
             uint32_t sz = 0;

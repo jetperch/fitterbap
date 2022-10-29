@@ -23,7 +23,6 @@
 #ifndef FBP_EVENT_MANAGER_H_
 #define FBP_EVENT_MANAGER_H_
 
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/os/mutex.h"
 #include <stdint.h>
 #include <stddef.h>

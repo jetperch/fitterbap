@@ -15,7 +15,7 @@
 cmake_minimum_required (VERSION 3.1)
 set(PARENT_PROJECT_DIR ${PROJECT_SOURCE_DIR})
 project(FITTERBAP
-        VERSION 0.4.1
+        VERSION 0.5.0
         LANGUAGES C)
 SET(PROJECT_PREFIX FBP)
 SET(VERSION_STRING "${PROJECT_VERSION}")
@@ -26,6 +26,17 @@ if (NOT PARENT_PROJECT_DIR)
 else()
     set(FITTERBAP_TOPLEVEL 0)
 endif()
+
+if(DEFINED FITTERBAP_OS)
+    # use the provided value
+elseif (WIN32)
+    SET(FITTERBAP_OS "WIN32" CACHE STRING "Target operating system")
+elseif (LINUX)
+    SET(FITTERBAP_OS "LINUX" CACHE STRING "Target operating system")
+else ()
+    message(FATAL_ERROR "Could not detect target OS")
+endif()
+message(STATUS "Fitterbap OS = ${FITTERBAP_OS}")
 
 option(FITTERBAP_DOCS "Use Doxygen to create the HTML based Host API documentation" OFF)
 option(FITTERBAP_UNIT_TEST "Build the fitterbap unit tests" ON)
@@ -65,9 +76,11 @@ set(FITTERBAP_LIBS fitterbap ${THIRD_PARTY_LIBS} CACHE INTERNAL "fitterbap libra
 set(FITTERBAP_DEPENDS fitterbap CACHE INTERNAL "fitterbap dependencies" FORCE)
 
 include_directories(${FITTERBAP_INCLUDE})
-if (FITTERBAP_TOPLEVEL)
-    message(STATUS "Configured for FBP toplevel")
+if (${FITTERBAP_TOPLEVEL})
+    message(STATUS "Fitterbap: IS toplevel")
     include_directories(${CMAKE_SOURCE_DIR}/port/include)
+else()
+    message(STATUS "Fitterbap: is NOT toplevel")
 endif()
 add_subdirectory(src)
 
@@ -89,6 +102,6 @@ if(FITTERBAP_DOCS AND FITTERBAP_TOPLEVEL)
     add_custom_target(docs ALL
                       COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
                       SOURCES ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-                      DEPENDS fitterbap)
+                      DEPENDS fitterbap_objlib)
     install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/html/ DESTINATION doc)
 endif()

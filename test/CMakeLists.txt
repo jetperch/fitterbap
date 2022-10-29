@@ -48,22 +48,30 @@ ADD_CMOCKA_TEST(cstr_test)
 ADD_CMOCKA_TEST(dbc_test)
 ADD_CMOCKA_TEST(ec_test)
 
-add_executable(event_manager_test event_manager_test.c ../src/event_manager.c)
+add_executable(event_manager_test event_manager_test.c ../src/event_manager.c hal.c)
 add_dependencies(event_manager_test cmocka)
 target_link_libraries(event_manager_test cmocka)
 add_test(event_manager_test ${CMAKE_CURRENT_BINARY_DIR}/event_manager_test)
 
 ADD_CMOCKA_TEST(fsm_test)
+ADD_CMOCKA_TEST(json_test)
 ADD_CMOCKA_TEST(lfsr_test)
-ADD_CMOCKA_TEST(log_test)
+
+add_executable(log_test log_test.c)
+add_dependencies(log_test cmocka)
+target_link_libraries(log_test cmocka)
+add_test(log_test ${CMAKE_CURRENT_BINARY_DIR}/log_test)
+
 ADD_CMOCKA_TEST(logh_test)
 ADD_CMOCKA_TEST(pattern_32a_test)
 ADD_CMOCKA_TEST(platform_test)
 ADD_CMOCKA_TEST(pubsub_test)
+ADD_CMOCKA_TEST(pubsub_meta_test)
 ADD_CMOCKA_TEST(time_test)
 ADD_CMOCKA_TEST(topic_test)
 ADD_CMOCKA_TEST(topic_list_test)
 ADD_CMOCKA_TEST(union_test)
+ADD_CMOCKA_TEST(version_test)
 
 # test static assert compile failures
 # http://stackoverflow.com/questions/30155619/expected-build-failure-tests-in-cmake

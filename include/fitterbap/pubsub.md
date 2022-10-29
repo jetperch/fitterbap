@@ -1,5 +1,5 @@
 <!--
-# Copyright 2020-2021 Jetperch LLC
+# Copyright 2020-2022 Jetperch LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,15 +24,18 @@ for small embedded microcontrollers.  Features include:
 - Topic metadata for automatically populating user interfaces.
 - Supports distributed instances in
   [polytree](https://en.wikipedia.org/wiki/Polytree) topology:
-  - Concept of topic prefix ownership.
-  - Query retained messages
-  - Asynchronous error reporting
-  - State recovery in the event that any pubsub instance resets.
-  - Automatic topic routing using "fitterbap/comm/pubsub_port.h".
-- Thread-safe, in-order operation.  All updates queued and processed from
-  the pubsub context.  Subscribers can safely publish topic updates from
-  the subscriber callback with recursion or stack problems.
-- Reentrant on publish using mutex.
+    - Concept of topic prefix ownership.
+    - Query retained messages
+    - Asynchronous error reporting
+    - State recovery in the event that any pubsub instance resets.
+    - Automatic topic routing using "fitterbap/comm/pubsub_port.h".
+- Reentrant on publish.
+- Thread-safe, in-order operation.  When a mutex is provided,
+  all updates are queued and processed from the pubsub context.
+  Subscribers can safely publish topic updates from
+  the subscriber callback without recursion or stack problems.
+  When no mutex is provided, updates are processed immediately,
+  but messages are still queued to ensure in-order execution.
 - Dynamic allocation but only free in fbp_pubsub_finalize(), which is
   not normally used in an embedded microcontroller instantiations.
 - Guaranteed in-order topic traversal for retained messages based
@@ -42,7 +45,7 @@ for small embedded microcontrollers.  Features include:
 ## Topics
 
 Topic names are any valid UTF-8.  However, we highly recommend restricting
-topic names to ASCII standard letters and numbers 0-9, A-Z, a-z, ".", _ and - 
+topic names to ASCII standard letters and numbers 0-9, A-Z, a-z, ".", _ and -
 (ASCII codes 45, 46, 48-57, 65-90, 95, 97-122)
 The following symbols are reserved:
 
@@ -65,21 +68,21 @@ keys:
 - brief: A brief string description (recommended).
 - detail: A more detailed string description (optional).
 - default: The recommended default value (optional).
-- options: A list of options, which is each a list of:   
-     [value, [alt1 [, ...]]]   
-     The alternates must be given in order.  The first value
-     must be the value as dtype.  The second value alt1
-     (when provided) is used to automatically populate user
-     interfaces, and it can be the same as value.  Additional
-     values will be interpreted as equivalents.
+- options: A list of options, where each option is each a flat list of:
+  [value [, alt1 [, ...]]]
+  The alternates must be given in preference order.  The first value
+  must be the value as dtype.  The second value alt1
+  (when provided) is used to automatically populate user
+  interfaces, and it can be the same as value.  Additional
+  values will be interpreted as equivalents.
 - range: The list of [v_min, v_max] or [v_min, v_max, v_step].  Both
   v_min and v_max are *inclusive*.  v_step defaults to 1 if omitted.
-- format: Formatting hints for the value:
-  - version: The u32 dtype should be interpreted as major8.minor8.patch16.
+- format: Formatting hints string:
+    - version: The u32 dtype should be interpreted as major8.minor8.patch16.
 - flags: A list of flags for this topic.  Options include:
-  - ro: This topic cannot be updated.
-  - hide: This topic should not appear in the user interface.
-  - dev: Developer option that should not be used in production.
+    - ro: This topic cannot be updated.
+    - hide: This topic should not appear in the user interface.
+    - dev: Developer option that should not be used in production.
 
 To re-enumerate all metadata, publish NULL to "$" or "topic/$".
 This implementation recognizes this request, and will publish
@@ -89,9 +92,18 @@ request does not match this pubsub instance, it will be forwarded
 to any matching subscribers with the request flag.
 Each pubsub instance will respond to the matching topics it owns.
 
+To query all retained values, publish NULL to "?" or "topic/?", 
+which is a query request.  The PubSub instance will also forward
+the query request to any 
+query request subscribers (FBP_PUBSUB_SFLAG_QUERY_REQ flag), if the
+query request cannot be fully processed by this instance.
+The PubSub implementation will publish query responses to all
+matching topics as "t/h/n?".  The response is only sent to 
+query response subscribers (FBP_PUBSUB_SFLAG_QUERY_RSP flag). 
+
 If publishing to a topic "t/h/n" owned by a pubsub instance fails, then that
 instance will publish to "t/h/n#".  The error will be forward to any matching
-response subscribers.  The value is a u32 containing the error code.
+response subscribers.  The value is an i32 containing the error code.
 
 
 ## Special Topics
@@ -101,24 +113,25 @@ have special meaning.  Any topic that starts with "_/" is considered
 local to a PubSub instance.  Links should not propagate those topics
 to any other PubSub instance.
 
-Topics that start with "./" indicate comm events.  
+Topics that start with "./" indicate comm events.
 
 The following topics are reserved:
 
 - **_/topic/prefix**: The retained topic prefix for this PubSub instance.
-- **_/topic/add**: Add the topic prefix as a PubSub child.  Provided by 
+- **_/topic/add**: Add the topic prefix as a PubSub child.  Provided by
   each child link upon connection.
 - **_/topic/remove**: Remove the topic prefix as a PubSub child.  Provided by
   a child link upon disconnection.
-- **_/topic/list**: The retained "unit separator" (0x1F) separated topic 
+- **_/topic/list**: The retained "unit separator" (0x1F) separated topic
   prefix list for this PubSub instance and all children, as aggregated
   from **_/topic/add** and **_/topic/remove**.
   Note that this list updates before the connection fully establishes.
   See ./comm/add and ./comm/remove below.
-- **./comm/add**: A connection was established, and the list of base topics 
+- **./comm/add**: A connection was established, and the list of base topics
   are now available.
 - **./comm/remove**: A connection was lost, and the list of base topics
   are now available.
+- **_/cfg/rc**: Publish a return code for every value publish, even on success.
 
 
 ## Distributed State Recovery
@@ -131,7 +144,7 @@ fail.  The state must remain consistent under all these cases.
 Let's take the following system:
 
 ```
-       Client          Host   Client          Host           
+       Client          Host   Client          Host
       A      <-- AB -->      B      <-- BC -->      C
     PubSub      Link       PubSub      Link       PubSub
 ```
@@ -141,15 +154,15 @@ maintain consistent state.  Consistent state must be established
 at startup and whenever any instance resets.
 
 The PubSub Links (AB, BC) share information between the PubSub instances.
-The Links are designed with a Host and Client architecture to form a 
+The Links are designed with a Host and Client architecture to form a
 directed graph, specifically a PolyTree.
 
 This example describes "fitterbap/comm/pubsub_port.h", which implements
 a link as a Comm protocol Port.
-Each Link Host and Client maintains conn_count, the number of 
-times that it has established connection.  If 
+Each Link Host and Client maintains conn_count, the number of
+times that it has established connection.  If
 client_conn_count > host_conn_count or both == 1, then the client
-state propagates to the host.  If 
+state propagates to the host.  If
 client_conn_count <= host_conn_count, the the host state
 propagates to the client.
 
@@ -160,7 +173,7 @@ propagates to the client.
 2. Client AB advertises topic base "a"
 3. Host AB subscribes to B topic "a" without RETAIN
 4. Client AB subscribes to A topic "" with RETAIN
-5. Client AB forwards PubSub A retained messages to PubSub B 
+5. Client AB forwards PubSub A retained messages to PubSub B
 
 
 ### Case 2: Connect BC after AB
@@ -228,7 +241,7 @@ PubSub A while PubSub B is disconnected.
 7. Link AB connects, client_conn_count == 2 and host_conn_count == 1
 8. Client AB advertises topic base "a"
 9. Host AB subscribes to B topic "a" without RETAIN
-10. Client BC forwards dependent topic "b"   
+10. Client BC forwards dependent topic "b"
 11. Client AB subscribes to B topic "" with RETAIN
 12. Client AB forwards PubSub A retained messages to PubSub B (& C)
 
@@ -247,7 +260,7 @@ from PubSub B, just like with first connection.
 
 - [pubsub-c](https://github.com/jaracil/pubsub-c) but uses dynamic memory.
 - [ZCM](https://zerocm.github.io/zcm/)
-  
+
 
 ## PubSub Servers & Brokers
 

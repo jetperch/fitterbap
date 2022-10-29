@@ -23,15 +23,15 @@
 #ifndef FBP_COMM_STACK_H_
 #define FBP_COMM_STACK_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/data_link.h"
 #include "fitterbap/comm/transport.h"
 #include "fitterbap/comm/port0.h"
 #include "fitterbap/comm/log_port.h"
 #include "fitterbap/pubsub.h"
 #include "fitterbap/comm/pubsub_port.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @ingroup fbp_comm
@@ -52,6 +52,7 @@ FBP_CPP_GUARD_START
  * access with care as it makes your code more brittle.
  */
 struct fbp_stack_s {
+    struct fbp_framer_s * framer;
     struct fbp_dl_s * dl;
     struct fbp_evm_api_s evm_api;
     struct fbp_transport_s * transport;

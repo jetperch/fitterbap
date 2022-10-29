@@ -35,23 +35,3 @@ char const * const fbp_log_level_str[FBP_LOG_LEVEL_ALL + 1] = {
 char const fbp_log_level_char[FBP_LOG_LEVEL_ALL + 1] = {
         '!', 'A', 'C', 'E', 'W', 'N', 'I', 'D', 'D', 'D', '.'
 };
-
-
-void fbp_log_printf_default(const char * fmt, ...) {
-    (void) fmt;
-}
-
-volatile fbp_log_printf FBP_USED fbp_log_printf_ = fbp_log_printf_default;
-
-int fbp_log_initialize(fbp_log_printf handler) {
-    if (NULL == handler) {
-        fbp_log_printf_ = fbp_log_printf_default;
-    } else {
-        fbp_log_printf_ = handler;
-    }
-    return 0;
-}
-
-void fbp_log_finalize() {
-    fbp_log_initialize(0);
-}

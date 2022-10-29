@@ -71,9 +71,12 @@ cdef extern from "fitterbap/pubsub.h":
     enum fbp_pubsub_sflag_e:
         FBP_PUBSUB_SFLAG_NONE = 0
         FBP_PUBSUB_SFLAG_RETAIN = (1 << 0)
-        FBP_PUBSUB_SFLAG_NOPUB = (1 << 1)
-        FBP_PUBSUB_SFLAG_REQ = (1 << 2)
-        FBP_PUBSUB_SFLAG_RSP = (1 << 3)
+        FBP_PUBSUB_SFLAG_PUB = (1 << 1)
+        FBP_PUBSUB_SFLAG_METADATA_REQ = (1 << 2)
+        FBP_PUBSUB_SFLAG_METADATA_RSP = (1 << 3)
+        FBP_PUBSUB_SFLAG_QUERY_REQ = (1 << 4)
+        FBP_PUBSUB_SFLAG_QUERY_RSP = (1 << 5)
+        FBP_PUBSUB_SFLAG_RETURN_CODE = (1 << 6)
 
     ctypedef uint8_t (*fbp_pubsub_subscribe_fn)(void * user_data,
             const char * topic, const fbp_union_s * value) nogil

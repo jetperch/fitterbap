@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include "fitterbap/common_header.h"
 #include "fitterbap/log.h"
 #include "fitterbap/assert.h"
 #include <stdlib.h>
@@ -26,27 +26,22 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-static void * hal_alloc(fbp_size_t size_bytes) {
+void * fbp_alloc_(fbp_size_t size_bytes) {
     void * ptr =  test_malloc((size_t) size_bytes);
     // printf("hal_alloc %p\n", ptr);
     return ptr;
 }
 
-static void hal_free(void * ptr) {
+void fbp_free_(void * ptr) {
     // printf("hal_free %p\n", ptr);
     test_free(ptr);
 }
 
-void app_log_printf_(const char *format, ...) {
+void fbp_log_printf_(const char *format, ...) {
     va_list arg;
     va_start(arg, format);
     vprintf(format, arg);
     va_end(arg);
-}
-
-void hal_test_initialize() {
-    fbp_allocator_set(hal_alloc, hal_free);
-    fbp_log_initialize(app_log_printf_);
 }
 
 void fbp_fatal(char const * file, int line, char const * msg) {

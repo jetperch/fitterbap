@@ -20,17 +20,8 @@
  * @brief FBP configuration.
  */
 
-#ifndef FBP_CONFIG_H_
-#define FBP_CONFIG_H_
-
-/**
- * @ingroup fbp
- * @defgroup fbp_config Configuration
- *
- * @brief FBP configuration.
- *
- * @{
- */
+#ifndef FBP_PY_CONFIG_H_
+#define FBP_PY_CONFIG_H_
 
 
 /* Set global log level */
@@ -39,25 +30,21 @@
 /* Set the initial comm log port level for forwarding/receiving log messages. */
 #define FBP_LOGP_LEVEL FBP_LOG_LEVEL_ALL
 
-
 /* Override the log format */
-/*
+void fbp_log_printf_(const char *fmt, ...);
 #define FBP_LOG_PRINTF(level, format, ...) \
    fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
-#endif
-*/
 
-#define FBP_FRAMER_CRC32 fbp_crc32
-#define FBP_CRC_CRC32 1
-
-#ifdef __linux__
-#include "fitterbap/host/linux/config.h"
-#elif _WIN32
+// todo linux & mac support
+#if defined(WIN32) || defined(_WIN32)
 #include "fitterbap/host/win/config.h"
 #else
+#error "unsupported platform"
 #endif
 
-/** @} */
+#define FBP_CONFIG_USE_FLOAT32 1
+#define FBP_CONFIG_USE_FLOAT64 1
+#define FBP_CONFIG_USE_CSTR_FLOAT 1
 
-#endif /* FBP_CONFIG_H_ */
+#endif /* FBP_PY_CONFIG_H_ */
 

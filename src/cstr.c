@@ -15,8 +15,10 @@
  */
 
 #include "fitterbap/cstr.h"
-#include "fitterbap/config.h"
 #include "fitterbap/ec.h"
+
+
+#define FLOAT_EXP_MAX (38)
 
 
 static char _toupper(char c) {
@@ -31,6 +33,10 @@ static int _isspace(char c) {
         return 1;
     }
     return 0;
+}
+
+static inline int _isdigit(char c) {
+    return ((c >= '0') && (c <= '9'));
 }
 
 
@@ -127,6 +133,34 @@ const char * fbp_cstr_starts_with(const char * s, const char * prefix) {
         ++prefix;
         ++s;
     }
+}
+
+const char * fbp_cstr_ends_with(const char * s, const char * prefix) {
+    if (!prefix || !*prefix || !s) {
+        return s;
+    }
+    const char * s_end = s;
+    const char * prefix_end = prefix;
+
+    while (*s_end) {
+        ++s_end;
+    }
+
+    while (*prefix_end) {
+        ++prefix_end;
+    }
+
+    if ((s_end - s) < (prefix_end - prefix)) {
+        return 0;  // s too short to match
+    }
+
+    while (prefix_end >= prefix) {
+        if (*prefix_end-- != *s_end--) {
+            return 0;
+        }
+    }
+    ++s_end;
+    return s_end;
 }
 
 int fbp_cstr_to_u32(const char * src, uint32_t * value) {
@@ -280,10 +314,25 @@ int fbp_cstr_to_i32s(const char * src, int32_t exponent, int32_t * value) {
     return 0;
 }
 
-#if FBP_CSTR_FLOAT_ENABLE
+#if FBP_CONFIG_USE_CSTR_FLOAT
+const float exp_pow[] = {  // binary lookup table for exponent
+        10.0e1f,
+        10.0e2f,
+        10.0e4f,
+        10.0e8f,
+        10.0e16f,
+        10.0e32f,
+};
+
 int fbp_cstr_to_f32(const char * src, float * value) {
-    char *p;
-    float x0;
+    float x;
+    float exp = 1.0f;
+    const float * exp_pow_ptr = exp_pow;
+    int32_t accum_int = 0;
+    int32_t accum_fract = 0;
+    int32_t accum_fact_pow = 0;
+    bool is_neg = false;
+    bool is_exp_neg = false;
 
     if ((NULL == src) || (NULL == value)) {
         return 1;
@@ -296,17 +345,69 @@ int fbp_cstr_to_f32(const char * src, float * value) {
         return 1;
     }
 
-    x0 = strtof(src, &p);
-    if ((p == NULL)) {
-        return 1;
+    // parse sign
+    if (*src == '+') {
+        ++src;
+    } else if (*src == '-') {
+        is_neg = true;
+        ++src;
     }
-    while (*p) {
-        if (!_isspace((uint8_t) *p++)) { // did not parse full string
+
+    // parse integer component
+    while (_isdigit(*src)) {
+        accum_int = accum_int * 10 + (*src++ - '0');
+    }
+    x = (float) accum_int;
+
+    // parse optional fractional component
+    if (*src == '.') {
+        ++src;
+        while (_isdigit(*src)) {
+            accum_fract = accum_fract * 10 + (*src++ - '0');
+            accum_fact_pow *= 10;
+        }
+        x += accum_fract / (float) accum_fact_pow;
+    }
+
+    // parse optional exponent
+    if ((*src == 'E') || (*src == 'e')) {
+        ++src;
+        accum_int = 0;
+        // parse optional exponent sign
+        if (*src == '+') {
+            ++src;
+        } else if (*src == '-') {
+            is_exp_neg = true;
+            ++src;
+        }
+        while (_isdigit(*src)) {
+            accum_int = accum_int * 10 + (*src++ - '0');
+        }
+        if (accum_int > FLOAT_EXP_MAX) {
+            accum_int = FLOAT_EXP_MAX;
+        }
+        // convert exponent into multiplier/divider using table lookup
+        for (; accum_int; accum_int >>= 1, ++exp_pow_ptr) {
+            if (accum_int & 1) {
+                exp *= *exp_pow_ptr;
+            }
+        }
+        x = is_exp_neg ? (x / exp) : (x * exp);
+    }
+
+    // parse optional floating point designator
+    if ((*src == 'F') || (*src == 'f')) {
+        ++src;
+    }
+
+    // ensure that we parsed the full string
+    while (*src) {
+        if (!_isspace((uint8_t) *src++)) { // did not parse full string
             return 1;
         }
     }
 
-    *value = (float)x0;
+    *value = is_neg ? -x : x;
     return 0;
 }
 #endif
@@ -319,9 +420,10 @@ int fbp_u32_to_cstr(uint32_t u32, char * str, fbp_size_t str_size) {
     }
     *str = 0;
     while (u32) {
-        uint32_t k = u32 % 10;
-        u32 /= 10;
+        uint32_t d = u32 / 10;
+        uint32_t k = u32 - (d * 10);  // u32 % 10
         *p++ = '0' + k;
+        u32 = d;
     }
     if (p == buf) {
         *p++ = '0';

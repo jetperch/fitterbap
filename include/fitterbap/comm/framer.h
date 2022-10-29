@@ -77,7 +77,7 @@
  * - "length" is the payload length (not full frame length) in total_bytes, minus 1.
  *   The maximum payload length is 256 total_bytes.  Since the frame overhead is 9
  *   total_bytes, the actual frame length ranges from 9 to 265 total_bytes.
- * - "length_crc" is the CRC-8 computed with polynomial 0xEB over the length field
+ * - "length_crc" is the CRC-8 computed with polynomial 0xD7 over the length field
  *   only.  This CRC has Hamming Distance (HD) of 5 over the 8-bit length.
  *   By increasing the reliability of the length field, the frame_crc
  *   remains more effective with regards to Hamming Distance.
@@ -102,7 +102,7 @@
  *   by the framer and can be used for autobaud detection.
  *
  * The link frame format is a fixed-length frame with
- * 8 total_bytes:
+ * 8 total_bytes excluding EOF:
  *
  * <table class="doxtable message">
  *  <tr><th>7</td><th>6</td><th>5</td><th>4</td>
@@ -114,10 +114,10 @@
  *      <td colspan="3">frame_id[10:8]</td>
  *  </tr>
  *  <tr><td colspan="8">frame_id[7:0]</td></tr>
- *  <tr><td colspan="8">frame_crc[7:0]</td></tr>
- *  <tr><td colspan="8">frame_crc[15:8]</td></tr>
- *  <tr><td colspan="8">frame_crc[23:16]</td></tr>
- *  <tr><td colspan="8">frame_crc[31:24]</td></tr>
+ *  <tr><td colspan="8">link_check[7:0]</td></tr>
+ *  <tr><td colspan="8">link_check[15:8]</td></tr>
+ *  <tr><td colspan="8">link_check[23:16]</td></tr>
+ *  <tr><td colspan="8">link_check[31:24]</td></tr>
  *  <tr><td colspan="8">EOF </td></tr>
  * </table>
  *
@@ -134,6 +134,11 @@
  *   Note that this may not be lowest frame_id.
  * - RESET: Reset all state.
  *
+ * Instead of using a CRC, the link frame's link_check is the simple
+ * bit-wise negation of the first 4 bytes.  While this approach
+ * offers no bit dispersion, it does give excellent detection
+ * performance with a Hamming distance of 32.
+ *
  *
  * ## Framing algorithm
  *
@@ -141,7 +146,7 @@
  * then validates frame_type, and candidate frames with invalid frame_types
  * are ignored.  For data frames, the framer validates the length CRC.
  *
- * The CRC-32-CCITT is then computed over the entire frame from the first
+ * The 32-bit CRC is then computed over the entire frame from the first
  * non-SOF byte through the payload, using the length byte to determine
  * the total byte count for data frames.  If the
  * frame_crc matches the computed CRC and EOF matches,
@@ -156,11 +161,12 @@
  * ### 32-bit CRC:
  *
  * The 32-bit CRC uses a table-based CRC-32-CCITT by default.  As discussed
- * below, other CRC choices, such as CRC-32C, provide even better error
- * performance.  My microcontrollers also offer hardware acceleration.
+ * below, other CRC choices, such as CRC-32C (ethernet), provide even better
+ * performance.  Many microcontrollers offer hardware acceleration, and you
+ * can select a hardware-accelerated CRC algorithm for specific applications.
  *
- * Define FBP_FRAMER_CRC32 to the function that the framer should use to
- * compute the 32-bit CRC.  The standard implementation uses fbp_crc32
+ * Define FBP_CONFIG_COMM_FRAMER_CRC32(data, length) to compute the 32-bit
+ * checksum.  The standard implementation uses fbp_crc32
  * declared by fitterbap/crc.h and defined by src/crc32.c.
  *
  *
@@ -177,17 +183,22 @@
  * could match the corrupted data.  The longer the data, the shorter the HD.
  * Some CRC polynomials are better than others.
  *
+ * CRCs are also not equally effective, even with the same HD.  The
+ * Hamming Weight (HW) is the number of undetectable errors given that
+ * number of bits.
+ *
+ *
  * For our application, we compute a 32-bit CRC over 262 bytes (2096 bits).
  * So, how do common 32-bit CRCs stack up?
  *
  * [CRC-32 (ethernet)](https://users.ece.cmu.edu/~koopman/crc/c32/0x82608edb.txt):
- * HD=5 @ 2096 bits
+ * HD=5 @ 2096 bits, Hamming Weight 89622
  *
  * [CRC-32C](https://users.ece.cmu.edu/~koopman/crc/c32/0x8f6e37a0.txt):
- * HD=6 @ 2096 bits
+ * HD=6 @ 2096 bits, Hamming Weight 59795110
  *
  *
- * ## Analysis
+ * ## Data Frame Analysis
  *
  * Framer performance includes the following metrics:
  * 1. False-positive frame detection rate on random data
@@ -197,8 +208,8 @@
  * To address item (2), this design uses SOF1 and SOF2 bytes that dramatically
  * reduce the search space.  This design also keeps the frame locked
  * computation burden (3) low.  The transmitter must populate the header
- * and compute the CRC32.  The receiver must validate the header fields
- * and also calculate the CRC32.  CRC32 is a reasonable computational
+ * and compute the 32-bit CRC.  The receiver must validate the header fields
+ * and also calculate the 32-bit CRC.  32-bit CRC is a reasonable computational
  * burden while also giving great error detection performance.
  *
  * This frame format contains multiple features to keep the false-positive
@@ -276,13 +287,20 @@
  *     On random data, the likelihood is 1/256 (or 2**8 / 2**16 = 1/256)
  *     since each length value has one and only one corresponding CRC8 value.
  *
+ * [CRC-8 0xD7](https://users.ece.cmu.edu/~koopman/crc/c08/0xeb.txt) has
+ * HD=5 @ 8 bits, Hamming Weight 24
+ *
  * However, assuming a 1e-6 bit error rate and the Hamming distance of 5, we
- * need 5 or more bit errors to occur to possibly match.  Using python 3 with
- * gmpy2, the odds of bit errors exceeding the Hamming distance are then:
+ * need 5 or more bit errors to occur to falsely match.  Using python 3 with
+ * [gmpy2](https://pypi.org/project/gmpy2/)
+ * [windows download](https://www.lfd.uci.edu/~gohlke/pythonlibs/#gmpy),
+ * the odds of bit errors exceeding the Hamming distance are then:
  *
  *     import math
+ *     import gmpy2
  *     from gmpy2 import mpfr
  *     gmpy2.get_context().precision=256
+ *     # Probability of Undetected Error for any random polynomial
  *     def crc_false_positive(bit_error_rate, length_bits, hamming_distance):
  *         p = mpfr(bit_error_rate)
  *         pt = sum([math.comb(length_bits, i) * (p**i) *
@@ -291,28 +309,69 @@
  *     crc_false_positive(1e-6, 8 + 8, 5)
  *     = 4e-27
  *
- * Now how about the CRC-32 with HD=5 over 2096 bits?
+ * The above calculation does not account for the polynomial effectiveness
+ * represented by Hamming Weight.  According to
+ * [maxino09](http://users.ece.cmu.edu/~koopman/pubs/maxino09_checksums.pdf#page=3),
+ * the Probability of Undetected Error accounting for CRC effectiveness is:
  *
- *     = crc_false_positive(1e-6, 2096 + 32, 5)
- *     = 3.3e-16 frames
+ *     Pud = HW * BER ^ x * (1 - BER) ^ (n - x)
  *
- * However, this only assets that an false positive is possible.  We still
- * need to match the CRC-32 value, with likelihood 2**-32.  The actual
- * likelihood is then:
+ * According to [Koopman's CRC Zoo](https://users.ece.cmu.edu/~koopman/crc/c08/0xeb.txt),
+ * the HW is 24 for this CRC over length 8.  Therefore, the likelihood at HD(5) is
  *
- *     = 3.3e-16 * 2**-32
- *     = 7.68e-26
+ *     def crc_pud(bit_error_rate, length_bits, hamming_distance, hamming_weight):
+ *         ber = mpfr(bit_error_rate)
+ *         return hamming_weight * (ber ** hamming_distance) * ((1 - ber) ** (length_bits - hamming_distance))
+ *     crc_pud(1e-6, 8, 5, 24)
+ *     = 2.4e-29
+ *
+ * which is a factor of 182 times better the the previous calculation.
+ * Now, we can also add contributions from more bit errors:
+ *
+ *      crc_pud(1e-6, 8, 6, 44) + crc_pud(1e-6, 8, 7, 40) + crc_pud(1e-6, 8, 8, 45)
+ *      => 4.4e-35
+ *
+ * but the value is insignificant compared to 2.4e-29 at HD(5).
+ *
+ * Now how about the CRC-32 with HD=5?
+ *
+ *     crc_pud(1e-6, 2096 + 32, 5, 89622)
+ *     => 8.9e-26 frames
  *
  * At 3 Mbaud, we have 1119 frames / second, so our expected error rate is:
  *
- *     = 1 / 7.68e-26 / 1119 / (60 * 60 * 24 * 365)
- *     = 368,979,371,273,698 years
+ *     = 1 / 8.9e-26 / 1119 / (60 * 60 * 24 * 365)
+ *     => 3.2e14 years
+ *
+ * Note that the alternative computation using crc_false_positive gives
+ * approximately the same result:
+ *
+ *      = 1 / (crc_false_positive(1e-6, 2096 + 32, 5) * 2**-32) / 1119 / (60 * 60 * 24 * 365)
+ *      => 3.4e14 years
  *
  * If we select CRC-32C with HD=6, the result is even better:
  *
- *     = crc_false_positive(1e-6, 2096 + 32, 6)
- *     = 1.17e-19 frames
- *     => 1e18 years
+ *     1 / crc_pud(1e-6, 2096 + 32, 6, 59795110) / 1119 / (60 * 60 * 24 * 365)
+ *     => 4.7e17 years
+ *
+ *
+ * ## Link Frame Analysis
+ *
+ * | Field        |  Accuracy    |
+ * +--------------+--------------+
+ * | SOF1         | 1 / 256      |
+ * | SOF2         | 1 / 256      |
+ * | frame_type   | 6 / 32       |
+ * | frame_id     | 64 / 2^11    |
+ * | link_check   | 1 / 2^32     |
+ * | EOF          | 1 / 256      |
+ *
+ * The likelihood of a false-positive on random data is then:
+ *     kb = 1/256 * 1/256 * 6/32 * 64/2**11 * 1/2**32 * 1/256
+ *     kb = 8e-20
+ * Since the link frame does not contain the length CRC, the
+ * false-positive match of link frames is 256 times that of
+ * data frames.
  *
  *
  * ## References
@@ -354,7 +413,7 @@ FBP_CPP_GUARD_START
 /// The framer link message (ACK) size in bytes, excluding EOF
 #define FBP_FRAMER_LINK_SIZE (8)
 #define FBP_FRAMER_OVERHEAD_SIZE (FBP_FRAMER_HEADER_SIZE + FBP_FRAMER_FOOTER_SIZE)
-#define FBP_FRAMER_FRAME_ID_MAX ((1 << 11) - 1)
+#define FBP_FRAMER_FRAME_ID_MAX ((1U << 11) - 1U)
 
 /**
  * @brief The frame types.
@@ -414,16 +473,81 @@ struct fbp_framer_api_s {
     void (*framing_error_fn)(void *user_data);
 };
 
-/// The framer instance.
+/**
+ * @brief The framer instance interface.
+ *
+ * This class implementation allows for the data link layer to work with
+ * other, customized framers.
+ */
 struct fbp_framer_s {
-    struct fbp_framer_api_s api;
-    uint8_t state;    // fbp_framer_state_e
-    uint8_t is_sync;
-    uint16_t length;        // the current frame length or 0
-    uint8_t buf[FBP_FRAMER_MAX_SIZE + 1];  // frame + EOF
-    uint16_t buf_offset;    // the size of the buffer
+    /**
+     * @brief Provide receive data to the framer.
+     *
+     * @param self The framer instance.
+     * @param buffer The data received, which is only valid for the
+     *      duration of the callback.
+     * @param buffer_size The size of buffer in total_bytes.
+     */
+    void (*recv)(struct fbp_framer_s *self, uint8_t const *buffer, uint32_t buffer_size);
+
+    /**
+     * @brief Reset the framer state.
+     *
+     * @param self The framer instance.
+     *
+     * The caller must initialize the ul parameter correctly.
+     */
+    void (*reset)(struct fbp_framer_s *self);
+
+    /**
+     * @brief Construct a data frame.
+     *
+     * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
+     * @param b_size[inout] Upon input, the maximum size of b in bytes.  This function will set
+     *      this value to the actual number of bytes in b.
+     * @param frame_id The frame id for the frame.
+     * @param metadata The message metadata
+     * @param msg The payload buffer.
+     * @param msg_size The size of msg_buffer in bytes.
+     * @return 0 or error code.
+     */
+    int32_t (*construct_data)(struct fbp_framer_s *self, uint8_t *b, uint16_t * b_size,
+                              uint16_t frame_id, uint16_t metadata,
+                              uint8_t const *msg, uint32_t msg_size);
+
+    /**
+     * @brief Construct a link frame.
+     *
+     * @param b The 64-bit (8-byte) output buffer.
+     * @param frame_type The link frame type.
+     * @param frame_id The frame id.
+     * @return 0 or error code.
+     */
+    int32_t (*construct_link)(struct fbp_framer_s *self, uint64_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
+
+    /**
+     * @brief Finalize and free a framer instance.
+     * @param self The framer instance.
+     */
+    void (*finalize)(struct fbp_framer_s * self);
+
+    /// The current framer status.
     struct fbp_framer_status_s status;
+
+    /**
+     * @brief The framer callbacks.
+     *
+     * The data link module normally configures this at initialization.
+     */
+    struct fbp_framer_api_s api;
 };
+
+/**
+ * @brief Allocate and initialize a new framer instance.
+ *
+ * @return The new data link instance.
+ */
+FBP_API struct fbp_framer_s * fbp_framer_initialize();
 
 /**
  * @brief Provide receive data to the framer.
@@ -433,8 +557,7 @@ struct fbp_framer_s {
  *      duration of the callback.
  * @param buffer_size The size of buffer in total_bytes.
  */
-FBP_API void fbp_framer_ll_recv(struct fbp_framer_s *self,
-                                uint8_t const *buffer, uint32_t buffer_size);
+FBP_API void fbp_framer_recv(struct fbp_framer_s *self, uint8_t const *buffer, uint32_t buffer_size);
 
 /**
  * @brief Reset the framer state.
@@ -446,55 +569,38 @@ FBP_API void fbp_framer_ll_recv(struct fbp_framer_s *self,
 FBP_API void fbp_framer_reset(struct fbp_framer_s *self);
 
 /**
- * @brief Validate the fbp_framer_construct_data() parameters.
- *
- * @param frame_id The frame id for the frame.
- * @param metadata The message metadata.
- * @param msg_size The size of msg_buffer in bytes.
- * @return True if parameters are valid, otherwise false.
- */
-FBP_API bool fbp_framer_validate_data(uint16_t frame_id, uint16_t metadata, uint32_t msg_size);
-
-/**
  * @brief Construct a data frame.
  *
+ * @param self The framer instance.
  * @param b The output buffer, which must be at least msg_size + FBP_FRAMER_OVERHEAD_SIZE bytes.
+ * @param b_size[inout] Upon input, the maximum size of b in bytes.  This function will set
+ *      this value to the actual number of bytes in b.
  * @param frame_id The frame id for the frame.
  * @param metadata The message metadata
  * @param msg The payload buffer.
  * @param msg_size The size of msg_buffer in bytes.
  * @return 0 or error code.
  */
-FBP_API int32_t fbp_framer_construct_data(uint8_t *b, uint16_t frame_id, uint16_t metadata,
+FBP_API int32_t fbp_framer_construct_data(struct fbp_framer_s *self, uint8_t *b, uint16_t * b_size,
+                                          uint16_t frame_id, uint16_t metadata,
                                           uint8_t const *msg, uint32_t msg_size);
-
-/**
- * @brief Validate the fbp_framer_construct_link() parameters.
- *
- * @param frame_type The link frame type.
- * @param frame_id The frame id.
- * @return True if parameters are valid, otherwise false.
- */
-FBP_API bool fbp_framer_validate_link(enum fbp_framer_type_e frame_type, uint16_t frame_id);
 
 /**
  * @brief Construct a link frame.
  *
- * @param b The output buffer, which must be at least FBP_FRAMER_LINK_SIZE bytes.
+ * @param self The framer instance.
+ * @param b The 64-bit (8-byte) output buffer.
  * @param frame_type The link frame type.
  * @param frame_id The frame id.
  * @return 0 or error code.
  */
-FBP_API int32_t fbp_framer_construct_link(uint8_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
+FBP_API int32_t fbp_framer_construct_link(struct fbp_framer_s *self, uint64_t *b, enum fbp_framer_type_e frame_type, uint16_t frame_id);
 
 /**
- * @brief Compute the difference between frame ids.
- *
- * @param a The first frame id.
- * @param b The second frame_id.
- * @return The frame id difference of a - b.
+ * @brief Finalize and free a framer instance.
+ * @param self The framer instance.
  */
-FBP_API int32_t fbp_framer_frame_id_subtract(uint16_t a, uint16_t b);
+FBP_API void fbp_framer_finalize(struct fbp_framer_s * self);
 
 /**
  * @brief Compute the CRC8 for the length field.

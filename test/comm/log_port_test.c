@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -43,7 +42,7 @@
     }
 
 static int32_t msg_format(uint8_t * buf, struct fbp_logh_header_s * header, const char * filename, const char * message) {
-    char * p = buf + sizeof(*header);
+    char * p = (char *) (buf + sizeof(*header));
     memcpy(buf, header, sizeof(*header));
     while (*filename) {
         *p++ = *filename++;
@@ -60,7 +59,7 @@ static int32_t msg_format(uint8_t * buf, struct fbp_logh_header_s * header, cons
 #define expect_msg(header_, filename_, message_) {                  \
     uint8_t msg[MSG_SZ];                                            \
     int32_t sz = msg_format(msg, header_, filename_, message_);     \
-    expect_send(2, 0, msg, sz, 0);                                  \
+    expect_send(2, 0, msg, sz);                                     \
 }
 
 static int32_t on_recv(void * user_data, const struct fbp_logh_header_s * header, const char * filename, const char * message) {
@@ -100,7 +99,7 @@ static struct fbp_port_api_s * initialize() {
         .evm = {0, 0, 0, 0}
     };
     expect_meta("a/2/level");
-    expect_subscribe("a/2/level", 0);
+    expect_subscribe("a/2/level", FBP_PUBSUB_SFLAG_PUB);
     expect_publish_u8("a/2/level", FBP_LOGP_LEVEL);
     assert_int_equal(0, api->initialize(api, &config));
 
@@ -151,7 +150,6 @@ static void test_receive(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_initialize),
             cmocka_unit_test(test_publish_one),

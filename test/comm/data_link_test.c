@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -27,7 +26,7 @@
 #include "fitterbap/time.h"
 #include <stdio.h>
 
-#define SEND_BUFFER_SIZE (1 << 13)
+#define SEND_AVAILABLE_DEFAULT (FBP_FRAMER_MAX_SIZE + 24)
 static uint8_t PAYLOAD1[] = {1, 2, 3, 4, 5, 6, 7, 8};
 static uint8_t PAYLOAD2[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
 // print(', '.join(['0x%02x' % x for x in range(256)]))
@@ -50,34 +49,19 @@ static uint8_t PAYLOAD_MAX[] = {
         0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
 
 struct test_s {
-    struct fbp_evm_s * evm;
     struct fbp_dl_s * dl;
+    struct fbp_framer_s * f;
     uint32_t send_available;
     int64_t now;
 };
 
-static int64_t ll_time_get(struct fbp_evm_s * evm) {
-    struct test_s * self = (struct test_s *) evm;
-    return self->now;
-}
-
-static int32_t ll_schedule_fn(
-        struct fbp_evm_s * evm, int64_t timestamp,
-        fbp_evm_callback cbk_fn, void * cbk_user_data) {
-    struct test_s * self = (struct test_s *) evm;
-    return fbp_evm_schedule(self->evm, timestamp, cbk_fn, cbk_user_data);
-}
-
-static int32_t ll_cancel_fn(struct fbp_evm_s * evm, int32_t event_id) {
-    struct test_s * self = (struct test_s *) evm;
-    return fbp_evm_cancel(self->evm, event_id);
-}
-
 static void ll_send(void * user_data, uint8_t const * buffer, uint32_t buffer_size) {
     struct test_s * self = (struct test_s *) user_data;
-    (void) self;
+    assert_true(self->send_available >= buffer_size);
+    self->send_available -= buffer_size;
     if ((buffer_size == 1) && (buffer[0] == FBP_FRAMER_SOF1)) {
-        return;  // EOF
+        uint8_t eof = buffer[0];
+        check_expected(eof);
     } else if (buffer[2] & 0xF8) {
         while (buffer_size) {
             uint8_t event = (buffer[2] >> 3) & 0x1f;
@@ -97,6 +81,12 @@ static uint32_t ll_send_available(void * user_data) {
     struct test_s * self = (struct test_s *) user_data;
     return self->send_available;  // improve?
 }
+
+static void on_process_request(void * user_data) {
+    check_expected_ptr(user_data);
+}
+
+#define expect_process_request()   expect_any(on_process_request, user_data)
 
 static void on_event(void *user_data, enum fbp_dl_event_e event) {
     struct test_s * self = (struct test_s *) user_data;
@@ -122,19 +112,13 @@ static void expect_recv(uint16_t metadata, uint8_t *msg_buffer, uint32_t msg_siz
 
 static struct test_s * setup() {
     struct test_s * self = test_calloc(1, sizeof(struct test_s));
-    self->evm = fbp_evm_allocate();
-    struct fbp_evm_api_s evm_api = {
-        .evm = (struct fbp_evm_s *) self,  // use wrappers
-        .timestamp = ll_time_get,
-        .schedule = ll_schedule_fn,
-        .cancel = ll_cancel_fn
-    };
+    self->f = fbp_framer_initialize();
 
     struct fbp_dl_config_s config = {
         .tx_window_size = 16,
         .rx_window_size = 16,
         .tx_timeout = 10 * FBP_TIME_MILLISECOND,
-        .tx_link_size = 16,
+        .tx_link_size = 32,
     };
 
     struct fbp_dl_ll_s ll = {
@@ -150,16 +134,17 @@ static struct test_s * setup() {
     };
 
     self->now = 0;
-    self->send_available = FBP_FRAMER_MAX_SIZE;
-    self->dl = fbp_dl_initialize(&config, &evm_api, &ll);
+    self->send_available = SEND_AVAILABLE_DEFAULT;
+    self->dl = fbp_dl_initialize(&config, &ll, self->f);
     assert_non_null(self->dl);
+    fbp_dl_register_process_request(self->dl, on_process_request, self);
     fbp_dl_register_upper_layer(self->dl, &ul);
     return self;
 }
 
 static void teardown(struct test_s * self) {
     fbp_dl_finalize(self->dl);
-    fbp_evm_free(self->evm);
+    self->f->finalize(self->f);
     memset(self, 0, sizeof(*self));
     test_free(self);
 }
@@ -186,31 +171,45 @@ static void test_initial_state(void ** state) {
     TEARDOWN();
 }
 
+static void test_frame_id_subtract(void ** state) {
+    (void) state;
+    assert_int_equal(0, fbp_dl_frame_id_subtract(0, 0));
+    assert_int_equal(10, fbp_dl_frame_id_subtract(12, 2));
+    assert_int_equal(-10, fbp_dl_frame_id_subtract(2, 12));
+    assert_int_equal(0, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(10, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, FBP_FRAMER_FRAME_ID_MAX - 10));
+    assert_int_equal(-10, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX - 10, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(1, fbp_dl_frame_id_subtract(0, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(11, fbp_dl_frame_id_subtract(10, FBP_FRAMER_FRAME_ID_MAX));
+    assert_int_equal(-11, fbp_dl_frame_id_subtract(FBP_FRAMER_FRAME_ID_MAX, 10));
+}
+
 static void expect_send_data(struct test_s *self,
                              uint16_t frame_id, uint16_t metadata,
                              uint8_t *msg_buffer, uint32_t msg_size) {
     (void) self;
     uint8_t b[FBP_FRAMER_MAX_SIZE];
-    assert_int_equal(0, fbp_framer_construct_data(b, frame_id, metadata, msg_buffer, msg_size));
+    uint16_t b_size = sizeof(b);
+    assert_int_equal(0, self->f->construct_data(self->f, b, &b_size, frame_id, metadata, msg_buffer, msg_size));
     uint16_t frame_sz = msg_size + FBP_FRAMER_OVERHEAD_SIZE;
     expect_value(ll_send, buffer_size, frame_sz);
     expect_memory(ll_send, buffer, b, frame_sz);
 }
 
-static void send_and_expect(struct test_s *self,
-                 uint16_t frame_id, uint16_t metadata,
-                 uint8_t *msg_buffer, uint32_t msg_size) {
-    expect_send_data(self, frame_id, metadata, msg_buffer, msg_size);
-    assert_int_equal(0, fbp_dl_send(self->dl, metadata, msg_buffer, msg_size, 0));
-}
+#define send_and_expect(self_, frame_id_, metadata_, msg_buffer_, msg_size_) do {               \
+    expect_send_data(self_, (frame_id_), (metadata_), (msg_buffer_), (msg_size_));              \
+    expect_process_request();                                                                   \
+    assert_int_equal(0, fbp_dl_send((self_)->dl, (metadata_), (msg_buffer_), (msg_size_)));  \
+} while (0)
 
-static void expect_send_link(struct test_s *self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
-    (void) self;
-    uint64_t u64 = 0;
-    assert_int_equal(0, fbp_framer_construct_link((uint8_t *) &u64, frame_type, frame_id));
-    expect_value(ll_send, event, frame_type);
-    expect_value(ll_send, frame_id, frame_id);
-}
+#define expect_send_link(self, frame_type_, frame_id_) do { \
+    expect_value(ll_send, event, (frame_type_));            \
+    expect_value(ll_send, frame_id, (frame_id_));           \
+} while (0)
+
+#define expect_eof(self) expect_value(ll_send, eof, FBP_FRAMER_SOF1)
+
+#define clear_send(self)   self->send_available = SEND_AVAILABLE_DEFAULT
 
 static void recv_eof(struct test_s *self) {
     uint8_t eof[] = {FBP_FRAMER_SOF1};
@@ -218,34 +217,26 @@ static void recv_eof(struct test_s *self) {
 }
 
 static void recv_link(struct test_s *self, enum fbp_framer_type_e frame_type, uint16_t frame_id) {
-    uint8_t b[FBP_FRAMER_LINK_SIZE];
-    assert_int_equal(0, fbp_framer_construct_link(b, frame_type, frame_id));
-    fbp_dl_ll_recv(self->dl, b, sizeof(b));
+    uint64_t b;
+    assert_int_equal(0, self->f->construct_link(self->f, &b, frame_type, frame_id));
+    fbp_dl_ll_recv(self->dl, (uint8_t *) &b, sizeof(b));
 }
 
 static void recv_data(struct test_s *self, uint16_t frame_id, uint16_t metadata,
                       uint8_t *msg_buffer, uint32_t msg_size) {
     uint8_t b[FBP_FRAMER_MAX_SIZE];
-    assert_int_equal(0, fbp_framer_construct_data(b, frame_id, metadata, msg_buffer, msg_size));
+    uint16_t b_size = sizeof(b);
+    assert_int_equal(0, self->f->construct_data(self->f, b, &b_size, frame_id, metadata, msg_buffer, msg_size));
     uint16_t frame_sz = msg_size + FBP_FRAMER_OVERHEAD_SIZE;
     fbp_dl_ll_recv(self->dl, b, frame_sz);
 }
 
-static void process_now(struct test_s *self) {
-    fbp_evm_process(self->evm, self->now);
-}
-
-static void process_n(struct test_s *self, int32_t n) {
-    while ((n > 0) && (FBP_TIME_MAX != fbp_evm_time_next(self->evm))) {
-        self->now = fbp_evm_time_next(self->evm);
-        fbp_evm_process(self->evm, self->now);
-        --n;
-    }
-}
+#define process_now(self)  fbp_dl_process((self)->dl, (self)->now)
 
 static void connect(struct test_s *self) {
     expect_send_link(self, FBP_FRAMER_FT_RESET, 0);
-    self->now += 10 * FBP_TIME_MILLISECOND;
+    expect_eof(self);
+    // self->now += 16 * 16 * FBP_TIME_MILLISECOND;
     process_now(self);
     recv_link(self, FBP_FRAMER_FT_RESET, 1);
     expect_event(FBP_DL_EV_CONNECTED);
@@ -255,30 +246,24 @@ static void connect(struct test_s *self) {
     fbp_dl_status_clear(self->dl);
 }
 
-void on_schedule_fn(void * user_data, int64_t next_time) {
-    (void) user_data;
-    check_expected(next_time);
-}
-
 static void test_send_when_not_connected(void ** state) {
     SETUP();
-    assert_int_equal(FBP_ERROR_UNAVAILABLE, fbp_dl_send(self->dl, 1, PAYLOAD1, sizeof(PAYLOAD1), 0));
+    assert_int_equal(FBP_ERROR_UNAVAILABLE, fbp_dl_send(self->dl, 1, PAYLOAD1, sizeof(PAYLOAD1)));
     TEARDOWN();
 }
 
 static void test_on_invalid_send(void ** state) {
     SETUP();
     connect(self);
-    //assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_dl_send(self->dl, 0, PAYLOAD1, FBP_FRAMER_PAYLOAD_MAX_SIZE + 1, 0));
+    //assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_dl_send(self->dl, 0, PAYLOAD1, FBP_FRAMER_PAYLOAD_MAX_SIZE + 1));
     TEARDOWN();
 }
 
 static void test_on_send_cbk(void ** state) {
     SETUP();
     connect(self);
-    fbp_evm_register_schedule_callback(self->evm, on_schedule_fn, self);
-    expect_value(on_schedule_fn, next_time, 0x147ae18);
-    assert_int_equal(0, fbp_dl_send(self->dl, 1, PAYLOAD1, sizeof(PAYLOAD1), 0));
+    expect_process_request();
+    assert_int_equal(0, fbp_dl_send(self->dl, 1, PAYLOAD1, sizeof(PAYLOAD1)));
     TEARDOWN();
 }
 
@@ -286,6 +271,7 @@ static void test_send_data_with_ack(void ** state) {
     SETUP();
     connect(self);
     send_and_expect(self, 0, 1, PAYLOAD1, sizeof(PAYLOAD1));
+    expect_eof(self);
     self->now += FBP_TIME_MILLISECOND * 4;
     process_now(self);
 
@@ -306,10 +292,13 @@ static void test_send_data_with_ack(void ** state) {
 static void test_send_2data_with_2ack(void ** state) {
     SETUP();
     connect(self);
-    fbp_dl_tx_window_set(self->dl, 128);
+    fbp_dl_tx_window_set(self->dl, 16);
     send_and_expect(self, 0, 10, PAYLOAD1, sizeof(PAYLOAD1));
     send_and_expect(self, 1, 11, PAYLOAD2, sizeof(PAYLOAD2));
-    process_n(self, 2);
+    process_now(self);
+    clear_send(self);
+    expect_eof(self);
+    process_now(self);
 
     assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
     assert_int_equal(sizeof(PAYLOAD1) + sizeof(PAYLOAD2) + 2 * FBP_FRAMER_OVERHEAD_SIZE + 1, status.tx.bytes);
@@ -328,15 +317,21 @@ static void test_send_two_before_tx_window_set(void ** state) {
     SETUP();
     connect(self);
     send_and_expect(self, 0, 10, PAYLOAD1, sizeof(PAYLOAD1));
-    process_n(self, 1);
+    expect_eof(self);
+    process_now(self);
     recv_link(self, FBP_FRAMER_FT_ACK_ALL, 0);
     recv_eof(self);
 
+    clear_send(self);
     send_and_expect(self, 1, 11, PAYLOAD1, sizeof(PAYLOAD1));
-    assert_int_equal(FBP_ERROR_FULL, fbp_dl_send(self->dl, 12, PAYLOAD2, sizeof(PAYLOAD2), 0));
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+    assert_int_equal(FBP_ERROR_FULL, fbp_dl_send(self->dl, 12, PAYLOAD2, sizeof(PAYLOAD2)));
     fbp_dl_tx_window_set(self->dl, 16);
     send_and_expect(self, 2, 13, PAYLOAD2, sizeof(PAYLOAD2));
-    process_n(self, 2);
+    expect_eof(self);
+    process_now(self);
 
     recv_link(self, FBP_FRAMER_FT_ACK_ALL, 2);
     recv_eof(self);
@@ -350,7 +345,9 @@ static void test_send_nack_resend_ack(void ** state) {
     SETUP();
     connect(self);
     send_and_expect(self, 0, 1, PAYLOAD1, sizeof(PAYLOAD1));
-    process_n(self, 1);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
 
     recv_link(self, FBP_FRAMER_FT_NACK_FRAMING_ERROR, 0);
     recv_eof(self);
@@ -358,7 +355,9 @@ static void test_send_nack_resend_ack(void ** state) {
     assert_int_equal(0, status.tx.data_frames);
 
     expect_send_data(self, 0, 1, PAYLOAD1, sizeof(PAYLOAD1));  // due to nack
-    process_n(self, 1);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
 
     recv_link(self, FBP_FRAMER_FT_ACK_ALL, 0);
     recv_eof(self);
@@ -372,11 +371,17 @@ static void test_send_data_timeout_then_ack(void ** state) {
     connect(self);
     self->now = 5 * FBP_TIME_MILLISECOND;
     send_and_expect(self, 0, 1, PAYLOAD1, sizeof(PAYLOAD1));
+    expect_eof(self);
     process_now(self);
+
+    clear_send(self);
     self->now += 9 * FBP_TIME_MILLISECOND;
     process_now(self);
+    assert_int_equal(SEND_AVAILABLE_DEFAULT, self->send_available);
+
     self->now += 1 * FBP_TIME_MILLISECOND;
     expect_send_data(self, 0, 1, PAYLOAD1, sizeof(PAYLOAD1));
+    expect_eof(self);
     process_now(self);
 
     recv_link(self, FBP_FRAMER_FT_ACK_ALL, 0);
@@ -393,7 +398,9 @@ static void test_send_multiple_with_buffer_wrap(void ** state) {
     connect(self);
     for (uint32_t i = 0; i < count; ++i) {
         send_and_expect(self, i, i + 1, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
-        process_n(self, 1);
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
         recv_link(self, FBP_FRAMER_FT_ACK_ALL, i);
         recv_eof(self);
     }
@@ -405,6 +412,63 @@ static void test_send_multiple_with_buffer_wrap(void ** state) {
     TEARDOWN();
 }
 
+static void test_send_frame_id_wrap(void ** state) {
+    SETUP();
+    uint16_t frame_id;
+    uint32_t count = FBP_FRAMER_FRAME_ID_MAX + 128;
+    connect(self);
+    for (uint32_t i = 0; i < count; ++i) {
+        frame_id = i & FBP_FRAMER_FRAME_ID_MAX;
+        send_and_expect(self, frame_id, i + 1, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+        recv_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
+        recv_eof(self);
+    }
+
+    assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
+    assert_int_equal(count, status.tx.data_frames);
+    TEARDOWN();
+}
+
+static void test_send_frame_id_wrap_out_of_order(void ** state) {
+    SETUP();
+    uint16_t tx_window_sz = 16;
+    connect(self);
+    fbp_dl_tx_window_set(self->dl, tx_window_sz);
+    for (uint32_t i = 0; i < FBP_FRAMER_FRAME_ID_MAX + tx_window_sz - 1; ++i) {
+        send_and_expect(self, i & FBP_FRAMER_FRAME_ID_MAX, i + 1, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+        if (i < FBP_FRAMER_FRAME_ID_MAX) {
+            recv_link(self, FBP_FRAMER_FT_ACK_ALL, i);
+            recv_eof(self);
+        }
+    }
+
+    for (uint32_t i = FBP_FRAMER_FRAME_ID_MAX + tx_window_sz - 2; i >= FBP_FRAMER_FRAME_ID_MAX; --i) {
+        recv_link(self, FBP_FRAMER_FT_ACK_ONE, i & FBP_FRAMER_FRAME_ID_MAX);
+        recv_eof(self);
+    }
+
+    // ensure all acked (no timeouts)
+    process_now(self);
+    self->now += 20 * FBP_TIME_MILLISECOND;
+    process_now(self);
+
+    send_and_expect(self, tx_window_sz - 2, 0x1234, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
+    expect_eof(self);
+    process_now(self);
+    recv_link(self, FBP_FRAMER_FT_ACK_ONE, tx_window_sz - 2);
+    recv_eof(self);
+
+    assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
+    assert_int_equal(FBP_FRAMER_FRAME_ID_MAX + tx_window_sz, status.tx.data_frames);
+    TEARDOWN();
+}
+
 static void test_recv_and_ack(void ** state) {
     SETUP();
     connect(self);
@@ -413,7 +477,8 @@ static void test_recv_and_ack(void ** state) {
     recv_eof(self);
 
     expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, 0);
-    process_n(self, 5);
+    expect_eof(self);
+    process_now(self);
 
     assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
     assert_int_equal(sizeof(PAYLOAD1), status.rx.msg_bytes);
@@ -432,7 +497,9 @@ static void test_recv_multiple_all_acks(void ** state) {
         recv_data(self, i, 1, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
         recv_eof(self);
         expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, i);
-        process_n(self, 5);
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
     }
 
     assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
@@ -450,13 +517,15 @@ static void test_recv_out_of_order(void ** state) {
     recv_data(self, 0, 0x11, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
     recv_eof(self);
     expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, 0);
-    process_n(self, 5);
+    expect_eof(self);
+    process_now(self);
 
     recv_data(self, 2, 0x33, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
     recv_eof(self);
     expect_send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, 1);
     expect_send_link(self, FBP_FRAMER_FT_ACK_ONE, 2);
-    process_n(self, 5);
+    expect_eof(self);
+    process_now(self);
 
     expect_recv(0x22, PAYLOAD1, sizeof(PAYLOAD1));
     expect_recv(0x33, PAYLOAD_MAX, sizeof(PAYLOAD_MAX));
@@ -464,18 +533,89 @@ static void test_recv_out_of_order(void ** state) {
     recv_eof(self);
 
     expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, 2);
-    process_n(self, 5);
+    expect_eof(self);
+    process_now(self);
+    TEARDOWN();
+}
+
+static void test_recv_wrap_and_out_of_order(void ** state) {
+    uint16_t tx_window_sz = 16;
+    SETUP();
+    connect(self);
+
+    for (uint32_t i = 0; i < FBP_FRAMER_FRAME_ID_MAX; ++i) {
+        expect_recv(i + 1, PAYLOAD1, sizeof(PAYLOAD1));
+        recv_data(self, i, i + 1, PAYLOAD1, sizeof(PAYLOAD1));
+        recv_eof(self);
+        expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, i);
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+    }
+
+    // receive frame one too far in the future -> NACK
+    recv_data(self, tx_window_sz - 1, 0x33, PAYLOAD1, sizeof(PAYLOAD1));
+    recv_eof(self);
+    expect_send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, tx_window_sz - 1);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+
+    // expect NACK for all skipped frames
+    for (int i = 0; i < (tx_window_sz - 1); ++i) {
+        uint16_t frame_id = (FBP_FRAMER_FRAME_ID_MAX + i) & FBP_FRAMER_FRAME_ID_MAX;
+        expect_send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
+    }
+
+    // receive data frames in reverse order, just for fun
+    for (uint16_t i = FBP_FRAMER_FRAME_ID_MAX + tx_window_sz - 1; i > FBP_FRAMER_FRAME_ID_MAX; --i) {
+        uint16_t frame_id = i & FBP_FRAMER_FRAME_ID_MAX;
+        recv_data(self, frame_id, i, PAYLOAD1, sizeof(PAYLOAD1));
+        recv_eof(self);
+        expect_send_link(self, FBP_FRAMER_FT_ACK_ONE, frame_id);
+        expect_eof(self);
+        process_now(self);
+        clear_send(self);
+    }
+
+    // expect receive data in order
+    expect_recv(0xffee, PAYLOAD1, sizeof(PAYLOAD1));
+    for (uint16_t i = 0; i < tx_window_sz - 1; ++i) {
+        expect_recv(FBP_FRAMER_FRAME_ID_MAX + 1 + i, PAYLOAD1, sizeof(PAYLOAD1));
+    }
+
+    // receive next expected frame
+    recv_data(self, FBP_FRAMER_FRAME_ID_MAX, 0xffee, PAYLOAD1, sizeof(PAYLOAD1));
+    recv_eof(self);
+    expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, tx_window_sz - 2);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+
+    // Now receive next frame.
+    expect_recv(0x3344, PAYLOAD2, sizeof(PAYLOAD2));
+    recv_data(self, tx_window_sz - 1, 0x3344, PAYLOAD2, sizeof(PAYLOAD2));
+    recv_eof(self);
+    expect_send_link(self, FBP_FRAMER_FT_ACK_ALL, tx_window_sz - 1);
+    expect_eof(self);
+    process_now(self);
+    clear_send(self);
+
+    assert_int_equal(0, fbp_dl_status_get(self->dl, &status));
+    assert_int_equal(FBP_FRAMER_FRAME_ID_MAX + tx_window_sz + 1, status.rx.data_frames);
     TEARDOWN();
 }
 
 static void test_reset_retry(void ** state) {
     SETUP();
     expect_send_link(self, FBP_FRAMER_FT_RESET, 0);
-    process_n(self, 1);
+    expect_eof(self);
+    process_now(self);
     self->now += 1 * FBP_TIME_MILLISECOND;
     process_now(self);
     self->now += 999 * FBP_TIME_MILLISECOND;
     expect_send_link(self, FBP_FRAMER_FT_RESET, 0);
+    expect_eof(self);
     process_now(self);
 
     self->now += 1000 * FBP_TIME_MILLISECOND;
@@ -487,9 +627,9 @@ static void test_reset_retry(void ** state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_initial_state),
+            cmocka_unit_test(test_frame_id_subtract),
             cmocka_unit_test(test_send_when_not_connected),
             cmocka_unit_test(test_on_invalid_send),
             cmocka_unit_test(test_on_send_cbk),
@@ -499,9 +639,12 @@ int main(void) {
             cmocka_unit_test(test_send_nack_resend_ack),
             cmocka_unit_test(test_send_data_timeout_then_ack),
             cmocka_unit_test(test_send_multiple_with_buffer_wrap),
+            cmocka_unit_test(test_send_frame_id_wrap),
+            cmocka_unit_test(test_send_frame_id_wrap_out_of_order),
             cmocka_unit_test(test_recv_and_ack),
             cmocka_unit_test(test_recv_multiple_all_acks),
             cmocka_unit_test(test_recv_out_of_order),
+            cmocka_unit_test(test_recv_wrap_and_out_of_order),
             cmocka_unit_test(test_reset_retry),
     };
 

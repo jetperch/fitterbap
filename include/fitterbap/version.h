@@ -23,6 +23,9 @@
 #ifndef FBP_VERSION_H_
 #define FBP_VERSION_H_
 
+#include <stdint.h>
+#include <stddef.h>
+
 /**
  * @ingroup fbp
  * @defgroup fbp_version Version
@@ -34,8 +37,16 @@
 
 // Use version_update.py to update.
 #define FBP_VERSION_MAJOR 0
-#define FBP_VERSION_MINOR 4
-#define FBP_VERSION_PATCH 1
+#define FBP_VERSION_MINOR 5
+#define FBP_VERSION_PATCH 0
+
+/**
+ * \brief The maximum version string length.
+ *
+ * The actual length is 14 bytes (MMM.mmm.ppppp\x0), but round up
+ * to simplify packing.
+ */
+#define FBP_VERSION_STR_LENGTH_MAX  (16)
 
 /**
  * \brief Macro to encode version to uint32_t
@@ -49,6 +60,13 @@
     ( (( ((uint32_t) (major)) &   0xff) << 24) | \
       (( ((uint32_t) (minor)) &   0xff) << 16) | \
       (( ((uint32_t) (patch)) & 0xffff) <<  0) )
+
+/// Decode the major version from a U32 encoded version.
+#define FBP_VERSION_DECODE_U32_MAJOR(ver_u32_)   ((uint8_t) ((ver_u32_ >> 24) & 0xff))
+/// Decode the minor version from a U32 encoded version.
+#define FBP_VERSION_DECODE_U32_MINOR(ver_u32_)   ((uint8_t) ((ver_u32_ >> 16) & 0xff))
+/// Decode the patch version from a U32 encoded version.
+#define FBP_VERSION_DECODE_U32_PATCH(ver_u32_)   ((uint16_t) ((ver_u32_ >> 0) & 0xffff))
 
 /**
  * \brief Internal macro to convert argument to string.
@@ -74,6 +92,16 @@
 
 /// The FBP version as "major.minor.patch" string
 #define FBP_VERSION_STR FBP_VERSION_ENCODE_STR(FBP_VERSION_MAJOR, FBP_VERSION_MINOR, FBP_VERSION_PATCH)
+
+/**
+ * \brief Convert a u32 encoded version as a string.
+ *
+ * \param u32[in] The u32 encoded version.
+ * \param str[out] The output string, which should have at least 14
+ *      bytes available to avoid truncation.
+ * \param size[in] The number of bytes available in str.
+ */
+void fbp_version_u32_to_str(uint32_t u32, char * str, size_t size);
 
 /** @} */
 

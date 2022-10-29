@@ -18,12 +18,11 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "fitterbap/time.h"
+#include "fitterbap/common_header.h"
 
 
 #define ABS(x) ( (x) < 0 ? -x : x)
 #define CLOSE(x, t) ( ABS(x) < (t) )
-
 
 static void test_constants(void **state) {
     (void) state;
@@ -111,16 +110,16 @@ static void test_round_inf(void **state) {
 
 static void test_counter(void **state) {
     (void) state;
-    struct fbp_time_counter_s counter = fbp_time_counter();
-    assert_true(counter.frequency >= 1000LL);  // recommendation
-    assert_true(counter.frequency < 10000000000LL);  // requirement
+    uint32_t frequency = fbp_time_counter_frequency();
+    assert_true(frequency >= 1000LL);  // recommendation
+    // assert_true(frequency < 10000000000LL);  // requirement, but limited by 32-bit to 4 GHz
 }
 
 static void test_utc(void **state) {
     (void) state;
     int64_t t = fbp_time_utc();
     // Set to check for 2021, update on 2022 Jan 1.
-    int64_t year_offset = 2021 - 2018;
+    int64_t year_offset = 2022 - 2018;
     assert_true(t > (FBP_TIME_YEAR * year_offset));
     assert_true(t < (FBP_TIME_YEAR * (year_offset + 1)));
 }

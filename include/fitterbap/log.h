@@ -23,17 +23,15 @@
 #ifndef FBP_LOG_H_
 #define FBP_LOG_H_
 
-#include "cmacro_inc.h"
+#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
 
 /**
  * @ingroup fbp_core
  * @defgroup fbp_log Console logging
  *
  * @brief Generic console logging with compile-time levels.
- *
- * To use this module, call fbp_log_initialize() with the appropriate
- * handler for your application.
  *
  * @{
  */
@@ -82,26 +80,30 @@ FBP_CPP_GUARD_START
 #define __FILENAME__ __FILE__
 #endif
 
-#ifdef __GNUC__
-/* https://gcc.gnu.org/onlinedocs/gcc-4.7.2/gcc/Function-Attributes.html */
-#define FBP_LOG_PRINTF_FORMAT __attribute__((format (printf, 1, 2)))
-#else
-#define FBP_LOG_PRINTF_FORMAT
-#endif
-
 /**
- * @brief The printf-style function.
+ * @def FBP_LOG_PRINTF
+ * @brief The printf-style variadic arguments define to handle log messages.
  *
- * @param format The print-style formatting string.
- * The remaining parameters are arguments for the formatting string.
- * @return The number of characters printed.
+ * @param level The level for this log message
+ * @param format The formatting string
+ * @param ... The arguments for the formatting string
  *
- * For PC-based applications, a common implementation is::
+ * This must be thread safe.
+ *
+ * A simple implementation is:
+ *
+ *     printf("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
+ *
+ * A more complicated implementation is:
+ *
+ *     my_printf("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
+ *
+ * with:
  *
  *     #include <stdarg.h>
  *     #include <stdio.h>
  *
- *     void fbp_log_printf(const char * format, ...) {
+ *     void my_printf(const char * format, ...) {
  *         va_list arg;
  *         va_start(arg, format);
  *         vprintf(format, arg);
@@ -109,44 +111,10 @@ FBP_CPP_GUARD_START
  *     }
  *
  * If your application calls the LOG* macros from multiple threads, then
- * the fbp_log_printf implementation must be thread-safe and reentrant.
- */
-typedef void(*fbp_log_printf)(const char * format, ...) FBP_LOG_PRINTF_FORMAT;
-
-extern volatile fbp_log_printf fbp_log_printf_;
-
-/**
- * @brief Initialize the logging feature.
- *
- * @param handler The log handler.  Pass NULL or call fbp_log_finalize() to
- *      restore the default log handler.
- *
- * @return 0 or error code.
- *
- * The library initializes with a default null log handler so that logging
- * which occurs before fbp_log_initialize will not cause a fault.  This function
- * may be safely called at any time, even without finalize.
- */
-FBP_API int fbp_log_initialize(fbp_log_printf handler);
-
-/**
- * @brief Finalize the logging feature.
- *
- * This is equivalent to calling fbp_log_initialize(0).
- */
-FBP_API void fbp_log_finalize();
-
-/**
- * @def FBP_LOG_PRINTF
- * @brief The printf function including log formatting.
- *
- * @param level The level for this log message
- * @param format The formatting string
- * @param ... The arguments for the formatting string
+ * the my_printf implementation must be thread-safe and reentrant.
  */
 #ifndef FBP_LOG_PRINTF
-#define FBP_LOG_PRINTF(level, format, ...) \
-    fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
+#define FBP_LOG_PRINTF(level, format, ...)
 #endif
 
 /**
@@ -218,12 +186,11 @@ extern char const fbp_log_level_char[FBP_LOG_LEVEL_ALL + 1];
  * \param format The printf-compatible formatting string.
  * \param ... The arguments to the formatting string.
  */
-#define FBP_LOG(level, format, ...) \
-    do { \
-        if (FBP_LOG_CHECK_STATIC(level)) { \
-            FBP_LOG_PRINTF(level, format, __VA_ARGS__); \
-        } \
-    } while (0)
+#define FBP_LOG(level, format, ...) do {            \
+    if (FBP_LOG_CHECK_STATIC(level)) {              \
+        FBP_LOG_PRINTF(level, format, __VA_ARGS__); \
+    }                                               \
+} while (0)
 
 
 #ifdef _MSC_VER

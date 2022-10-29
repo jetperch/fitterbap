@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -35,10 +34,6 @@ int64_t test_time() {
 
 static void on_publish_check(void * user_data) {
     check_expected_ptr(user_data);
-}
-
-static void on_publish_nocheck(void * user_data) {
-    (void) user_data;
 }
 
 static int32_t on_dispatch(void * user_data, struct fbp_logh_header_s const * header,
@@ -101,7 +96,7 @@ static void test_initialize(void ** state) {
 
 static void test_publish_one(void ** state) {
     SETUP(true);
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file.c", 10, "%s", "hello"));
 
     expect_dispatch(utc_, FBP_LOG_LEVEL_INFO, 'a', 0, "file.c", 10, "hello");
@@ -112,7 +107,7 @@ static void test_publish_one(void ** state) {
 
 static void test_singleton(void ** state) {
     SETUP(true);
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(NULL, FBP_LOG_LEVEL_INFO, "file.c", 10, "%s", "hello"));
     expect_dispatch(utc_, FBP_LOG_LEVEL_INFO, 'a', 0, "file.c", 10, "hello");
     fbp_logh_process(NULL);
@@ -129,7 +124,7 @@ static void test_publish_formatted(void ** state) {
             .line = 10,
             .timestamp = 1000,
     };
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish_formatted(l, &header, "file.c", "hello"));
 
     expect_dispatch(1000, FBP_LOG_LEVEL_INFO, 'a', 2, "file.c", 10, "hello");
@@ -141,13 +136,13 @@ static void test_publish_formatted(void ** state) {
 static void test_publish_until_full(void ** state) {
     SETUP(true);
 
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file1.c", 10, "%s", "hello"));
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file2.c", 11, "%s", " there "));
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file3.c", 12, "%d", 42));
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     utc_ = 1234;
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file4.c", 13, "%s", " world"));
     assert_int_equal(FBP_ERROR_FULL, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file.c", 10, "%s", "full"));
@@ -163,7 +158,7 @@ static void test_publish_until_full(void ** state) {
 
 static void test_publish_with_receiver_full(void ** state) {
     SETUP(true);
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file.c", 10, "%s", "hello"));
 
     // Full on first try
@@ -181,7 +176,7 @@ static void test_dispatcher_unregister(void ** state) {
     SETUP(true);
     assert_int_equal(0, fbp_logh_dispatch_unregister(l, on_dispatch, NULL));
     assert_int_equal(FBP_ERROR_NOT_FOUND, fbp_logh_dispatch_unregister(l, on_dispatch, NULL));
-    expect_value(on_publish_check, user_data, NULL);
+    expect_value(on_publish_check, user_data, (intptr_t) NULL);
     assert_int_equal(0, fbp_logh_publish(l, FBP_LOG_LEVEL_INFO, "file.c", 10, "%s", "hello"));
     assert_int_equal(0, fbp_logh_process(l));
     TEARDOWN();
@@ -199,7 +194,6 @@ static void test_dispatcher_register_too_many(void ** state) {
 
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_initialize),
             cmocka_unit_test(test_publish_one),

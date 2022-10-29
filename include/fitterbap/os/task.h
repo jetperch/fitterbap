@@ -25,6 +25,7 @@
 
 #include "fitterbap/cmacro_inc.h"
 #include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
 #include "fitterbap/time.h"
 
 /**
@@ -43,22 +44,21 @@ FBP_CPP_GUARD_START
  *
  * @return The task ID.  If running single-threaded, return 0.
  */
-FBP_API intptr_t fbp_os_current_task_id();
-
+FBP_INLINE_FN intptr_t fbp_os_current_task_id();
 
 /**
  * @brief Sleep (pause thread execution) for a specified duration.
  *
  * @param duration The duration (see "fitterbap/time.h")
  */
-FBP_API void fbp_os_sleep(int64_t duration);
+FBP_INLINE_FN void fbp_os_sleep(int64_t duration);
 
 /**
  * @brief Sleep (pause thread execution) for a specified duration.
  *
  * @param duration The duration in milliseconds.
  */
-static inline void fbp_os_sleep_ms(int64_t duration_ms) {
+FBP_INLINE_FN void fbp_os_sleep_ms(int64_t duration_ms) {
     fbp_os_sleep(FBP_COUNTER_TO_TIME(duration_ms, 1000));
 }
 
@@ -66,4 +66,4 @@ FBP_CPP_GUARD_END
 
 /** @} */
 
-#endif  /* FBP_OS_MUTEX_H__ */
+#endif  /* FBP_OS_TASK_H__ */

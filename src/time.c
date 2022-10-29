@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include "fitterbap/common_header.h"
 #include "fitterbap/time.h"
 #include "tinyprintf.h"
 #include <inttypes.h>
@@ -51,6 +52,6 @@ int32_t fbp_time_to_str(int64_t t, char * str, size_t size) {
     if (size >= FBP_TIME_STRING_LENGTH) {
         return (FBP_TIME_STRING_LENGTH - 1);
     } else {
-        return (size - 1);
+        return ((int32_t) size - 1);
     }
 }

@@ -23,7 +23,7 @@
 #ifndef FBP_MEMORY_BBUF_H_
 #define FBP_MEMORY_BBUF_H_
 
-#include "fitterbap/platform.h"
+#include "fitterbap/common_header.h"
 
 /**
  * @ingroup fbp_memory

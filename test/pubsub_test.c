@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2021 Jetperch LLC
+ * Copyright 2014-2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -27,6 +26,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static const char * META1 =
+    "{"
+        "\"dtype\": \"u32\","
+        "\"brief\": \"value1\","
+        "\"default\": \"42\","
+        "\"options\": [[42, \"v1\"], [43, \"v2\"]],"
+        "\"flags\": []"
+    "}";
+
+static const char * META2 = "{"
+    "\"dtype\": \"u8\","
+    "\"brief\": \"Number selection.\","
+    "\"default\": 2,"
+    "\"options\": ["
+        "[0, \"zero\"],"
+        "[1, \"one\"],"
+        "[2, \"two\"],"
+        "[3, \"three\", \"3\"],"
+        "[4, \"four\"],"
+        "[5, \"five\"],"
+        "[6, \"six\"],"
+        "[7, \"seven\"],"
+        "[8, \"eight\"],"
+        "[9, \"nine\"],"
+        "[10, \"ten\"]"
+    "]"
+"}";
 
 static int setup(void ** state) {
     (void) state;
@@ -168,27 +194,22 @@ static void test_cstr(void ** state) {
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
     assert_non_null(ps);
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("hello world"), NULL, NULL));
-    fbp_pubsub_process(ps);
 
     // subscribe directly, get retained value
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     expect_pub_cstr("s/hello/world", "hello world");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
 
     // subscribe to parent, get retained value
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     expect_pub_cstr("s/hello/world", "hello world");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
 
     // publish
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("there"), NULL, NULL));
     expect_pub_cstr("s/hello/world", "there"); // first subscription
     expect_pub_cstr("s/hello/world", "there"); // second subscription
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("there"), NULL, NULL));
 
     // subscribe directly, without retained flag value, expect no retained
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", 0, on_pub_never, NULL));
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_PUB, on_pub_never, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -199,12 +220,9 @@ static void test_str(void ** state) {
 
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 128);
     assert_non_null(ps);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", 0, on_pub, NULL));
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_str(msg), NULL, NULL));
-    msg[0] = '!';  // overwrite local data, ensure copy occurred.
-    msg[1] = 0;
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     expect_pub_cstr("s/hello/world", "hello world");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_str(msg), NULL, NULL));
     fbp_pubsub_finalize(ps);
 }
 
@@ -214,7 +232,7 @@ static void test_str_but_too_big(void ** state) {
 
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 32);
     assert_non_null(ps);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     assert_int_equal(FBP_ERROR_PARAMETER_INVALID, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_str(msg), NULL, NULL));
     fbp_pubsub_finalize(ps);
 }
@@ -222,58 +240,53 @@ static void test_str_but_too_big(void ** state) {
 static void test_str_full_buffer(void ** state) {
     (void) state;
     char msg[] = "0123456789abcde";
-
+    fbp_os_mutex_t mutex = fbp_os_mutex_alloc("pubsub");
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 32);
+    fbp_pubsub_register_mutex(ps, mutex);
+
     assert_non_null(ps);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_str(msg), NULL, NULL));
     assert_int_equal(FBP_ERROR_NOT_ENOUGH_MEMORY, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_str(msg), NULL, NULL));
-
     expect_pub_cstr("s/hello/world", msg);
     fbp_pubsub_process(ps);
+
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_str(msg), NULL, NULL));
     expect_pub_cstr("s/hello/world", msg);
     fbp_pubsub_process(ps);
 
     fbp_pubsub_finalize(ps);
+    fbp_os_mutex_free(mutex);
 }
 
 static void test_integers(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v", FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u8_r(0xff), NULL, NULL));
     expect_pub_u8("s/v", 0xff);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u8_r(0xff), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u16_r(0xffff), NULL, NULL));
     expect_pub_u16("s/v", 0xffff);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u16_r(0xffff), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u32_r(0xffffffff), NULL, NULL));
     expect_pub_u32("s/v", 0xffffffff);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u32_r(0xffffffff), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u64_r(0xffffffffffffffffLL), NULL, NULL));
     expect_pub_u64("s/v", 0xffffffffffffffffLL);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_u64_r(0xffffffffffffffffLL), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i8_r(-127), NULL, NULL));
     expect_pub_i8("s/v", -127);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i8_r(-127), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i16_r(-32767), NULL, NULL));
     expect_pub_i16("s/v", -32767);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i16_r(-32767), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i32_r(-2147483647), NULL, NULL));
     expect_pub_i32("s/v", -2147483647);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i32_r(-2147483647), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i64_r(-9223372036854775807LL), NULL, NULL));
     expect_pub_i64("s/v", -9223372036854775807LL);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_i64_r(-9223372036854775807LL), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -281,15 +294,13 @@ static void test_integers(void ** state) {
 static void test_float(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v", FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_f32_r(2.25f), NULL, NULL));
     expect_pub_f32("s/v", 2.25f);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_f32_r(2.25f), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_f64_r(2.25), NULL, NULL));
     expect_pub_f64("s/v", 2.25);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/v", &fbp_union_f64_r(2.25), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -302,35 +313,46 @@ static void test_u32(void ** state) {
 
     // subscribe to parent, get retained value
     expect_pub_u32("s/hello/u32", 42);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
 
     // publish
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(7), NULL, NULL));
     expect_pub_u32("s/hello/u32", 7);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(7), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
 
-static void test_u32_dedup(void ** state) {
+static void test_u32_retain_dedup(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", 0, on_pub, NULL));
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
 
     // Publish retained value
     expect_pub_u32("s/hello/u32", 42);
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
-    fbp_pubsub_process(ps);
 
     // Publish same retained value
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
-    fbp_pubsub_process(ps);
 
     // Publish different value
     expect_pub_u32("s/hello/u32", 99);
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(99), NULL, NULL));
-    fbp_pubsub_process(ps);
+
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_u32_unretained(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
+
+    // Publish retained value
+    expect_pub_u32("s/hello/u32", 0);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32(0), NULL, NULL));
+
+    // Publish same retained value
+    expect_pub_u32("s/hello/u32", 0);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32(0), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -338,12 +360,11 @@ static void test_u32_dedup(void ** state) {
 static void test_subscribe_first(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
 
     // publish
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
     expect_pub_u32("s/hello/u32", 42);
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -365,7 +386,7 @@ static void test_on_publish_cbk(void ** state) {
     fbp_pubsub_finalize(ps);
 }
 
-static void test_retained_value_query(void ** state) {
+static void test_retained_value_query_fn(void ** state) {
     (void) state;
     struct fbp_union_s value;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
@@ -377,10 +398,38 @@ static void test_retained_value_query(void ** state) {
     fbp_pubsub_finalize(ps);
 }
 
+static void test_retained_value_query_req(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_QUERY_RSP, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/nope/u32", &fbp_union_u32(42), NULL, NULL));
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
+    expect_pub_u32("s/hello/u32?", 42);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "?", &fbp_union_null(), NULL, NULL));
+    expect_pub_u32("s/hello/u32?", 42);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/?", &fbp_union_null(), NULL, NULL));
+
+    // and forward responses
+    assert_int_equal(0, fbp_pubsub_publish(ps, "z/good?", &fbp_union_u32_r(99), NULL, NULL));
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_retained_value_query_req_fwd(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_QUERY_REQ, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/?", &fbp_union_null(), NULL, NULL));
+    expect_pub_null("?");
+    assert_int_equal(0, fbp_pubsub_publish(ps, "?", &fbp_union_null(), NULL, NULL));
+    expect_pub_null("r/?");
+    assert_int_equal(0, fbp_pubsub_publish(ps, "r/?", &fbp_union_null(), NULL, NULL));
+    fbp_pubsub_finalize(ps);
+}
+
 static void test_do_not_update_same(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), on_pub, NULL));
     fbp_pubsub_process(ps);
     fbp_pubsub_finalize(ps);
@@ -389,7 +438,7 @@ static void test_do_not_update_same(void ** state) {
 static void test_unsubscribe(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     fbp_pubsub_process(ps);
     assert_int_equal(0, fbp_pubsub_unsubscribe(ps, "s/hello", on_pub, NULL));
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
@@ -400,8 +449,8 @@ static void test_unsubscribe(void ** state) {
 static void test_unsubscribe_from_all(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v1", 0, on_pub, NULL));
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v2", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v1", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/v2", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     fbp_pubsub_process(ps);
     assert_int_equal(0, fbp_pubsub_unsubscribe_from_all(ps, on_pub, NULL));
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/v1", &fbp_union_u32_r(42), NULL, NULL));
@@ -420,7 +469,7 @@ static void test_unretained(void ** state) {
     assert_int_not_equal(0, fbp_pubsub_query(ps, "s/hello/u32", &value));
 
     // no callback, since not retained.
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     fbp_pubsub_process(ps);
     fbp_pubsub_finalize(ps);
 }
@@ -428,34 +477,16 @@ static void test_unretained(void ** state) {
 static void test_nopub(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_NOPUB, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", 0, on_pub, NULL));
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32(42), NULL, NULL));
     fbp_pubsub_process(ps);
     fbp_pubsub_finalize(ps);
 }
 
-const char * META1 =
-    "{"
-        "\"dtype\": \"u32\","
-        "\"brief\": \"value1\","
-        "\"default\": \"42\","
-        "\"options\": [[42, \"v1\"], [43, \"v2\"]],"
-        "\"flags\": []"
-    "}";
-
-const char * META2 =
-    "{"
-         "\"dtype\": \"u32\","
-         "\"brief\": \"value1\","
-         "\"default\": \"42\","
-         "\"options\": [[42, \"v1\"], [43, \"v2\"]],"
-         "\"flags\": []"
-     "}";
-
 static void test_meta_when_not_req_or_rsp_subscriber(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", 0, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
     fbp_pubsub_process(ps);
     // the subscriber should not receive the request or responses
     assert_int_equal(0, fbp_pubsub_publish(ps, "$", &fbp_union_null(), NULL, NULL));
@@ -475,7 +506,7 @@ static void test_meta_when_not_req_or_rsp_subscriber(void ** state) {
 #define META_REQ_PRE() \
     (void) state; \
     struct fbp_pubsub_s *ps = fbp_pubsub_initialize("s", 0); \
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_REQ, on_pub, NULL)); \
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_METADATA_REQ, on_pub, NULL)); \
     fbp_pubsub_process(ps)
 
 #define META_REQ_POST() fbp_pubsub_finalize(ps)
@@ -506,7 +537,7 @@ static void test_meta_req_no_forward_owned(void ** state) {
 static void test_meta_rsp_subscriber_root(void ** state) {
     (void) state;
     struct fbp_pubsub_s *ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_RSP, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_METADATA_RSP, on_pub, NULL));
     fbp_pubsub_process(ps);
     expect_pub_json("h/v2$", META1);  // expect the response, local or otherwise
     assert_int_equal(0, fbp_pubsub_publish(ps, "h/v2$", &fbp_union_cjson_r(META1), NULL, NULL));
@@ -523,7 +554,7 @@ static void test_meta_rsp_subscriber_root_retained(void ** state) {
     expect_pub_cstr(FBP_PUBSUB_TOPIC_PREFIX, "s");
     expect_pub_cstr(FBP_PUBSUB_TOPIC_LIST, "s");
     // metadata is not forwarded on retained subscription, need explicit query
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_RSP | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_METADATA_RSP | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     fbp_pubsub_process(ps);
 
     // but do expect it on query
@@ -546,7 +577,6 @@ static void test_meta_rsp_subscriber_root_retained(void ** state) {
 static uint8_t on_publish_return_error(
         void * user_data, const char * topic, const struct fbp_union_s * value) {
     (void) user_data;
-    size_t topic_sz = strlen(topic);
     uint8_t type = value->type;
     uint32_t value_u32 = value->value.u32;
     check_expected_ptr(topic);
@@ -563,36 +593,31 @@ static uint8_t on_publish_return_error(
 static void test_error(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/u32", 0, on_publish_return_error, NULL));
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_NOPUB | FBP_PUBSUB_SFLAG_RSP, on_pub, NULL));
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/u32", FBP_PUBSUB_SFLAG_PUB, on_publish_return_error, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_RETURN_CODE, on_pub, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
     expect_epub_u32("s/hello/u32", 42);  // subscriber, returns error
-    expect_pub_u32("s/hello/u32#", 1);   // forward to all meta response subscribers
-    fbp_pubsub_process(ps);
+    expect_pub_i32("s/hello/u32#", 1);   // forward to all meta response subscribers
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(42), NULL, NULL));
     fbp_pubsub_finalize(ps);
 }
 
 static void test_error_rsp_forward(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_RSP, on_pub, NULL));
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_RETURN_CODE, on_pub, NULL));
     fbp_pubsub_process(ps);
 
     // forward from our pubsub instance (strange, but allowed)
-    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32#", &fbp_union_u32(1), NULL, NULL));
-    expect_pub_u32("s/hello/u32#", 1);
-    fbp_pubsub_process(ps);
+    expect_pub_i32("s/hello/u32#", 1);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32#", &fbp_union_i32(1), NULL, NULL));
 
     // forward from another pubsub instance
-    assert_int_equal(0, fbp_pubsub_publish(ps, "h/hello/u32#", &fbp_union_u32(2), NULL, NULL));
-    expect_pub_u32("h/hello/u32#", 2);
-    fbp_pubsub_process(ps);
+    expect_pub_i32("h/hello/u32#", 2);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "h/hello/u32#", &fbp_union_i32(2), NULL, NULL));
 
     // unless the subscriber generated it.
-    assert_int_equal(0, fbp_pubsub_publish(ps, "h/hello/u32#", &fbp_union_u32(3), on_pub, NULL));
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "h/hello/u32#", &fbp_union_i32(3), on_pub, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -600,9 +625,8 @@ static void test_error_rsp_forward(void ** state) {
 static void test_topic_prefix(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, FBP_PUBSUB_TOPIC_PREFIX, FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     expect_pub_cstr("_/topic/prefix", "s");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, FBP_PUBSUB_TOPIC_PREFIX, FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     fbp_pubsub_finalize(ps);
 }
 
@@ -611,31 +635,63 @@ static void test_topic_prefix(void ** state) {
 static void test_topic_list(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 100);
-    assert_int_equal(0, fbp_pubsub_subscribe(ps, FBP_PUBSUB_TOPIC_LIST, FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
     expect_pub_cstr(FBP_PUBSUB_TOPIC_LIST, "s");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, FBP_PUBSUB_TOPIC_LIST, FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETAIN, on_pub, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_ADD, &fbp_union_str("a"), NULL, NULL));
     expect_pub_cstr(FBP_PUBSUB_TOPIC_LIST, "s" SEP "a");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_ADD, &fbp_union_str("a"), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_ADD, &fbp_union_str("b"), NULL, NULL));
     expect_pub_cstr(FBP_PUBSUB_TOPIC_LIST, "s" SEP "a" SEP "b");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_ADD, &fbp_union_str("b"), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_REMOVE, &fbp_union_str("a"), NULL, NULL));
     expect_pub_cstr(FBP_PUBSUB_TOPIC_LIST, "s" SEP "b");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_REMOVE, &fbp_union_str("a"), NULL, NULL));
 
-    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_REMOVE, &fbp_union_str("b"), NULL, NULL));
     expect_pub_cstr(FBP_PUBSUB_TOPIC_LIST, "s");
-    fbp_pubsub_process(ps);
+    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_TOPIC_REMOVE, &fbp_union_str("b"), NULL, NULL));
+
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_meta(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 100);
+
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s/hello/world", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
+    expect_pub_u8("s/hello/world", 2);
+    assert_int_equal(0, fbp_pubsub_meta(ps, "s/hello/world", META2));
+
+    expect_pub_u8("s/hello/world", 1);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("one"), NULL, NULL));
+
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_RETURN_CODE, on_pub, NULL));
+    expect_pub_i32("s/hello/world#", FBP_ERROR_PARAMETER_INVALID);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("__invalid__"), NULL, NULL));
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_meta_return_code(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 100);
+
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "", FBP_PUBSUB_SFLAG_PUB | FBP_PUBSUB_SFLAG_RETURN_CODE, on_pub, NULL));
+    expect_pub_u32(FBP_PUBSUB_CONFIG_RETURN_CODE, 1);
+    assert_int_equal(0, fbp_pubsub_publish(ps, FBP_PUBSUB_CONFIG_RETURN_CODE, &fbp_union_u32_r(1), NULL, NULL));
+    expect_pub_u8("s/hello/world", 2);
+    expect_pub_i32("s/hello/world#", 0);
+    assert_int_equal(0, fbp_pubsub_meta(ps, "s/hello/world", META2));
+
+    expect_pub_u8("s/hello/world", 1);
+    expect_pub_i32("s/hello/world#", 0);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("one"), NULL, NULL));
+
+    expect_pub_i32("s/hello/world#", FBP_ERROR_PARAMETER_INVALID);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/world", &fbp_union_cstr_r("__invalid__"), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_initialize, setup, teardown),
             cmocka_unit_test_setup_teardown(test_cstr, setup, teardown),
@@ -645,10 +701,13 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_integers, setup, teardown),
             cmocka_unit_test_setup_teardown(test_float, setup, teardown),
             cmocka_unit_test_setup_teardown(test_u32, setup, teardown),
-            cmocka_unit_test_setup_teardown(test_u32_dedup, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_u32_retain_dedup, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_u32_unretained, setup, teardown),
             cmocka_unit_test_setup_teardown(test_subscribe_first, setup, teardown),
             cmocka_unit_test_setup_teardown(test_on_publish_cbk, setup, teardown),
-            cmocka_unit_test_setup_teardown(test_retained_value_query, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_retained_value_query_fn, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_retained_value_query_req, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_retained_value_query_req_fwd, setup, teardown),
             cmocka_unit_test_setup_teardown(test_do_not_update_same, setup, teardown),
             cmocka_unit_test_setup_teardown(test_unsubscribe, setup, teardown),
             cmocka_unit_test_setup_teardown(test_unsubscribe_from_all, setup, teardown),
@@ -664,6 +723,8 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_error_rsp_forward, setup, teardown),
             cmocka_unit_test_setup_teardown(test_topic_prefix, setup, teardown),
             cmocka_unit_test_setup_teardown(test_topic_list, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_meta, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_meta_return_code, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -15,6 +15,7 @@
  */
 
 #include "fitterbap/pattern_32a.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/assert.h"
 #include "fitterbap/dbc.h"
 #include <stdbool.h>

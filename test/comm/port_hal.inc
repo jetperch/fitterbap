@@ -31,15 +31,16 @@ struct test_s {
     struct fbp_pubsub_s p;
     struct fbp_evm_s * evm;
     struct fbp_evm_api_s evm_api;
-    struct fbp_time_counter_s time_counter;
+    uint32_t time_counter_frequency;
+    uint64_t time_counter_value;
 };
 
 struct test_s * instance_;
 
 struct test_s * port_hal_initialize() {
     struct test_s * self = fbp_alloc_clr(sizeof(struct test_s));
-    self->time_counter.value = 0;
-    self->time_counter.frequency = 1000;
+    self->time_counter_value = 0;
+    self->time_counter_frequency = 1000;
     instance_ = self;
     self->evm = fbp_evm_allocate();
     assert_int_equal(0, fbp_evm_api_get(self->evm, &self->evm_api));
@@ -58,20 +59,28 @@ void port_hal_finalize(struct test_s * self) {
     instance_ = NULL;
 }
 
-void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_lock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
-void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_unlock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
-void fbp_os_sleep(int64_t duration) {
+void fbp_os_sleep_(int64_t duration) {
     (void) duration;
 }
 
-struct fbp_time_counter_s fbp_time_counter() {
-    return instance_->time_counter;
+uint32_t fbp_time_counter_frequency_() {
+    return instance_->time_counter_frequency;
+}
+
+uint64_t fbp_time_counter_u64_() {
+    return instance_->time_counter_value;
+}
+
+uint32_t fbp_time_counter_u32_() {
+    return (uint32_t) instance_->time_counter_value;
 }
 
 const char * fbp_pubsub_topic_prefix(struct fbp_pubsub_s * self) {
@@ -171,7 +180,7 @@ int32_t fbp_pubsub_publish(
         case FBP_UNION_I16: check_expected(i16); break;
         case FBP_UNION_I32: check_expected(i32); break;
         case FBP_UNION_I64: check_expected(i64); break;
-        default: check_expected(self); break; // not valid
+        default: assert_true(0); break; // not valid
     }
     return 0;
 }
@@ -283,25 +292,22 @@ int32_t fbp_transport_send(struct fbp_transport_s * self,
                            uint8_t port_id,
                            enum fbp_transport_seq_e seq,
                            uint8_t port_data,
-                           uint8_t const *msg, uint32_t msg_size,
-                           uint32_t timeout_ms) {
+                           uint8_t const *msg, uint32_t msg_size) {
     (void) self;
     check_expected(port_id);
     check_expected(seq);
     check_expected(port_data);
     check_expected(msg_size);
     check_expected_ptr(msg);
-    check_expected(timeout_ms);
-    return mock_type(int32_t);;
+    return mock_type(int32_t);
 }
 
-#define expect_send(_port_id, _port_data, _msg, _msg_size, _timeout_ms)     \
+#define expect_send(_port_id, _port_data, _msg, _msg_size)     \
     expect_value(fbp_transport_send, port_id, _port_id);                    \
     expect_value(fbp_transport_send, seq, FBP_TRANSPORT_SEQ_SINGLE);        \
     expect_value(fbp_transport_send, port_data, _port_data);                \
     expect_value(fbp_transport_send, msg_size, _msg_size);                  \
     expect_memory(fbp_transport_send, msg, _msg, _msg_size);                \
-    expect_value(fbp_transport_send, timeout_ms, _timeout_ms);              \
     will_return(fbp_transport_send, 0)
 
 #define expect_send_error(error_)                               \

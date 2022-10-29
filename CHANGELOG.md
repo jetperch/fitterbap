@@ -4,6 +4,53 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.5.0
+
+2022 Oct 29
+
+* Restructured platform and configuration.
+  * Allow for static inline functions in platform.
+  * Clarified platform porting requirements.
+  * Removed "fitterbap/lib.h" since no longer needed.
+* Updated comm/framer.h analysis based upon
+  [Martin Cowen's](http://blog.martincowen.me.uk/using-and-misusing-crcs.html)
+  feedback.  Thank you!
+* Added uart_thread_tester.
+* Improved log handler.
+* Improved host UART: Added DTR and TX callback.
+* Added TX event to UART thread tester for CPU efficiency.
+* Added compile-time option to display frames in framer_test.
+* Fixed gcc 11.2 errors and warnings.
+* Fixed comm data link.
+  * Improved and simplified reset handling.  Added sequence diagrams.
+  * Removed comm send timeout.  Implement in app and higher levels as needed.
+  * Fixed endless immediate scheduling when lower level transmitter is full.
+  * Improved comm framer performance - no copy when entire frame in buffer.
+  * Added process_request callback for more reliable OS integration.
+  * Improved multi-threaded performance and fixed potential deadlock.
+    Clarified that fbp_dl_send is the only thread-safe function.
+  * Added fbp_dl_process and removed fbp_evm integration to give better
+    decoupling and performance.
+  * Added explicit buffer size to framer construct_data.
+  * Fixed stream_tester.
+  * Removed uart_thread and improved uart API.
+    Changed from uart_thread_tester to uart_tester.
+  * Added test/comm/comm.c
+  * Modified test/comm/host.c to work as either server or client.
+* Fixed python to better support PySide6.
+* Added fbp_rbu64_is_empty
+* Refactored windows error handling support.
+* Added simple json lexer/parser - no dynamic or static memory.
+* Added pubsub_meta for metadata validation.
+* Added equality and conversion functions to union type including:
+  fbp_union_eq_exact, fbp_union_equiv, fbp_union_widen, and fbp_union_as_type.
+* Modified fbp_pubsub_sflag_e values and fbp_pubsub_subscribe flags.
+* Added pubsub config option to always publish return codes, even on success.
+* Added pubsub query request/response using "?".
+* Added FBP_DL_LINK_SEND_IMMEDIATE optional feature.
+* Fixed unretained pubsub publish.
+
+
 ## 0.4.1
 
 2021 Jun 22

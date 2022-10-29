@@ -15,11 +15,12 @@
  */
 
 #define FBP_LOG_LEVEL FBP_LOG_LEVEL_NOTICE
+#include "fitterbap/common_header.h"
 #include "fitterbap/fsm.h"
 #include "fitterbap/dbc.h"
 #include <inttypes.h>
 
-static const char * state_name_(struct fbp_fsm_s * self, fbp_fsm_state_t state) {
+FBP_USED static const char * state_name_(struct fbp_fsm_s * self, fbp_fsm_state_t state) {
     const char * name = 0;
     if ((state >= 0) && (state < self->states_count)) {
         name = self->states[state].name;
@@ -37,7 +38,7 @@ static const char * state_name_(struct fbp_fsm_s * self, fbp_fsm_state_t state) 
     return name;
 }
 
-static const char * event_name_(struct fbp_fsm_s * self, fbp_fsm_event_t event) {
+FBP_USED static const char * event_name_(struct fbp_fsm_s * self, fbp_fsm_event_t event) {
     const char * name = 0;
     if (self->event_name_fn) {
         name = self->event_name_fn(self, event);
@@ -100,6 +101,7 @@ void fbp_fsm_initialize(struct fbp_fsm_s * self) {
 }
 
 static void transition(struct fbp_fsm_s * self, fbp_fsm_state_t next, fbp_fsm_event_t event) {
+    (void) event;
     fbp_fsm_handler exit_handler = 0;
     fbp_fsm_handler enter_handler = 0;
 
@@ -165,7 +167,6 @@ static void handle_event(struct fbp_fsm_s * self,
               state_name_(self, self->state),
               event_name_(self, event));
 }
-
 
 void fbp_fsm_event(struct fbp_fsm_s * self,
                   fbp_fsm_event_t event) {

@@ -23,8 +23,6 @@
 #ifndef FBP_LOG_HANDLER_H_
 #define FBP_LOG_HANDLER_H_
 
-#include "fitterbap/config.h"
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/log.h"
 #include <stdint.h>
 
@@ -143,7 +141,7 @@ FBP_API int32_t fbp_logh_publish_formatted(struct fbp_logh_s * self, struct fbp_
 FBP_API int32_t fbp_logh_dispatch_register(struct fbp_logh_s * self, fbp_logh_recv fn, void * user_data);
 
 /**
- * @brief Unregister a callback
+ * @brief Unregister a callback.
  *
  * @param self The instance or NULL to use the default singleton.
  * @param fn The function previous registered fbp_logh_dispatch_register().
@@ -151,6 +149,18 @@ FBP_API int32_t fbp_logh_dispatch_register(struct fbp_logh_s * self, fbp_logh_re
  * @return 0 or FBP_ERROR_NOT_FOUND.
  */
 FBP_API int32_t fbp_logh_dispatch_unregister(struct fbp_logh_s * self, fbp_logh_recv fn, void * user_data);
+
+/**
+ * @brief Unregister all callbacks.
+ *
+ * @param self The instance or NULL to use the default singleton.
+ * @return 0 or FBP_ERROR_NOT_FOUND.
+ *
+ * Prefer to use fbp_logh_dispatch_unregister() so that registered callbacks
+ * remain in control.  The anticipated use case for this function is during
+ * fault handling to process all outstanding messages to a debug UART.
+ */
+FBP_API void fbp_logh_dispatch_unregister_all(struct fbp_logh_s * self);
 
 /**
  * @brief Register a function to call on publish.
@@ -184,7 +194,7 @@ FBP_API int32_t fbp_logh_process(struct fbp_logh_s * self);
  *      log messages until the queue empties.
  * @param time_fn The function that provides utc time.  NULL will
  *      use fbp_time_utc().
- * @return The log hander instance.
+ * @return The log handler instance.
  */
 FBP_API struct fbp_logh_s * fbp_logh_initialize(char origin_prefix, uint32_t msg_buffers_max,
                                                 int64_t (*time_fn)());

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2021 Jetperch LLC
+ * Copyright 2022 Jetperch LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef HAL_TEST_IMPLEMENTATION_H_
-#define HAL_TEST_IMPLEMENTATION_H_
+/**
+ * @file
+ *
+ * @brief Windows error handling support.
+ */
 
+#ifndef FBP_HOST_WIN_ERROR_H__
+#define FBP_HOST_WIN_ERROR_H__
+
+#include <windows.h>
 #include "fitterbap/cmacro_inc.h"
-#include <stdint.h>
 
 FBP_CPP_GUARD_START
 
+BOOL GetErrorMessage(DWORD dwErrorCode, char * pBuffer, DWORD cchBufferLength);
 
-void hal_test_initialize();
-void hal_test_enable_logging();
-
-
+#define WINDOWS_LOGE(format, ...) { \
+    char error_msg_[64]; \
+    DWORD error_ = GetLastError(); \
+    GetErrorMessage(error_, error_msg_, sizeof(error_msg_)); \
+    FBP_LOGE(format ": %d: %s", __VA_ARGS__, (int) error_, error_msg_); \
+}
 
 FBP_CPP_GUARD_END
 
-#endif /* HAL_TEST_IMPLEMENTATION_H_ */
+#endif  /* FBP_HOST_WIN_ERROR_H__ */
+

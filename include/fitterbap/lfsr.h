@@ -23,8 +23,8 @@
 #ifndef FBP_LFSR_H_
 #define FBP_LFSR_H_
 
-#include <stdint.h>
 #include "fitterbap/cmacro_inc.h"
+#include <stdint.h>
 
 /**
  * @ingroup fbp_core

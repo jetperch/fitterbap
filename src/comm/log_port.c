@@ -94,7 +94,7 @@ static int32_t initialize(struct fbp_port_api_s * api, const struct fbp_port_con
     fbp_topic_set(&topic, config->topic_prefix.topic);
     fbp_topic_append(&topic, LEVEL_TOPIC);
     fbp_pubsub_meta(config->pubsub, topic.topic, LEVEL_META);
-    fbp_pubsub_subscribe(config->pubsub, topic.topic, 0, on_log_level, self);
+    fbp_pubsub_subscribe(config->pubsub, topic.topic, FBP_PUBSUB_SFLAG_PUB, on_log_level, self);
     fbp_pubsub_publish(config->pubsub, topic.topic, &fbp_union_u8_r(self->level_filter), on_log_level, self);
 
     self->transport = config->transport;
@@ -183,7 +183,7 @@ int32_t fbp_logp_recv(void * user_data, struct fbp_logh_header_s const * header,
     *p++ = 0;
 
     return fbp_transport_send(self->transport, self->port_id, FBP_TRANSPORT_SEQ_SINGLE,
-                              0, (uint8_t *) p_start, p - p_start, 0);
+                              0, (uint8_t *) p_start, (uint32_t) (p - p_start));
 }
 
 void fbp_logp_handler_register(struct fbp_port_api_s * api, fbp_logp_publish_formatted fn, void * user_data) {

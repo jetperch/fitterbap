@@ -20,7 +20,6 @@
 #include <cmocka.h>
 #include "fitterbap/cdef.h"
 #include "fitterbap/fsm.h"
-#include "hal_test_impl.h"  // for logging
 
 enum {
     ST_0,
@@ -277,7 +276,6 @@ static void reentrant(void **state) {
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(empty, setup, teardown),
             cmocka_unit_test_setup_teardown(initialization, setup, teardown),

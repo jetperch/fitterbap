@@ -33,31 +33,29 @@ int64_t count_ms_ = 0;
 #define TEARDOWN() \
     fbp_evm_free(evm)
 
-struct fbp_time_counter_s fbp_time_counter() {
-    struct fbp_time_counter_s counter;
-    counter.value = count_ms_;
-    counter.frequency = 1000;
-    return counter;
+
+uint32_t fbp_time_counter_frequency_() {
+    return 1000;
 }
 
-void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+uint64_t fbp_time_counter_u64_() {
+    return count_ms_;
+}
+
+uint32_t fbp_time_counter_u32_() {
+    return (uint32_t) count_ms_;
+}
+
+void fbp_os_mutex_lock_(fbp_os_mutex_t mutex) {
     if (mutex) {
         check_expected_ptr(mutex);
     }
 }
 
-void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_unlock_(fbp_os_mutex_t mutex) {
     if (mutex) {
         check_expected_ptr(mutex);
     }
-}
-
-void * fbp_alloc(fbp_size_t size_bytes) {
-    return test_malloc(size_bytes);
-}
-
-void fbp_free(void * ptr) {
-    test_free(ptr);
 }
 
 void cbk_full(void * user_data, int32_t event_id) {
@@ -172,8 +170,8 @@ static void test_on_schedule(void **state) {
 }
 
 #define expect_mutex() \
-    expect_any(fbp_os_mutex_lock, mutex); \
-    expect_any(fbp_os_mutex_unlock, mutex)
+    expect_any(fbp_os_mutex_lock_, mutex); \
+    expect_any(fbp_os_mutex_unlock_, mutex)
 
 
 static void test_mutex(void **state) {

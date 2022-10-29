@@ -32,7 +32,6 @@
  * @{
  */
 
-
 /* Set global log level */
 #define FBP_LOG_GLOBAL_LEVEL FBP_LOG_LEVEL_ALL
 
@@ -40,24 +39,33 @@
 // #define FBP_LOGP_LEVEL FBP_LOG_LEVEL_WARNING
 
 /* Optionally Override the log format */
-#if 0
+#if 0  // use the included Fitterbap log handler
+#ifndef FBP_LOG_PRINTF  // allow unit tests to overwrite
+struct fbp_logh_s;
+int32_t fbp_logh_publish(struct fbp_logh_s * self, uint8_t level, const char * filename, uint32_t line, const char * format, ...);
+#define FBP_LOG_PRINTF(level, format, ...) \
+    fbp_logh_publish(NULL, level, __FILENAME__, __LINE__, format, __VA_ARGS__)
+#endif
+#elif 1  // redefine the printf format
+#ifndef FBP_LOG_PRINTF  // allow unit tests to overwrite
+void fbp_log_printf_(const char * format, ...) FBP_PRINTF_FORMAT;
 #define FBP_LOG_PRINTF(level, format, ...) \
    fbp_log_printf_("%c %s:%d: " format "\n", fbp_log_level_char[level], __FILENAME__, __LINE__, __VA_ARGS__);
+#endif
 #endif
 
 /**
  * @brief The 32-bit CRC function to use for the comm framer.
  *
  * The signature must be:
- *   uint32_t (*fn)(uint32_t crc, uint8_t const *data, uint32_t length)
+ *   uint32_t (*fn)(uint8_t const *data, uint32_t length)
  */
-//#define FBP_FRAMER_CRC32 fbp_crc32
+//#define FBP_CONFIG_COMM_FRAMER_CRC32 fbp_crc32
 //#define FBP_CRC_CRC32 1
 
-
 // Uncomment for your platform
-//#define FBP_PLATFORM_STDLIB 1
-// #define FBP_PLATFORM_ARM 1
+//#define FBP_CONFIG_USE_PLATFORM_STDLIB 1
+//#define FBP_PLATFORM_ARM 1
 
 // remove the following for custom platforms
 #ifdef __linux__
@@ -65,15 +73,17 @@
 #elif _WIN32
 #include "fitterbap/host/win/config.h"
 #else
+#error "unsupported platform"
 #endif
 
 // 1 to enable floating point
-// #define FBP_CSTR_FLOAT_ENABLE 0
+#define FBP_CONFIG_USE_FLOAT32 1
+#define FBP_CONFIG_USE_FLOAT64 1
+#define FBP_CONFIG_USE_CSTR_FLOAT 1
 
 // typedef void * fbp_os_mutex_t;
-
+// typedef intptr_t fbp_size_t;
 
 /** @} */
 
 #endif /* FBP_CONFIG_H_ */
-

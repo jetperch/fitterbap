@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "../hal_test_impl.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
@@ -67,8 +66,16 @@ struct fbp_transport_s * instance_;
 #define TX_WINDOW_SIZE 16
 #define RX_WINDOW_SIZE 12
 
-struct fbp_time_counter_s fbp_time_counter() {
-    return (struct fbp_time_counter_s) {.frequency = 1000, .value = instance_->counter};
+uint32_t fbp_time_counter_frequency_() {
+    return 1000;
+}
+
+uint64_t fbp_time_counter_u64_() {
+    return instance_->counter;
+}
+
+uint32_t fbp_time_counter_u32_() {
+    return (uint32_t) instance_->counter;
 }
 
 void fbp_ts_update(struct fbp_ts_s * self, uint64_t src_tx, int64_t tgt_rx, int64_t tgt_tx, uint64_t src_rx) {
@@ -115,7 +122,7 @@ void fbp_dl_tx_window_set(struct fbp_dl_s * self, uint32_t tx_window_size) {
 }
 
 #define expect_tx_window_set(dl_, tx_window_size_) \
-    expect_value(fbp_dl_tx_window_set, dl, dl_);   \
+    expect_value(fbp_dl_tx_window_set, dl, (intptr_t) dl_);   \
     expect_value(fbp_dl_tx_window_set, tx_window_size, tx_window_size_);
 
 uint32_t fbp_dl_rx_window_get(struct fbp_dl_s * self) {
@@ -131,7 +138,7 @@ void fbp_transport_event_inject(struct fbp_transport_s * self, enum fbp_dl_event
 #define expect_dl_event_inject(dl_, event_) \
     expect_value(fbp_transport_event_inject, event, event_);
 
-int64_t fbp_time_utc() {
+int64_t fbp_time_utc_() {
     return instance_->timestamp;
 }
 
@@ -144,11 +151,11 @@ const char * fbp_transport_meta_get(struct fbp_transport_s * self, uint8_t port_
     }
 }
 
-void fbp_os_mutex_lock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_lock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
-void fbp_os_mutex_unlock(fbp_os_mutex_t mutex) {
+void fbp_os_mutex_unlock_(fbp_os_mutex_t mutex) {
     (void) mutex;
 }
 
@@ -156,10 +163,8 @@ static int32_t ll_send(struct fbp_transport_s * t,
                        uint8_t port_id,
                        enum fbp_transport_seq_e seq,
                        uint8_t port_data,
-                       uint8_t const *msg, uint32_t msg_size,
-                       uint32_t timeout_ms) {
+                       uint8_t const *msg, uint32_t msg_size) {
     (void) t;
-    (void) timeout_ms;
     check_expected(port_id);
     check_expected(seq);
     check_expected(port_data);
@@ -208,7 +213,7 @@ int32_t evm_cancel_fn(struct fbp_evm_s * evm, int32_t event_id) {
         return FBP_ERROR_PARAMETER_INVALID;
     }
     int32_t idx = event_id - 1;
-    assert_true(self->events[idx].cbk_fn);
+    assert_true(self->events[idx].cbk_fn != NULL);
     self->events[idx].cbk_fn = 0;
     return 0;
 }
@@ -279,7 +284,6 @@ static int teardown(void ** state) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) *state; \
     struct fbp_pubsub_s * pubsub = fbp_pubsub_initialize("h", 1024);   \
     assert_non_null(pubsub);                                           \
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);          \
     struct fbp_port0_s * p = fbp_port0_initialize(FBP_PORT0_MODE_##mode_, &self->dl1, &self->evm, self, ll_send, pubsub, "h/c0/", NULL); \
     assert_non_null(p); \
     self->p1 = p
@@ -425,7 +429,7 @@ static void test_server_timeout_in_negotiate(void ** state) {
     evm_process_next(self);
 
     // no negotiate response causes timeout: negotiate -> disconnect
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);
+    expect_value(fbp_dl_reset_tx_from_event, dl, (intptr_t) &self->dl1);
     evm_process_next(self);
 
     FINALIZE();
@@ -433,18 +437,14 @@ static void test_server_timeout_in_negotiate(void ** state) {
 
 static int32_t send_p1_to_p2(struct fbp_transport_s * t,
                              uint8_t port_id, enum fbp_transport_seq_e seq, uint8_t port_data,
-                             uint8_t const *msg, uint32_t msg_size,
-                             uint32_t timeout_ms) {
-    (void) timeout_ms;
+                             uint8_t const *msg, uint32_t msg_size) {
     fbp_port0_on_recv_cbk(t->p2, port_id, seq, port_data, (uint8_t *) msg, msg_size);
     return 0;
 }
 
 static int32_t send_p2_to_p1(struct fbp_transport_s * t,
                              uint8_t port_id, enum fbp_transport_seq_e seq, uint8_t port_data,
-                             uint8_t const *msg, uint32_t msg_size,
-                             uint32_t timeout_ms) {
-    (void) timeout_ms;
+                             uint8_t const *msg, uint32_t msg_size) {
     fbp_port0_on_recv_cbk(t->p1, port_id, seq, port_data, (uint8_t *) msg, msg_size);
     return 0;
 }
@@ -455,11 +455,9 @@ static void setup_dual(struct fbp_transport_s * self) {
     self->pubsub2 = fbp_pubsub_initialize("d", 1024);
     assert_non_null(self->pubsub2);
 
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl1);
     self->p1 = fbp_port0_initialize(FBP_PORT0_MODE_SERVER, &self->dl1, &self->evm, self, send_p1_to_p2, self->pubsub1, "h/c0/", NULL); \
     assert_non_null(self->p1);
 
-    expect_value(fbp_dl_reset_tx_from_event, dl, &self->dl2);
     self->p2 = fbp_port0_initialize(FBP_PORT0_MODE_CLIENT, &self->dl2, &self->evm, self, send_p2_to_p1, self->pubsub2, "d/c0/", NULL); \
     assert_non_null(self->p2);
 }
@@ -475,9 +473,27 @@ static void teardown_dual(struct fbp_transport_s * self) {
     self->pubsub2 = NULL;
 }
 
+static uint8_t on_publish_u32(void * user_data, const char * topic, const struct fbp_union_s * value) {
+    struct fbp_transport_s * self = (struct fbp_transport_s *) user_data;
+    check_expected_ptr(topic);
+    assert_int_equal(FBP_UNION_U32, value->type);
+    uint32_t state = value->value.u32;
+    check_expected(state);
+    return 0;
+}
+
+#define expect_publish_u32(topic_, value_) \
+    expect_string(on_publish_u32, topic, topic_); \
+    expect_value(on_publish_u32, state, value_);
+
 static void test_connect(void ** state) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) *state;
     setup_dual(self);
+    fbp_pubsub_subscribe(self->pubsub1, "h/c0/0/state", FBP_PUBSUB_SFLAG_PUB, on_publish_u32, self);
+    fbp_pubsub_subscribe(self->pubsub2, "d/c0/0/state", FBP_PUBSUB_SFLAG_PUB, on_publish_u32, self);
+
+    fbp_port0_on_event_cbk(self->p1, FBP_DL_EV_CONNECTED);
+    fbp_port0_on_event_cbk(self->p2, FBP_DL_EV_CONNECTED);
 
     self->timestamp += FBP_TIME_MILLISECOND * 10;
 
@@ -491,17 +507,14 @@ static void test_connect(void ** state) {
     evm_process_next(self);
     evm_process_next(self);
     evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
-    evm_process_next(self);
+    expect_publish_u32("h/c0/0/state", 1);
+    expect_publish_u32("d/c0/0/state", 1);
     evm_process_next(self);
 
     teardown_dual(self);
 }
 
 int main(void) {
-    hal_test_initialize();
     const struct CMUnitTest tests[] = {
             cmocka_unit_test_setup_teardown(test_server_connect, setup, teardown),
             cmocka_unit_test_setup_teardown(test_client_connect, setup, teardown),

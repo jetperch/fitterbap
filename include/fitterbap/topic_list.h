@@ -24,9 +24,9 @@
 #ifndef FBP_TOPIC_LIST_H__
 #define FBP_TOPIC_LIST_H__
 
-#include "fitterbap/cmacro_inc.h"
 #include "fitterbap/pubsub.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @ingroup fbp_core
@@ -93,6 +93,15 @@ typedef int32_t (*fbp_topic_list_cbk)(void * user_data, const char * topic);
  * @param user_data The arbitrary data provided to fn.
  */
 FBP_API void fbp_topic_list_iterate(struct fbp_topic_list_s * self, fbp_topic_list_cbk fn, void * user_data);
+
+/**
+ * @brief Search the topic list for the specified topic.
+ *
+ * @param self The topic list.
+ * @param topic The topic to match.
+ * @return true if topic found in list, false otherwise.
+ */
+FBP_API bool fbp_topic_list_contains(struct fbp_topic_list_s * self, const char * topic);
 
 
 FBP_CPP_GUARD_END

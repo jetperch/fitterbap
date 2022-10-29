@@ -23,8 +23,7 @@
 #ifndef FBP_CSTR_H_
 #define FBP_CSTR_H_
 
-#include "fitterbap/platform.h"
-#include "fitterbap/config.h"
+#include "fitterbap/common_header.h"
 #include <stdint.h>
 
 /**
@@ -93,6 +92,16 @@ FBP_API int fbp_cstr_casecmp(const char * s1, const char * s2);
 FBP_API const char * fbp_cstr_starts_with(const char * s, const char * prefix);
 
 /**
+ * @brief Determine if a string ends with another string.
+ *
+ * @param s The string to search.
+ * @param prefix The case-sensitive string suffix to match in s.
+ * @return 0 on no match.  On match, return the pointer to s at the location of
+ *     the first character matching the suffix.
+ */
+FBP_API const char * fbp_cstr_ends_with(const char * s, const char * prefix);
+
+/**
  * @brief Convert a string to an unsigned 32-bit integer.
  *
  * @param src The input source string containing an integer.  Strings that
@@ -147,7 +156,7 @@ FBP_API int fbp_cstr_to_i32s(const char * src, int32_t exponent, int32_t * value
  *      modified.  To allow default values on parsing errors, set value
  *      before calling this function.
  *
- * This function is only available if FBP_CSTR_FLOAT_ENABLE is 1 in the
+ * This function is only available if FBP_CONFIG_USE_CSTR_FLOAT is 1 in the
  * fbp config.h file.
  */
 FBP_API int fbp_cstr_to_f32(const char * src, float * value);

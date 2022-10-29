@@ -23,7 +23,7 @@
 #ifndef FBP_COMM_TRANSPORT_H_
 #define FBP_COMM_TRANSPORT_H_
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/comm/data_link.h"
 #include <stdint.h>
 
@@ -100,14 +100,10 @@ typedef void (*fbp_transport_recv_fn)(void *user_data,
  *      copies this buffer, so it only needs to be valid for the duration
  *      of the function call.
  * @param msg_size The size of msg_buffer in total_bytes.
- * @param timeout_ms The timeout duration in milliseconds.  Values <= 0 do not
- *      retry and fail immediately if the buffer is full.  Values > 0 will
- *      retry until success or until the timeout_ms elapses.
  * @return 0 or error code.
  */
 typedef int32_t (*fbp_transport_ll_send)(void * user_data, uint16_t metadata,
-                                         uint8_t const *msg, uint32_t msg_size,
-                                         uint32_t timeout_ms);
+                                         uint8_t const *msg, uint32_t msg_size);
 
 /**
  * @brief The function type used by upper layers to send a message.
@@ -130,8 +126,7 @@ typedef int32_t (*fbp_transport_send_fn)(struct fbp_transport_s * self,
                                          uint8_t port_id,
                                          enum fbp_transport_seq_e seq,
                                          uint8_t port_data,
-                                         uint8_t const *msg, uint32_t msg_size,
-                                         uint32_t timeout_ms);
+                                         uint8_t const *msg, uint32_t msg_size);
 
 /**
  * @brief Allocate and initialize the instance.
@@ -217,17 +212,13 @@ FBP_API int32_t fbp_transport_port_register_default(
  *      copies this buffer, so it only needs to be valid for the duration
  *      of the function call.
  * @param msg_size The size of msg_buffer in total_bytes.
- * @param timeout_ms The timeout duration in milliseconds.  Values <= 0 do not
- *      retry and fail immediately if the buffer is full.  Values > 0 will
- *      retry until success or until the timeout_ms elapses.
  * @return 0 or error code.
  */
 FBP_API int32_t fbp_transport_send(struct fbp_transport_s * self,
                                    uint8_t port_id,
                                    enum fbp_transport_seq_e seq,
                                    uint8_t port_data,
-                                   uint8_t const *msg, uint32_t msg_size,
-                                   uint32_t timeout_ms);
+                                   uint8_t const *msg, uint32_t msg_size);
 
 /**
  * @brief The function to call when the lower layer receives an event.

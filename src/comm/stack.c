@@ -38,7 +38,13 @@ struct fbp_stack_s * fbp_stack_initialize(
     self->pubsub = pubsub;
     self->evm_api = *evm_api;
 
-    self->dl = fbp_dl_initialize(config, evm_api, ll_instance);
+    self->framer = fbp_framer_initialize();
+    if (!self->framer) {
+        fbp_stack_finalize(self);
+        return NULL;
+    }
+
+    self->dl = fbp_dl_initialize(config, ll_instance, self->framer);
     if (!self->dl) {
         fbp_stack_finalize(self);
         return NULL;
@@ -106,6 +112,10 @@ struct fbp_stack_s * fbp_stack_initialize(
 
 int32_t fbp_stack_finalize(struct fbp_stack_s * self) {
     if (self) {
+        if (self->framer) {
+            self->framer->finalize(self->framer);
+            self->framer = NULL;
+        }
         if (self->dl) {
             fbp_dl_finalize(self->dl);
             self->dl = NULL;

@@ -23,7 +23,10 @@
 #ifndef FBP_ASSERT_H_
 #define FBP_ASSERT_H_
 
-#include "fitterbap/platform.h"
+#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/config.h"
+#include "fitterbap/config_defaults.h"
+#include "fitterbap/platform_dependencies.h"
 
 /**
  * @ingroup fbp_core
@@ -45,7 +48,7 @@
  *      when false, invoke fault().
  */
 #define FBP_ASSERT(condition) \
-    if (! (condition) ) { fbp_fatal(__FILE__, __LINE__, "assert"); }
+    if (! (condition) ) { FBP_FATAL("assert"); }
 
 /**
  * @brief Check that a memory allocation succeeded (not NULL).
@@ -54,14 +57,8 @@
  *      which must not be NULL.
  */
 #define FBP_ASSERT_ALLOC(pointer) \
-    if (0 == (pointer)) { fbp_fatal(__FILE__, __LINE__, "memory allocation"); }
+if (0 == (pointer)) { FBP_FATAL("memory allocation"); }
 
-/**
- * @brief Signal that a fatal error occurred.
- *
- * @param[in] msg The message for debugging.
- */
-#define FBP_FATAL(msg) fbp_fatal(__FILE__, __LINE__, msg)
 
 /** @} */
 

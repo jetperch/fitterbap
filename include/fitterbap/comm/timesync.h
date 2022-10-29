@@ -23,7 +23,7 @@
 #ifndef FBP_COMM_TIMESYNC_H_
 #define FBP_COMM_TIMESYNC_H_
 
-#include "fitterbap/cmacro_inc.h"
+#include "fitterbap/common_header.h"
 #include "fitterbap/time.h"
 #include <stdint.h>
 #include <stdbool.h>

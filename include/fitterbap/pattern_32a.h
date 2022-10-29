@@ -23,8 +23,8 @@
 #ifndef FBP_PATTERN_32A_H
 #define FBP_PATTERN_32A_H
 
-#include <stdint.h>
 #include "fitterbap/cmacro_inc.h"
+#include <stdint.h>
 
 /**
  * @ingroup fbp_core

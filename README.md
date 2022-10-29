@@ -55,8 +55,6 @@ release binaries and start the host UI, which looks like this:
 
 ## Known limitations
 
-*   Comm
-    *    No native USB reference implementation yet, but can use USB-CDC.
 *   PubSub
     *    Hard-coded maximum topic lengths.
     *    No validation using provided topic metadata.
@@ -76,8 +74,9 @@ using CMake can use ExternalProject_Add.  Other build systems
 will likely need to include the source files directly.  Consider using
 git subtrees or git submodules.  
 
-You will need to manually create the fitterbap/config.h file and implement the
-platform abstraction layer.   See fitterbap/platform.h for details.
+You will need to manually create the fitterbap/config.h and fitterbap/platform.h.
+See include/fitterbap/config_defaults.h and 
+include/fitterbap/platform_dependencies.h for details.
 
 
 ### Host python
@@ -149,40 +148,39 @@ Here are some other libraries that you can consider.
 
 Full system:
 
-*   [Pigweed](https://pigweed.dev/)
-*   [MBEDDR](http://mbeddr.com/)
-*   [Piconomic FW Library](https://github.com/piconomix/piconomix-fwlib)
+* [Pigweed](https://pigweed.dev/)
+* [MBEDDR](http://mbeddr.com/)
+* [Piconomic FW Library](https://github.com/piconomix/piconomix-fwlib)
 
 
 Communication protocols:
 
-*   [luos](https://www.luos.io/)
-*   [Telemetry](https://github.com/Overdrivr/Telemetry)
-*   [min](https://github.com/min-protocol/min)
-*   [SerialFiller](https://github.com/gbmhunter/SerialFiller)
-*   [Lasp](https://lasp-lang.readme.io/) - totally different scale
-*   [Stream Control Transmission Protocol (SCTP)](https://tools.ietf.org/html/rfc4960)    
-*   [Lab Streaming Layer](https://labstreaminglayer.readthedocs.io/info/intro.html)
-    and [PlotJuggler](https://github.com/facontidavide/PlotJuggler)
+* [luos](https://www.luos.io/)
+* [Telemetry](https://github.com/Overdrivr/Telemetry)
+* [min](https://github.com/min-protocol/min)
+* [SerialFiller](https://github.com/gbmhunter/SerialFiller)
+* [Lasp](https://lasp-lang.readme.io/) - totally different scale
+* [Stream Control Transmission Protocol (SCTP)](https://tools.ietf.org/html/rfc4960)    
+* [TinyFrame](https://github.com/MightyPork/TinyFrame) 
 
 
 PubSub:
 
-*   [pubsub-c](https://github.com/jaracil/pubsub-c)
+* [pubsub-c](https://github.com/jaracil/pubsub-c)
 
 
 Command & control:
 
-*   [microrl](https://github.com/Helius/microrl) - command line
+* [microrl](https://github.com/Helius/microrl) - command line
 
 
 Random number generation:
 
-*   https://en.wikipedia.org/wiki/Xorshift
-*   http://www.pcg-random.org/ 
-*   [small](http://excamera.com/sphinx/article-xorshift.html)
+* https://en.wikipedia.org/wiki/Xorshift
+* http://www.pcg-random.org/ 
+* [small](http://excamera.com/sphinx/article-xorshift.html)
 
 
 String
 
-*   [mpaland's printf](https://github.com/mpaland/printf)
+* [mpaland's printf](https://github.com/mpaland/printf)

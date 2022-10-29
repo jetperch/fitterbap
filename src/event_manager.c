@@ -170,7 +170,7 @@ int64_t fbp_evm_interval_next(struct fbp_evm_s * self, int64_t time_current) {
 
 int32_t fbp_evm_scheduled_event_count(struct fbp_evm_s * self) {
     lock(self);
-    int32_t count = fbp_list_length(&self->events_pending);
+    int32_t count = (int32_t) fbp_list_length(&self->events_pending);
     unlock(self);
     return count;
 }

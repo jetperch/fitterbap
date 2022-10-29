@@ -23,7 +23,7 @@
 #ifndef FBP_CDEF_H_
 #define FBP_CDEF_H_
 
-#include "platform.h"
+#include "fitterbap/common_header.h"
 #include <stddef.h>  // offsetof
 
 /**
@@ -78,7 +78,7 @@
  *     #define RWE FBP_RETURN_ON_ERROR
  */
 #define FBP_RETURN_ON_ERROR(x) do { \
-    int rc__ = (x); \
+    int32_t rc__ = (x); \
     if (rc__) { \
         return rc__; \
     } \

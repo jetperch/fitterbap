@@ -129,7 +129,7 @@ FBP_API int64_t fbp_ts_time(struct fbp_ts_s * self) {
     unlock(self);
 
     // Get counter, may not always be instantaneous
-    int64_t counter = fbp_time_counter().value >> self->counter_right_shift;
+    int64_t counter = fbp_time_counter_u64() >> self->counter_right_shift;
     counter -= counter_offset;
     int64_t value = counter_period_12q52 * counter;
     value = (value >> 22) + time_offset;
@@ -241,14 +241,13 @@ FBP_API void fbp_ts_update(struct fbp_ts_s * self, uint64_t src_tx, int64_t tgt_
 
 FBP_API struct fbp_ts_s * fbp_ts_initialize() {
     struct fbp_ts_s * self = fbp_alloc_clr(sizeof(struct fbp_ts_s));
-    self->mutex = fbp_os_mutex_alloc();
-
-    struct fbp_time_counter_s c = fbp_time_counter();
-    while (c.frequency > FREQ_MAX) {
+    self->mutex = fbp_os_mutex_alloc("fbp_ts");
+    uint32_t frequency = fbp_time_counter_frequency();
+    while (frequency > FREQ_MAX) {
         ++self->counter_right_shift;
-        c.frequency >>= 1;
+        frequency >>= 1;
     }
-    self->counter_period_12q52 = (((uint64_t) 1) << 52) / c.frequency;
+    self->counter_period_12q52 = (((uint64_t) 1) << 52) / frequency;
 
     if (!primary_instance_) {
         primary_instance_ = self;
