@@ -1051,6 +1051,7 @@ static uint8_t publish(struct topic_s * topic, struct message_s * msg) {
 
 static void publish_normal(struct fbp_pubsub_s * self, struct message_s * msg) {
     uint8_t status = 0;
+    bool do_publish = true;
     struct topic_s * t = topic_find(self, msg->name, true);
     if (t) {
         if (t->meta) {  // validate values using metadata
@@ -1058,16 +1059,22 @@ static void publish_normal(struct fbp_pubsub_s * self, struct message_s * msg) {
                 status = FBP_ERROR_PARAMETER_INVALID;
             }
         }
-        if (!status && !fbp_union_eq(&t->value, &msg->value)) {
+        if (!status) {
             if (msg->value.flags & FBP_UNION_FLAG_RETAIN) {
-                if (fbp_union_is_type_ptr(&msg->value) && (0 == (msg->value.flags & FBP_UNION_FLAG_CONST))) {
-                    FBP_LOGW("%s retain ptr but not const", msg->name);
+                if (fbp_union_eq(&t->value, &msg->value)) {
+                    do_publish = false;
+                } else {
+                    if (fbp_union_is_type_ptr(&msg->value) && (0 == (msg->value.flags & FBP_UNION_FLAG_CONST))) {
+                        FBP_LOGW("%s retain ptr but not const", msg->name);
+                    }
+                    t->value = msg->value;
                 }
-                t->value = msg->value;
             } else {
                 t->value = fbp_union_null();
             }
-            status = publish(t, msg);
+            if (do_publish) {
+                status = publish(t, msg);
+            }
         }
     }
 

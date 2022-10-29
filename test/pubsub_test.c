@@ -322,7 +322,7 @@ static void test_u32(void ** state) {
     fbp_pubsub_finalize(ps);
 }
 
-static void test_u32_dedup(void ** state) {
+static void test_u32_retain_dedup(void ** state) {
     (void) state;
     struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
     assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
@@ -337,6 +337,22 @@ static void test_u32_dedup(void ** state) {
     // Publish different value
     expect_pub_u32("s/hello/u32", 99);
     assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32_r(99), NULL, NULL));
+
+    fbp_pubsub_finalize(ps);
+}
+
+static void test_u32_unretained(void ** state) {
+    (void) state;
+    struct fbp_pubsub_s * ps = fbp_pubsub_initialize("s", 0);
+    assert_int_equal(0, fbp_pubsub_subscribe(ps, "s", FBP_PUBSUB_SFLAG_PUB, on_pub, NULL));
+
+    // Publish retained value
+    expect_pub_u32("s/hello/u32", 0);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32(0), NULL, NULL));
+
+    // Publish same retained value
+    expect_pub_u32("s/hello/u32", 0);
+    assert_int_equal(0, fbp_pubsub_publish(ps, "s/hello/u32", &fbp_union_u32(0), NULL, NULL));
 
     fbp_pubsub_finalize(ps);
 }
@@ -685,7 +701,8 @@ int main(void) {
             cmocka_unit_test_setup_teardown(test_integers, setup, teardown),
             cmocka_unit_test_setup_teardown(test_float, setup, teardown),
             cmocka_unit_test_setup_teardown(test_u32, setup, teardown),
-            cmocka_unit_test_setup_teardown(test_u32_dedup, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_u32_retain_dedup, setup, teardown),
+            cmocka_unit_test_setup_teardown(test_u32_unretained, setup, teardown),
             cmocka_unit_test_setup_teardown(test_subscribe_first, setup, teardown),
             cmocka_unit_test_setup_teardown(test_on_publish_cbk, setup, teardown),
             cmocka_unit_test_setup_teardown(test_retained_value_query_fn, setup, teardown),
