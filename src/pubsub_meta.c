@@ -41,6 +41,7 @@ const struct dtype_map_s dtype_map[] = {
 
 
 int32_t fbp_pubsub_meta_syntax_check(const char * meta) {
+    (void) meta;
     // todo
     return 0;
 }

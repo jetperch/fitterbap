@@ -475,6 +475,7 @@ static void teardown_dual(struct fbp_transport_s * self) {
 
 static uint8_t on_publish_u32(void * user_data, const char * topic, const struct fbp_union_s * value) {
     struct fbp_transport_s * self = (struct fbp_transport_s *) user_data;
+    (void) self;
     check_expected_ptr(topic);
     assert_int_equal(FBP_UNION_U32, value->type);
     uint32_t state = value->value.u32;

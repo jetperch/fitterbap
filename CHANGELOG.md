@@ -4,6 +4,15 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.5.1
+
+2023 Apr 24
+
+* Removed PRIi64 which is not supported on aarch32 platforms.
+* Fixed unused parameter warnings -> errors.
+* Fixed outdated time test year.
+
+
 ## 0.5.0
 
 2022 Oct 29

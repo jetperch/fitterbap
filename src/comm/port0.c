@@ -348,7 +348,7 @@ static void op_echo_rsp(struct fbp_port0_s * self, uint8_t *msg, uint32_t msg_si
         int64_t frame_id;
         memcpy(&frame_id, msg, sizeof(frame_id));
         if (frame_id != self->echo_rx_frame_id) {
-            FBP_LOGW("echo frame_id mismatch: %" PRIi64 " != %" PRIi64, frame_id, self->echo_rx_frame_id);
+            FBP_LOGW("echo frame_id mismatch: %lld != %lld", frame_id, self->echo_rx_frame_id);
         }
         self->echo_rx_frame_id = frame_id + 1;
     }

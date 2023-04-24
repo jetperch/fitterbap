@@ -209,7 +209,7 @@ static void test_value_to_str(void ** state) {
     assert_str("u32.R  1", &fbp_union_u32_r(1), 1);
     assert_str("str.RC hello", &fbp_union_cstr_r("hello"), 1);
     assert_str("jsn.C  hello", &fbp_union_cjson("hello"), 1);
-    assert_str("bin.C  size=4", &fbp_union_cbin("one", 4), 1);
+    assert_str("bin.C  size=4", &fbp_union_cbin((const uint8_t *) "one", 4), 1);
 }
 
 int main(void) {
