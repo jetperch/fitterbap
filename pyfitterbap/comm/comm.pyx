@@ -185,30 +185,30 @@ cdef class Comm:
         fbp_comm_log_recv_register(self._comm, Comm._on_logp_recv, <void *> self)
 
     @staticmethod
-    cdef uint8_t _subscriber_cbk(void * user_data, const char * topic, const fbp_union_s * value) with gil:
+    cdef uint8_t _subscriber_cbk(void * user_data, const char * topic, const fbp_union_s * value) noexcept with gil:
         cdef Comm self = <object> user_data
-        v, retain = _value_unpack(value)
-        topic_str = topic.decode('utf-8')
         try:
+            v, retain = _value_unpack(value)
+            topic_str = topic.decode('utf-8')
             self._subscriber(topic_str, v, retain, self.publish)
         except Exception:
             log.exception(f'_subscriber_cbk({topic})')
 
     @staticmethod
     cdef int32_t _on_logp_recv(void * user_data, const fbp_logh_header_s * header,
-            const char * filename, const char * message) with gil:
+            const char * filename, const char * message) noexcept with gil:
         cdef Comm self = <object> user_data
-        msg = {
-            'timestamp': (header[0].timestamp / FBP_TIME_SECOND) + FBP_TIME_EPOCH_UNIX_OFFSET_SECONDS,
-            'level': header[0].level,
-            'device': self._device,
-            'origin_prefix': header[0].origin_prefix,
-            'origin_thread': header[0].origin_thread,
-            'filename': filename.decode('utf-8'),
-            'line': header[0].line,
-            'message': message.decode('utf-8'),
-        }
         try:
+            msg = {
+                'timestamp': (header[0].timestamp / FBP_TIME_SECOND) + FBP_TIME_EPOCH_UNIX_OFFSET_SECONDS,
+                'level': header[0].level,
+                'device': self._device,
+                'origin_prefix': header[0].origin_prefix,
+                'origin_thread': header[0].origin_thread,
+                'filename': filename.decode('utf-8'),
+                'line': header[0].line,
+                'message': message.decode('utf-8'),
+            }
             self._subscriber(LOG_TOPIC, msg, 0, self.publish)
         except Exception:
             log.exception(f'_subscriber_cbk({LOG_TOPIC})')

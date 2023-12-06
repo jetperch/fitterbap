@@ -19,6 +19,7 @@ Fitterbap initialization for a python module.
 
 from libc.stdint cimport intptr_t
 from libc.stdlib cimport malloc, free
+import sys
 import logging
 log = logging.getLogger(__name__)
 
@@ -52,17 +53,25 @@ cdef extern from "fitterbap/platform_dependencies.h":
     void fbp_fatal(const char * file, int line, const char * msg) nogil
 
 # https://cython.readthedocs.io/en/latest/src/userguide/external_C_code.html#acquiring-and-releasing-the-gil
-cdef void _log_print(const char * s) with gil:
-    msg = s.decode('utf-8')
-    lvl = LOG_LEVEL_MAP[msg[0]]
-    msg = msg[2:]
-    if log.isEnabledFor(lvl):
-        src_file, src_line, msg = msg.split(':', 2)
-        msg = msg.strip()
-        if src_file.startswith('src/'):
-            src_file = src_file[4:]
-        record = log.makeRecord(src_file, lvl, src_file, int(src_line), msg, [], None, None, None, None)
-        log.handle(record)
+cdef void _log_print(const char * s) noexcept with gil:
+    try:
+        msg = s.decode('utf-8')
+    except Exception:
+        log.warning("_log_print but not utf-8")
+        return
+
+    try:
+        lvl = LOG_LEVEL_MAP[msg[0]]
+        msg = msg[2:]
+        if log.isEnabledFor(lvl):
+            src_file, src_line, msg = msg.split(':', 2)
+            msg = msg.strip()
+            if src_file.startswith('src/'):
+                src_file = src_file[4:]
+            record = log.makeRecord(src_file, lvl, src_file, int(src_line), msg, [], None, None, None, None)
+            log.handle(record)
+    except Exception:
+        log.exception(f'_log_print(msg)')
 
 cdef extern void fbp_log_printf_(const char *fmt, ...) nogil:
     cdef va_list args
@@ -73,10 +82,15 @@ cdef extern void fbp_log_printf_(const char *fmt, ...) nogil:
     _log_print(s)
 
 
-cdef void _fbp_fatal(const char * file, int line, const char * msg) with gil:
+cdef void _fbp_fatal(const char * file, int line, const char * msg) noexcept with gil:
     # since called from within C code, this exception will be ignored.
     # Consider a better error handler method.
-    raise RuntimeError(f'fbp_fatal({file}, {line}, {msg}')
+    try:
+        sys.stderr.write(f'fbp_fatal({file}, {line}, {msg}\n')
+        sys.exit(-1)
+    except Exception:
+        print('_fbp_fatal failed')
 
-cdef void fbp_fatal(const char * file, int line, const char * msg) nogil:
+
+cdef void fbp_fatal(const char * file, int line, const char * msg) noexcept nogil:
     _fbp_fatal(file, line, msg)
