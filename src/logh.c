@@ -50,7 +50,7 @@ struct fbp_logh_s {
     struct fbp_list_s msg_pend;
     struct msg_s * msg_alloc_ptr;
     fbp_os_mutex_t mutex;
-    int64_t (*time_fn)();
+    int64_t (*time_fn)(void);
 };
 
 static struct fbp_logh_s * singleton_ = NULL;
@@ -235,7 +235,7 @@ int32_t fbp_logh_process(struct fbp_logh_s * self) {
     return 0;
 }
 
-struct fbp_logh_s * fbp_logh_initialize(char origin_prefix, uint32_t msg_buffers_max, int64_t (*time_fn)()) {
+struct fbp_logh_s * fbp_logh_initialize(char origin_prefix, uint32_t msg_buffers_max, int64_t (*time_fn)(void)) {
     struct fbp_logh_s * self = fbp_alloc_clr(sizeof(struct fbp_logh_s));
     self->mutex = fbp_os_mutex_alloc("fbp_logh");
     self->origin_prefix = origin_prefix;

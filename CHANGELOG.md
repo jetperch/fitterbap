@@ -4,6 +4,13 @@
 This file contains the list of changes made to the Fitterbap library.
 
 
+## 0.5.2
+
+2023 Dec 6
+
+* Improved data_link logging.
+
+
 ## 0.5.1
 
 2023 Apr 24

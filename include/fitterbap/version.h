@@ -38,7 +38,7 @@
 // Use version_update.py to update.
 #define FBP_VERSION_MAJOR 0
 #define FBP_VERSION_MINOR 5
-#define FBP_VERSION_PATCH 1
+#define FBP_VERSION_PATCH 2
 
 /**
  * \brief The maximum version string length.

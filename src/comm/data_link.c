@@ -282,35 +282,39 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
         on_recv_msg_done(self, metadata, msg, msg_size);
         self->rx_frame_next_id = (self->rx_frame_next_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
         if (self->rx_frame_max_id == frame_id) {
-            FBP_LOGD2("on_recv_data(%d), ACK_ALL", (int) frame_id);
+            FBP_LOGD3("on_recv_data(%d), ACK_ALL", (int) frame_id);
             self->rx_frame_max_id = self->rx_frame_next_id;
             send_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
         } else {
+            int ack_count = 0;
             while (1) {
                 this_idx = self->rx_frame_next_id & (self->rx_frame_count - 1U);
                 struct rx_frame_s * f = &self->rx_frames[this_idx];
                 if (f->state != RX_FRAME_ST_ACK) {
                     break;
                 }
-                FBP_LOGD2("on_recv_data(%d), catch up", (int) self->rx_frame_next_id);
+                ++ack_count;
                 f->state = RX_FRAME_ST_IDLE;
                 on_recv_msg_done(self, f->metadata, f->msg, 1 + (uint16_t) f->msg_size);
                 self->rx_frame_next_id = (self->rx_frame_next_id + 1) & FBP_FRAMER_FRAME_ID_MAX;
             }
             frame_id = (self->rx_frame_next_id - 1U) & FBP_FRAMER_FRAME_ID_MAX;
+            if (ack_count) {
+                FBP_LOGD2("on_recv_data(%d), catch up %d", (int) frame_id, ack_count);
+            }
             send_link(self, FBP_FRAMER_FT_ACK_ALL, frame_id);
         }
     } else if (fbp_dl_frame_id_subtract(frame_id, self->rx_frame_next_id) < 0) {
         // we already have this frame.
         // ack all with most recent successfully received frame_id
-        FBP_LOGD3("on_recv_data(%d) old frame next=%d", (int) frame_id, (int) self->rx_frame_next_id);
+        FBP_LOGD2("on_recv_data(%d) old frame next=%d", (int) frame_id, (int) self->rx_frame_next_id);
         send_link(self, FBP_FRAMER_FT_ACK_ALL, (self->rx_frame_next_id - 1) & FBP_FRAMER_FRAME_ID_MAX);
     } else if (fbp_dl_frame_id_subtract(window_end, frame_id) <= 0) {
         FBP_LOGD1("on_recv_data(%d) frame too far into the future: next=%d, end=%d",
                   (int) frame_id, (int) self->rx_frame_next_id, (int) window_end);
         send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, frame_id);
     } else {
-        FBP_LOGD3("on_recv_data(%d) future frame: next=%d, end=%d",
+        FBP_LOGD2("on_recv_data(%d) future frame: next=%d, end=%d",
                   (int) frame_id, (int) self->rx_frame_next_id, (int) window_end);
         // future frame
         if (fbp_dl_frame_id_subtract(frame_id, self->rx_frame_max_id) > 0) {
@@ -325,6 +329,8 @@ static void on_recv_data(void * user_data, uint16_t frame_id, uint16_t metadata,
             }
             uint16_t next_idx = next_frame_id & (self->rx_frame_count - 1U);
             if (self->rx_frames[next_idx].state == RX_FRAME_ST_IDLE) {
+                FBP_LOGD2("on_recv_data(%d) nack missing frame, rx_frame_next=%d",
+                          (int) next_frame_id, (int) self->rx_frame_next_id);
                 self->rx_frames[next_idx].state = RX_FRAME_ST_NACK;
                 // caution: can result in NACK spamming!  reconsider this choice?
                 send_link(self, FBP_FRAMER_FT_NACK_FRAME_ID, next_frame_id);
@@ -466,6 +472,7 @@ static void on_recv_link(void * user_data, enum fbp_framer_type_e frame_type, ui
 static void on_framing_error(void * user_data) {
     struct fbp_dl_s * self = (struct fbp_dl_s *) user_data;
     send_link(self, FBP_FRAMER_FT_NACK_FRAMING_ERROR, self->rx_frame_next_id);
+    FBP_LOGI("on_framing_error(%d)", (int) self->rx_frame_next_id);
 }
 
 void fbp_dl_ll_recv(struct fbp_dl_s * self,
